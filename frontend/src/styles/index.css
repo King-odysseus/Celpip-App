@@ -1,0 +1,246 @@
+@import 'tailwindcss';
+
+/* =============================================================================
+   CELPIP design tokens — adapted from the LifeInTheUk visual language.
+   Midnight navy (#0B0B45) primary + warm bronze (#966238) accent, with
+   light / dark / system themes. Only the design language is reused; no
+   product or domain code is carried over.
+   ============================================================================= */
+@theme {
+  /* ── Brand ── */
+  --color-primary: #0b0b45;
+  --color-primary-hover: #15155c;
+  --color-primary-light: #e2e2f2;
+  --color-accent: #966238;
+  --color-accent-hover: #7d4f2c;
+  --color-accent-soft: #f3e2cc;
+  --color-accent-fill: #966238;
+  --color-accent-fill-hover: #7d4f2c;
+  --color-navy: #0b0b45;
+
+  /* ── Surfaces ── */
+  --color-surface: #ffffff;
+  --color-surface-secondary: #f4f4f8;
+  --color-surface-sunken: #efeff2;
+
+  /* ── Text ── */
+  --color-text-primary: #1f2937;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #5d6472;
+  --color-text-inverse: #ffffff;
+  --color-text-on-primary: #ffffff;
+
+  /* ── Borders ── */
+  --color-border: #c9cad4;
+  --color-border-light: #dddde5;
+
+  /* ── Semantic ── */
+  --color-success: #16a34a;
+  --color-success-bg: #dcfce7;
+  --color-warning: #f59e0b;
+  --color-warning-bg: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-bg: #fef2f2;
+  --color-info: #1d4ed8;
+  --color-info-bg: #dbeafe;
+
+  /* ── Radii / shadows ── */
+  --radius-card: 1rem;
+  --radius-btn: 9999px;
+  --radius-input: 0.75rem;
+  --shadow-card: 0 1px 2px rgb(38 34 98 / 0.04), 0 4px 16px -4px rgb(38 34 98 / 0.06);
+  --shadow-card-hover: 0 8px 30px -6px rgb(38 34 98 / 0.12), 0 4px 12px -6px rgb(38 34 98 / 0.06);
+  --shadow-elevated: 0 12px 40px -12px rgb(38 34 98 / 0.16);
+  --shadow-button:
+    5px 5px 12px rgb(11 11 69 / 0.16),
+    -4px -4px 10px rgb(255 255 255 / 0.92),
+    inset 0 1px 0 rgb(255 255 255 / 0.28);
+  --shadow-button-hover:
+    7px 7px 16px rgb(11 11 69 / 0.2),
+    -5px -5px 12px rgb(255 255 255 / 0.96),
+    inset 0 1px 0 rgb(255 255 255 / 0.34);
+  --shadow-button-pressed:
+    inset 3px 3px 7px rgb(11 11 69 / 0.24),
+    inset -2px -2px 5px rgb(255 255 255 / 0.32);
+
+  /* ── Typography ── */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'Cascadia Code', monospace;
+
+  /* ── Legacy-style aliases (short names used throughout components) ── */
+  --color-ink: var(--color-text-primary);
+  --color-muted: var(--color-text-muted);
+  --color-line: var(--color-border);
+  --color-canvas: var(--color-surface-secondary);
+  --color-brand: var(--color-primary);
+  --color-brand-soft: var(--color-primary-light);
+  --color-good: var(--color-success);
+  --color-good-soft: var(--color-success-bg);
+  --color-bad: var(--color-danger);
+  --color-bad-soft: var(--color-danger-bg);
+  --color-warn: var(--color-warning);
+  --color-warn-soft: var(--color-warning-bg);
+
+  /* ── Motion ── */
+  --animate-fade-in: fade-in 0.4s ease-out both;
+  --animate-fade-up: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-scale-in: scale-in 0.25s ease-out both;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scale-in {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
+
+/* Explicit choice wins; otherwise follow the system setting. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --color-primary: #6e6eda;
+    --color-primary-hover: #5d5dcb;
+    --color-primary-light: #20204a;
+    --color-text-on-primary: #ffffff;
+    --color-navy: #ececf7;
+    --color-surface: #15153a;
+    --color-surface-secondary: #0c0c28;
+    --color-surface-sunken: #08081e;
+    --color-text-primary: #ececf7;
+    --color-text-secondary: #c2c2dc;
+    --color-text-muted: #8c8cae;
+    --color-border: #2a2a5c;
+    --color-border-light: #20204a;
+    --color-success-bg: #14331f;
+    --color-warning-bg: #3a2e10;
+    --color-danger-bg: #3a1a1a;
+    --color-info-bg: #182447;
+    --color-accent-soft: #3a2f1e;
+    --color-accent: #d7b78d;
+    --color-accent-hover: #e2c7a4;
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px -4px rgb(0 0 0 / 0.45);
+    --shadow-card-hover: 0 8px 30px -6px rgb(0 0 0 / 0.55);
+    --shadow-elevated: 0 12px 40px -12px rgb(0 0 0 / 0.6);
+    --shadow-button:
+      5px 5px 12px rgb(0 0 0 / 0.52),
+      -3px -3px 9px rgb(110 110 218 / 0.12),
+      inset 0 1px 0 rgb(255 255 255 / 0.08);
+    --shadow-button-hover:
+      7px 7px 16px rgb(0 0 0 / 0.62),
+      -4px -4px 11px rgb(110 110 218 / 0.16),
+      inset 0 1px 0 rgb(255 255 255 / 0.1);
+    --shadow-button-pressed:
+      inset 3px 3px 8px rgb(0 0 0 / 0.62),
+      inset -2px -2px 5px rgb(110 110 218 / 0.12);
+  }
+}
+
+:root[data-theme='dark'] {
+  --color-primary: #6e6eda;
+  --color-primary-hover: #5d5dcb;
+  --color-primary-light: #20204a;
+  --color-text-on-primary: #ffffff;
+  --color-navy: #ececf7;
+  --color-surface: #15153a;
+  --color-surface-secondary: #0c0c28;
+  --color-surface-sunken: #08081e;
+  --color-text-primary: #ececf7;
+  --color-text-secondary: #c2c2dc;
+  --color-text-muted: #8c8cae;
+  --color-border: #2a2a5c;
+  --color-border-light: #20204a;
+  --color-success-bg: #14331f;
+  --color-warning-bg: #3a2e10;
+  --color-danger-bg: #3a1a1a;
+  --color-info-bg: #182447;
+  --color-accent-soft: #3a2f1e;
+  --color-accent: #d7b78d;
+  --color-accent-hover: #e2c7a4;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px -4px rgb(0 0 0 / 0.45);
+  --shadow-card-hover: 0 8px 30px -6px rgb(0 0 0 / 0.55);
+  --shadow-elevated: 0 12px 40px -12px rgb(0 0 0 / 0.6);
+  --shadow-button:
+    5px 5px 12px rgb(0 0 0 / 0.52),
+    -3px -3px 9px rgb(110 110 218 / 0.12),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-button-hover:
+    7px 7px 16px rgb(0 0 0 / 0.62),
+    -4px -4px 11px rgb(110 110 218 / 0.16),
+    inset 0 1px 0 rgb(255 255 255 / 0.1);
+  --shadow-button-pressed:
+    inset 3px 3px 8px rgb(0 0 0 / 0.62),
+    inset -2px -2px 5px rgb(110 110 218 / 0.12);
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  font-family: var(--font-sans);
+}
+
+/* Monospaced numerals for timers and scores. */
+.tabular-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Raised controls with a tactile inset press, tuned separately per theme. */
+.button-neomorphic {
+  box-shadow: var(--shadow-button);
+  transform: translateY(0);
+  will-change: transform, box-shadow;
+}
+
+.button-neomorphic:hover:not(:disabled) {
+  box-shadow: var(--shadow-button-hover);
+  transform: translateY(-1px);
+}
+
+.button-neomorphic:active:not(:disabled) {
+  box-shadow: var(--shadow-button-pressed);
+  transform: translateY(1px) scale(0.98);
+}
+
+.button-neomorphic:disabled {
+  box-shadow: none;
+  transform: none;
+}
+
+/* Respect the OS reduced-motion setting for every transition and animation. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@utility card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  max-width: 100%;
+}
+
+@utility eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}

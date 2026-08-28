@@ -1,0 +1,48 @@
+# ── Python / Django ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.Python
+pip-wheel-metadata/
+
+# Local database and Django artifacts
+*.sqlite3
+*.sqlite3-journal
+/backend/db.sqlite3
+/backend/staticfiles/
+/backend/media/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Node / frontend ──────────────────────────────────────────────────────
+node_modules/
+/frontend/dist/
+/frontend/coverage/
+.vite/
+*.local
+*.tsbuildinfo
+
+# ── Environment / secrets ────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Editors / OS ─────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
