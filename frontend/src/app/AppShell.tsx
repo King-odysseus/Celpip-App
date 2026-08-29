@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { GraduationCap, LogIn, MoreHorizontal, UserRound, X } from 'lucide-react'
 import {
   mobileOverflowNav,
@@ -151,6 +151,7 @@ function MoreSheet({
 
 export function AppShell() {
   const location = useLocation()
+  const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
   const moreTriggerRef = useRef<HTMLButtonElement>(null)
 
@@ -162,6 +163,32 @@ export function AppShell() {
   const moreActive = mobileOverflowNav.some(
     (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`),
   )
+
+  // One-shot confirmation notices (e.g. after account deletion) are carried in
+  // the route state so a public destination can announce them for assistive
+  // tech. They are consumed exactly once: capture the text for display, then
+  // clear the state from the history entry so a later revisit of that entry
+  // (back/forward/refresh) cannot re-announce a stale notice.
+  const [notice, setNotice] = useState<{ path: string; text: string } | null>(null)
+
+  useEffect(() => {
+    const incoming = (location.state as { notice?: string } | null)?.notice
+    if (!incoming) return
+    setNotice({ path: location.pathname, text: incoming })
+    navigate(location.pathname + location.search, {
+      replace: true,
+      state: null,
+    })
+  }, [location, navigate])
+
+  useEffect(() => {
+    if (notice && location.pathname !== notice.path) {
+      setNotice(null)
+    }
+  }, [location.pathname, notice])
+
+  const visibleNotice =
+    notice && notice.path === location.pathname ? notice.text : null
 
   return (
     <div className="min-h-dvh">
@@ -213,6 +240,14 @@ export function AppShell() {
         id="main-content"
         className="w-full px-4 pt-5 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8 lg:pb-8"
       >
+        {visibleNotice && (
+          <div
+            role="status"
+            className="mx-auto mb-5 max-w-5xl rounded-xl border border-good/40 bg-good-soft px-4 py-3 text-sm text-good"
+          >
+            {visibleNotice}
+          </div>
+        )}
         <div key={location.pathname} className="mx-auto max-w-5xl animate-fade-up">
           <Outlet />
         </div>

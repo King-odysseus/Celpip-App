@@ -57,6 +57,36 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class AccountDeleteSerializer(serializers.Serializer):
+    """Confirmation for self-service deletion.
+
+    Exactly one of the two loose-model credentials is required: the account
+    password, or the still-unused one-time recovery code. Neither is returned
+    or stored; the service verifies them and answers generically.
+    """
+
+    password = serializers.CharField(
+        max_length=128,
+        style={"input_type": "password"},
+        trim_whitespace=False,
+        required=False,
+        allow_blank=True,
+    )
+    recovery_code = serializers.CharField(
+        max_length=128,
+        trim_whitespace=True,
+        required=False,
+        allow_blank=True,
+    )
+
+    def validate(self, attrs: dict) -> dict:
+        if not (attrs.get("password") or attrs.get("recovery_code")):
+            raise serializers.ValidationError(
+                "Provide your password or recovery code to delete the account."
+            )
+        return attrs
+
+
 def _validate_weekdays(value: list[int]) -> list[int]:
     if not isinstance(value, list):
         raise serializers.ValidationError("Expected a list of ISO weekday numbers.")

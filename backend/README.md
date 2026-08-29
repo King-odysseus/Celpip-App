@@ -5,7 +5,9 @@ Django + DRF backend for the CELPIP-General practice platform. See the root
 [`docs/CELPIP_PLATFORM_PLAN.md`](../docs/CELPIP_PLATFORM_PLAN.md).
 
 Configured entirely through environment variables (see `../.env.example`).
-Without `DATABASE_URL` it falls back to a local SQLite database.
+Without `DATABASE_URL` it falls back to a local SQLite database for development
+and tests; production (`config.settings.prod`) refuses to start without a real
+`DATABASE_URL`.
 
 ## API surface (Phase 1)
 
@@ -20,6 +22,10 @@ Without `DATABASE_URL` it falls back to a local SQLite database.
   code; returns a fresh code.
 - `GET  /api/v1/me/` · `GET/PATCH /api/v1/me/profile/` — current user and
   learner profile.
+- `GET  /api/v1/me/export/` — privacy-safe account data export (no hashes,
+  tokens, answer keys, other users, or private audio).
+- `DELETE /api/v1/me/` — delete the account after a password or recovery-code
+  confirmation; cascades owned data and private recordings.
 
 Views stay thin: request/response shaping lives in
 `apps/accounts/{serializers,views}.py`, and all state changes live in

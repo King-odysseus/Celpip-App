@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { Button, Card, CardTitle } from '../../components/ui'
 import { useAuth } from './AuthProvider'
+import { DataExport } from './DataExport'
+import { DeleteAccount } from './DeleteAccount'
 import { ProfileForm } from './ProfileForm'
 
 export function AccountPage() {
@@ -53,6 +55,10 @@ export function AccountPage() {
           </p>
         )}
       </Card>
+
+      <DataExport />
+
+      <DeleteAccount />
     </section>
   )
 }

@@ -2,6 +2,7 @@
 from django.urls import path
 
 from .views import (
+    AccountExportView,
     CsrfView,
     LoginView,
     LogoutView,
@@ -26,5 +27,6 @@ urlpatterns = [
         name="recovery-reset",
     ),
     path("me/", MeView.as_view(), name="me"),
+    path("me/export/", AccountExportView.as_view(), name="export"),
     path("me/profile/", ProfileView.as_view(), name="profile"),
 ]

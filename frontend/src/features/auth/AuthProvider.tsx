@@ -27,6 +27,8 @@ type AuthContextValue = {
   register: (identifier: string, password: string) => Promise<RegisterResult>
   login: (identifier: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  /** Drop the in-memory session without calling the API (used after deletion). */
+  clearSession: () => void
   updateProfile: (changes: ProfileUpdate) => Promise<LearnerProfile>
   refreshProfile: () => Promise<void>
 }
@@ -135,6 +137,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  const clearSession = useCallback((): void => {
+    setAccessToken(null)
+    setUser(null)
+    setProfile(null)
+    setStatus('anonymous')
+  }, [])
+
   const updateProfile = useCallback(
     async (changes: ProfileUpdate): Promise<LearnerProfile> => {
       const updated = await api.patch<LearnerProfile>('/me/profile/', changes)
@@ -152,10 +161,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       login,
       logout,
+      clearSession,
       updateProfile,
       refreshProfile: loadProfile,
     }),
-    [status, user, profile, register, login, logout, updateProfile, loadProfile],
+    [status, user, profile, register, login, logout, clearSession, updateProfile, loadProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

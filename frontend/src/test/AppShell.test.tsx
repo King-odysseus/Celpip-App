@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from './renderApp'
 import { installRouteFetch, jsonResponse } from './mockFetch'
@@ -104,6 +104,46 @@ describe('routing', () => {
     expect(
       screen.getByRole('heading', { level: 1, name: /page not found/i }),
     ).toBeInTheDocument()
+  })
+})
+
+describe('route-state notice', () => {
+  it('announces once and clears the notice from history state', async () => {
+    const { router } = renderApp('/', {
+      state: { notice: 'Your account has been deleted.' },
+    })
+
+    // Announced once on arrival.
+    expect(
+      await screen.findByText(/your account has been deleted/i),
+    ).toBeInTheDocument()
+
+    // Consumed: the notice is removed from the history entry's state.
+    await waitFor(() => {
+      const state = router.state.location.state as { notice?: string } | null
+      expect(state?.notice).toBeUndefined()
+    })
+
+    // A same-history revisit (away and back) must not re-announce it.
+    await act(async () => {
+      await router.navigate('/learn')
+    })
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Reading Learn' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/your account has been deleted/i),
+    ).not.toBeInTheDocument()
+
+    await act(async () => {
+      await router.navigate(-1)
+    })
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Dashboard' }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(/your account has been deleted/i),
+    ).not.toBeInTheDocument()
   })
 })
 

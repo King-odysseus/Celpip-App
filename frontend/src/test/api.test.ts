@@ -32,6 +32,37 @@ describe('api client', () => {
     expect(headers['X-CSRFToken']).toBe('csrf-xyz')
   })
 
+  it('serializes an optional DELETE body and sends the CSRF header', async () => {
+    document.cookie = 'csrftoken=csrf-xyz'
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(null, { status: 204 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.del('/me/', { password: 'secret1' })
+
+    const lastCall = fetchMock.mock.calls.at(-1)!
+    const init = lastCall[1] as RequestInit
+    expect(init.method).toBe('DELETE')
+    expect(init.body).toBe(JSON.stringify({ password: 'secret1' }))
+    const headers = init.headers as Record<string, string>
+    expect(headers['Content-Type']).toBe('application/json')
+    expect(headers['X-CSRFToken']).toBe('csrf-xyz')
+  })
+
+  it('still calls DELETE without a body for existing callers', async () => {
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      new Response(null, { status: 204 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.del('/some/resource/')
+
+    const init = fetchMock.mock.calls.at(-1)![1] as RequestInit
+    expect(init.method).toBe('DELETE')
+    expect(init.body).toBeUndefined()
+  })
+
   it('refreshes once and retries after a 401', async () => {
     const fetchMock = vi
       .fn()

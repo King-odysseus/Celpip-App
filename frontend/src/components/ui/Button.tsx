@@ -1,6 +1,7 @@
 import {
   type ButtonHTMLAttributes,
   type ReactNode,
+  type Ref,
 } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -24,9 +25,19 @@ const base =
 export function Button({
   variant = 'primary',
   className = '',
+  ref,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
-  return <button className={`${base} ${variants[variant]} ${className}`} {...props} />
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: ButtonVariant
+  ref?: Ref<HTMLButtonElement>
+}) {
+  return (
+    <button
+      ref={ref}
+      className={`${base} ${variants[variant]} ${className}`}
+      {...props}
+    />
+  )
 }
 
 export function ButtonLink({

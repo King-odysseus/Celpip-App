@@ -15,7 +15,9 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 
 from . import services, tokens
+from .export import build_export
 from .serializers import (
+    AccountDeleteSerializer,
     LearnerProfileSerializer,
     LoginSerializer,
     RecoveryResetSerializer,
@@ -195,6 +197,34 @@ class MeView(APIView):
 
     def get(self, request: Request) -> Response:
         return Response(UserSerializer(request.user).data)
+
+    def delete(self, request: Request) -> Response:
+        serializer = AccountDeleteSerializer(data=request.data)
+        if not serializer.is_valid():
+            return _validation_error(serializer.errors)
+        data = serializer.validated_data
+        try:
+            services.delete_account(
+                request.user,
+                password=data.get("password"),
+                recovery_code=data.get("recovery_code"),
+            )
+        except (services.ConfirmationRequired, services.InvalidCredentials) as exc:
+            return error(exc.code, exc.message, status.HTTP_400_BAD_REQUEST)
+        # The account is gone: drop the refresh cookie so the SPA cannot try to
+        # rotate a token for a deleted user.
+        response = Response(status=status.HTTP_204_NO_CONTENT)
+        tokens.clear_refresh_cookie(response)
+        return response
+
+
+class AccountExportView(APIView):
+    """Export the authenticated learner's own data (privacy-safe JSON)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        return Response(build_export(request.user))
 
 
 class ProfileView(APIView):

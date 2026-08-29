@@ -1,6 +1,6 @@
 # CELPIP-General Practice Platform Plan
 
-Status: Phases 1–8 implemented (compact full mock); Phase 9 pending
+Status: Phases 1–9 implemented (production hardening and account privacy UI)
 
 Last verified against official CELPIP sources: 29 August 2026
 
@@ -511,17 +511,17 @@ Tests: full fake-clock mock, refresh/reconnect, timeout, double submit, no early
 
 Exit: a full mock completes reliably and results never reveal corrections before the configured release state.
 
-### Phase 9 — Polish and deployment preparation
+### Phase 9 — Production hardening and account privacy
 
-**Status:** pending.
+**Status:** implemented.
 
-Deliverables: accessibility audit, performance profiling, browser/device matrix, security/privacy review, backup/restore, monitoring, deployment docs, data export/deletion, retention jobs, content accuracy revalidation.
+Deliverables: privacy-safe account export (`GET /api/v1/me/export/`), self-service account deletion (`DELETE /api/v1/me/`) with password or recovery-code confirmation and owned-data cascade, account privacy UI (Download my data plus a gated danger zone), a dry-run retention command, request/correlation IDs with structured logging, and enforced production settings (TLS/HSTS and security headers).
 
-Learning: production settings, static/media delivery, observability, incident/backup thinking.
+Learning: production settings, data-export/deletion boundaries, retention, observability, incident/backup thinking.
 
-Tests: full regression/E2E, load targets, dependency/security scans, restore drill, accessibility review, revalidation checklist.
+Tests: export never leaks hashes, tokens, answer keys, other users, or private audio; deletion confirms and cascades; retention is dry-run by default; production settings fail fast on missing secrets; structured logs exclude response bodies and audio; account privacy UI smoke and accessibility checks.
 
-Exit: beta release checklist passes with no critical accessibility/security issues and with documented recovery/rollback.
+Exit: the beta release checklist passes with no critical accessibility/security issues, documented recovery/rollback, and a self-service account privacy path in the frontend.
 
 ## 16. Architecture decisions and risks
 

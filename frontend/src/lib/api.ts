@@ -181,5 +181,7 @@ export const api = {
     request<T>(path, { method: 'PUT', body, headers }),
   getBlob: (path: string, headers?: Record<string, string>) => requestBlob(path, headers),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
-  del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  // DELETE accepts an optional JSON body (e.g. account-deletion confirmation)
+  // while remaining backwards-compatible with the common no-body call sites.
+  del: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
 }

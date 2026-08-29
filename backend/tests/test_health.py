@@ -25,3 +25,11 @@ def test_health_does_not_require_auth(api_client):
     # Phase 1A has no auth; the probe must be publicly reachable.
     response = api_client.get("/api/v1/health/")
     assert response.status_code == 200
+
+
+def test_response_sets_x_frame_options_deny(api_client):
+    # X_FRAME_OPTIONS="DENY" is only effective when XFrameOptionsMiddleware is
+    # installed; verify a normal API response actually carries the header.
+    response = api_client.get("/api/v1/health/")
+    assert response.status_code == 200
+    assert response["X-Frame-Options"] == "DENY"

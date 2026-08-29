@@ -72,6 +72,8 @@ AUTH_USER_MODEL = "accounts.User"
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.core.middleware.RequestCorrelationMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -199,6 +201,67 @@ CORS_ALLOWED_ORIGINS = env_list(
 )
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = (*default_headers, "idempotency-key", "x-guest-token")
+
+# ── Security headers ────────────────────────────────────────────────────────
+# Applied by SecurityMiddleware. These defaults are safe in every environment;
+# the production module additionally enables TLS/HSTS. Deny framing outright,
+# and keep the referrer policy conservative. None of these affect the SPA's
+# same-origin (or proxied) dev flow.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+
+# ── Request / correlation IDs ────────────────────────────────────────────────
+# Header names surfaced on responses and read from inbound requests. Logging is
+# tagged with these IDs (see apps.core.logging) but never with bodies/audio.
+REQUEST_ID_HEADER = os.environ.get("REQUEST_ID_HEADER", "X-Request-ID")
+CORRELATION_ID_HEADER = os.environ.get("CORRELATION_ID_HEADER", "X-Correlation-ID")
+
+# ── Structured logging ───────────────────────────────────────────────────────
+LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+LOG_FORMAT = os.environ.get("LOG_FORMAT", "plain").strip().lower()
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "correlation": {"()": "apps.core.logging.CorrelationFilter"},
+    },
+    "formatters": {
+        "plain": {
+            "format": (
+                "[{asctime}] {levelname} {name} "
+                "request_id={request_id} correlation_id={correlation_id} "
+                "{message}"
+            ),
+            "style": "{",
+        },
+        "json": {"()": "apps.core.logging.JsonFormatter"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json" if LOG_FORMAT == "json" else "plain",
+            "filters": ["correlation"],
+        },
+    },
+    "root": {"handlers": ["console"], "level": LOG_LEVEL},
+    "loggers": {
+        "django": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+        "django.request": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["console"],
+            "level": LOG_LEVEL,
+            "propagate": False,
+        },
+        "apps": {"handlers": ["console"], "level": LOG_LEVEL, "propagate": False},
+    },
+}
 
 # ── Internationalisation ────────────────────────────────────────────────────
 LANGUAGE_CODE = "en-ca"

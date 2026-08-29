@@ -11,7 +11,7 @@ four-skill **CELPIP-General test used for immigration**.
 This repository is a monorepo. Architecture is governed by
 [`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md).
 
-## Current status — Phase 8 (compact full mock)
+## Current status — Phase 9 (production hardening & account privacy UI)
 
 Phase 1 adds the smallest end-to-end account slice on top of the Phase 1A shell:
 
@@ -111,6 +111,29 @@ Phase 8 adds the compact full mock:
 Current format facts and the implementation interpretation are source-dated in
 [`docs/CONTENT_RESEARCH_LOG.md`](docs/CONTENT_RESEARCH_LOG.md).
 
+Phase 9 hardens the backend for production and adds the account privacy UI:
+
+- **Privacy-safe account export** at `GET /api/v1/me/export/`: profile,
+  attempts, progress, mistakes, study plans, mock summaries, and authored
+  response text/metadata — never hashes, tokens, answer keys, other users, or
+  private audio.
+- **Self-service account deletion** at `DELETE /api/v1/me/` with password or
+  recovery-code confirmation, cascading owned data and private recordings.
+- **Account privacy UI** in the frontend: a "Download my data" action that
+  saves a timestamped UTF-8 JSON export via a Blob/object URL, plus a clearly
+  separated danger zone that gates account deletion behind an explicit
+  confirmation (password or recovery code) and clears the in-memory session
+  before returning to the public dashboard.
+- **Retention command** `python manage.py retention` (dry-run by default;
+  `--execute` deletes) for expired guest sessions/recordings and stale failed
+  AI jobs, with bounded age arguments.
+- **Request/correlation IDs** on every response plus structured logging that
+  never writes response text or audio.
+- **Production settings** (`config.settings.prod`) with enforced secrets,
+  TLS/HSTS, and security headers. See [`docs/PRODUCTION_DEPLOYMENT.md`](docs/PRODUCTION_DEPLOYMENT.md),
+  [`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md), and
+  [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+
 ## Layout
 
 ```text
@@ -191,10 +214,12 @@ split into `config.settings.base` (shared) and `config.settings.dev`
 (local development). `DJANGO_SETTINGS_MODULE` selects the active module and
 defaults to `config.settings.dev`.
 
-- **`DATABASE_URL`** — a database URL (e.g. `postgres://…`). When absent, the
-  backend automatically uses a local SQLite file (`backend/db.sqlite3`), which
-  is also the default for the test suite. PostgreSQL support is configured and
-  ready for later phases.
+- **`DATABASE_URL`** — a database URL. In development, when it is absent, the
+  backend automatically falls back to a local SQLite file
+  (`backend/db.sqlite3`), which is also the default for the test suite.
+  Production (`config.settings.prod`) requires a PostgreSQL `DATABASE_URL`
+  (e.g. `postgres://…`) and refuses to start without it (see
+  `docs/PRODUCTION_DEPLOYMENT.md`).
 - **`SECRET_KEY`** — required in production; a development fallback is used
   when unset in dev.
 - **`DEBUG`, `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`** — see `.env.example`.

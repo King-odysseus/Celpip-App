@@ -47,6 +47,12 @@ class InvalidCredentials(AccountError):
     code = "invalid_credentials"
 
 
+class ConfirmationRequired(AccountError):
+    """Account deletion requires a password or recovery-code confirmation."""
+
+    code = "confirmation_required"
+
+
 @dataclass(frozen=True)
 class RegistrationResult:
     user: User
@@ -179,3 +185,46 @@ def update_profile(profile: LearnerProfile, **fields: object) -> LearnerProfile:
     )
     profile.save()
     return profile
+
+
+def _break_protected_edges(user: User) -> None:
+    """Remove rows whose ``PROTECT`` foreign keys would block the cascade.
+
+    ``MockTask.session`` and ``AIFeedback.job`` use ``on_delete=PROTECT`` so
+    that an accidental single-object delete is refused. During account deletion
+    both sides are intentionally removed, so these referencing rows are cleared
+    first; the audio files and remaining owned rows then cascade normally.
+    """
+    from apps.ai_services.models import AIFeedback
+    from apps.mocks.models import MockTask
+
+    AIFeedback.objects.filter(session_item__session__user=user).delete()
+    MockTask.objects.filter(attempt__user=user).delete()
+
+
+@transaction.atomic
+def delete_account(
+    user: User, *, password: str | None = None, recovery_code: str | None = None
+) -> None:
+    """Delete an account after a password or one-time recovery-code confirmation.
+
+    The confirmation matches the loose account model: a learner who still knows
+    their password, or who holds their unused recovery code, can delete their
+    own account. Failures are generic so this cannot be used to probe which
+    half of the confirmation was wrong.
+    """
+    if not password and not recovery_code:
+        raise ConfirmationRequired("Provide your password or recovery code to continue.")
+
+    confirmed = bool(password and user.check_password(password))
+    if not confirmed and recovery_code:
+        stored = RecoveryCode.objects.filter(user=user).first()
+        confirmed = bool(
+            stored and not stored.is_used and stored.matches(recovery_code)
+        )
+
+    if not confirmed:
+        raise InvalidCredentials("Invalid password or recovery code.")
+
+    _break_protected_edges(user)
+    user.delete()
