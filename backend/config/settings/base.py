@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "apps.core",
     "apps.accounts",
     "apps.content",
+    "apps.assessments",
 ]
 
 # The custom user model must be declared before its first migration runs, and
