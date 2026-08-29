@@ -62,3 +62,11 @@ class WritingCatalogView(ContentCatalogView):
 
 class WritingDetailView(ContentDetailView):
     skill = Skill.WRITING
+
+
+class SpeakingCatalogView(ContentCatalogView):
+    skill = Skill.SPEAKING
+
+
+class SpeakingDetailView(ContentDetailView):
+    skill = Skill.SPEAKING

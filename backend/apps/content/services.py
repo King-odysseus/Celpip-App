@@ -10,6 +10,16 @@ from django.utils import timezone
 from .models import ContentVersion, PublicationStatus, Skill, SourceType
 
 WRITING_TASK_KINDS = {"email", "survey"}
+SPEAKING_TASK_SPECS = {
+    "speaking_advice": ("advice", 30, 90),
+    "speaking_experience": ("experience", 30, 60),
+    "speaking_scene": ("scene", 30, 60),
+    "speaking_predictions": ("predictions", 30, 60),
+    "speaking_compare_persuade": ("compare_persuade", 120, 60),
+    "speaking_difficult_situation": ("difficult_situation", 60, 60),
+    "speaking_opinions": ("opinions", 30, 90),
+    "speaking_unusual": ("unusual", 30, 60),
+}
 
 
 @dataclass(frozen=True)
@@ -36,6 +46,15 @@ def validate_content_version(version: ContentVersion) -> list[ValidationIssue]:
     if version.item.task_type.skill == Skill.WRITING:
         if isinstance(version.stimulus, dict) and version.stimulus:
             issues.extend(_validate_writing_prompt(version.stimulus))
+        return issues
+
+    if version.item.task_type.skill == Skill.SPEAKING:
+        if isinstance(version.stimulus, dict) and version.stimulus:
+            issues.extend(
+                _validate_speaking_prompt(
+                    version.stimulus, task_code=version.item.task_type_id
+                )
+            )
         return issues
 
     questions = list(version.questions.prefetch_related("choices"))
@@ -144,6 +163,106 @@ def _validate_writing_prompt(stimulus: dict) -> list[ValidationIssue]:
                 ValidationIssue(
                     "missing_survey_question",
                     "A survey prompt needs a survey question.",
+                )
+            )
+    return issues
+
+
+def _validate_speaking_prompt(
+    stimulus: dict, *, task_code: str
+) -> list[ValidationIssue]:
+    """Validate original Speaking prompt structure and official task timing."""
+    issues: list[ValidationIssue] = []
+    spec = SPEAKING_TASK_SPECS.get(task_code)
+    if stimulus.get("type") != "speaking_prompt":
+        issues.append(
+            ValidationIssue(
+                "invalid_speaking_stimulus_type",
+                "Speaking content must use a 'speaking_prompt' stimulus.",
+            )
+        )
+    if spec is None:
+        issues.append(
+            ValidationIssue(
+                "invalid_speaking_task_code", "The Speaking task code is not supported."
+            )
+        )
+        return issues
+
+    expected_kind, expected_prep, expected_response = spec
+    if stimulus.get("task_kind") != expected_kind:
+        issues.append(
+            ValidationIssue(
+                "speaking_task_kind_mismatch",
+                "The prompt task kind does not match its task type.",
+            )
+        )
+    for key, code, message in (
+        ("scenario", "missing_speaking_scenario", "A Speaking scenario is required."),
+        ("prompt", "missing_speaking_prompt", "A Speaking prompt is required."),
+    ):
+        if not str(stimulus.get(key, "")).strip():
+            issues.append(ValidationIssue(code, message))
+    if stimulus.get("prep_seconds") != expected_prep:
+        issues.append(
+            ValidationIssue(
+                "invalid_speaking_prep_time",
+                f"{task_code} requires {expected_prep} preparation seconds.",
+            )
+        )
+    if stimulus.get("response_seconds") != expected_response:
+        issues.append(
+            ValidationIssue(
+                "invalid_speaking_response_time",
+                f"{task_code} requires {expected_response} response seconds.",
+            )
+        )
+
+    if expected_kind in {"scene", "predictions", "unusual"} and not str(
+        stimulus.get("image_url", "")
+    ).startswith("/speaking/"):
+        issues.append(
+            ValidationIssue(
+                "missing_speaking_image", "This Speaking task requires a project image."
+            )
+        )
+    if expected_kind == "compare_persuade":
+        stages = stimulus.get("prep_stages")
+        stage_seconds = (
+            [stage.get("seconds") for stage in stages]
+            if isinstance(stages, list) and all(isinstance(stage, dict) for stage in stages)
+            else []
+        )
+        if stage_seconds != [60, 60]:
+            issues.append(
+                ValidationIssue(
+                    "invalid_speaking_prep_stages",
+                    "Comparing and Persuading requires two 60-second preparation stages.",
+                )
+            )
+        options = stimulus.get("initial_options")
+        if not isinstance(options, list) or len(options) != 2:
+            issues.append(
+                ValidationIssue(
+                    "missing_speaking_options",
+                    "Comparing and Persuading requires exactly two initial options.",
+                )
+            )
+        competing = stimulus.get("competing_option")
+        if not isinstance(competing, dict) or not str(competing.get("label", "")).strip():
+            issues.append(
+                ValidationIssue(
+                    "missing_speaking_competing_option",
+                    "Comparing and Persuading requires the other person's option.",
+                )
+            )
+    if expected_kind == "difficult_situation":
+        choices = stimulus.get("choices")
+        if not isinstance(choices, list) or len(choices) != 2:
+            issues.append(
+                ValidationIssue(
+                    "missing_speaking_choices",
+                    "A difficult situation requires two clear choices.",
                 )
             )
     return issues

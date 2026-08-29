@@ -33,6 +33,12 @@ class SubmitWritingSerializer(serializers.Serializer):
     text = serializers.CharField(allow_blank=True, trim_whitespace=False, required=False)
 
 
+class SaveSpeakingSerializer(serializers.Serializer):
+    audio = serializers.FileField(allow_empty_file=False)
+    duration_ms = serializers.IntegerField(min_value=100, max_value=180_000)
+    expected_revision = serializers.IntegerField(min_value=0)
+
+
 def public_snapshot(snapshot: dict, *, include_learning_notes: bool) -> dict:
     result = {
         key: value

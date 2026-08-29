@@ -5,6 +5,8 @@ from .views import (
     ContentDetailView,
     ListeningCatalogView,
     ListeningDetailView,
+    SpeakingCatalogView,
+    SpeakingDetailView,
     TaskTypeListView,
     WritingCatalogView,
     WritingDetailView,
@@ -27,5 +29,11 @@ urlpatterns = [
         "content/writing/<slug:slug>/",
         WritingDetailView.as_view(),
         name="writing-detail",
+    ),
+    path("content/speaking/", SpeakingCatalogView.as_view(), name="speaking-catalog"),
+    path(
+        "content/speaking/<slug:slug>/",
+        SpeakingDetailView.as_view(),
+        name="speaking-detail",
     ),
 ]

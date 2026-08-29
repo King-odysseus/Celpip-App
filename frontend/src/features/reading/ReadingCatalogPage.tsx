@@ -102,6 +102,7 @@ export function ReadingCatalogPage({
           <SkillLink active={skill === 'reading'} to={mode === 'learn' ? '/learn' : '/practice'}>Reading</SkillLink>
           <SkillLink active={skill === 'listening'} to={mode === 'learn' ? '/learn/listening' : '/practice/listening'}>Listening</SkillLink>
           <SkillLink active={false} to={mode === 'learn' ? '/learn/writing' : '/practice/writing'}>Writing</SkillLink>
+          <SkillLink active={false} to={mode === 'learn' ? '/learn/speaking' : '/practice/speaking'}>Speaking</SkillLink>
         </nav>
       </header>
 

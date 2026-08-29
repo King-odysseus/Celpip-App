@@ -10,6 +10,8 @@ from django.db.models import Q
 
 from apps.content.models import Choice, ContentVersion, Question
 
+from .storage import private_recording_storage
+
 
 class SessionMode(models.TextChoices):
     LEARN = "learn", "Learn"
@@ -165,6 +167,53 @@ class WritingSubmission(models.Model):
     def delete(self, *args, **kwargs):
         if self.pk and type(self).objects.filter(pk=self.pk, submitted_at__isnull=False).exists():
             raise ValidationError("A submitted writing response is immutable.")
+        return super().delete(*args, **kwargs)
+
+    @property
+    def is_submitted(self) -> bool:
+        return self.submitted_at is not None
+
+
+def speaking_recording_path(instance, filename: str) -> str:
+    return f"speaking/{instance.session_item.session_id}/{filename}"
+
+
+class SpeakingSubmission(models.Model):
+    """A private browser recording for one frozen Speaking prompt."""
+
+    session_item = models.OneToOneField(
+        SessionItem, on_delete=models.CASCADE, related_name="speaking_submission"
+    )
+    audio = models.FileField(
+        storage=private_recording_storage,
+        upload_to=speaking_recording_path,
+        max_length=240,
+    )
+    mime_type = models.CharField(max_length=40)
+    container = models.CharField(max_length=8)
+    byte_size = models.PositiveIntegerField()
+    duration_ms = models.PositiveIntegerField()
+    revision = models.PositiveIntegerField(default=0)
+    last_idempotency_key = models.UUIDField(null=True, blank=True)
+    last_payload_hash = models.CharField(max_length=64, blank=True)
+    saved_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"Speaking recording for {self.session_item_id}"
+
+    def save(self, *args, **kwargs) -> None:
+        if self.pk and type(self).objects.filter(
+            pk=self.pk, submitted_at__isnull=False
+        ).exists():
+            raise ValidationError("A submitted speaking recording is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(
+            pk=self.pk, submitted_at__isnull=False
+        ).exists():
+            raise ValidationError("A submitted speaking recording is immutable.")
         return super().delete(*args, **kwargs)
 
     @property

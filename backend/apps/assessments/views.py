@@ -1,11 +1,15 @@
 """Thin HTTP endpoints for starting, resuming, saving, and scoring sessions."""
 from __future__ import annotations
 
+import re
+from pathlib import Path
 from uuid import UUID
 
+from django.http import HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response as ApiResponse
 from rest_framework.views import APIView
@@ -16,12 +20,14 @@ from apps.media_assets.models import MediaAsset
 from .models import AssessmentSession, SessionMode, SessionState
 from .serializers import (
     SaveResponseSerializer,
+    SaveSpeakingSerializer,
     SaveWritingSerializer,
     StartSessionSerializer,
     SubmitWritingSerializer,
     public_snapshot,
 )
 from .services import (
+    SPEAKING_RUBRIC_DIMENSIONS,
     WRITING_RUBRIC_DIMENSIONS,
     AssessmentError,
     GuestAccessExpired,
@@ -31,11 +37,15 @@ from .services import (
     SessionNotActive,
     StaleRevision,
     authorize_session,
+    get_speaking_submission,
     get_writing_submission,
     save_response,
+    save_speaking,
     save_writing,
+    speaking_review_metadata,
     start_session,
     submit_session,
+    submit_speaking,
     submit_writing,
     writing_review_metadata,
 )
@@ -324,6 +334,196 @@ class WritingSubmitView(APIView):
             "replayed": was_submitted,
         }
         return ApiResponse(payload)
+
+
+def _speaking_submission_payload(session_id, submission) -> dict | None:
+    if submission is None:
+        return None
+    return {
+        "mime_type": submission.mime_type,
+        "container": submission.container,
+        "byte_size": submission.byte_size,
+        "duration_ms": submission.duration_ms,
+        "revision": submission.revision,
+        "saved_at": submission.saved_at,
+        "submitted_at": submission.submitted_at,
+        "audio_url": f"/api/v1/sessions/{session_id}/speaking/audio/",
+    }
+
+
+def _speaking_payload(session, item, submission) -> dict:
+    payload = {
+        "id": str(session.id),
+        "mode": session.mode,
+        "state": session.state,
+        "started_at": session.started_at,
+        "deadline_at": session.deadline_at,
+        "submitted_at": session.submitted_at,
+        "server_now": timezone.now(),
+        "is_guest": session.user_id is None,
+        "content": public_snapshot(
+            item.snapshot,
+            include_learning_notes=session.mode == SessionMode.LEARN,
+        ),
+        "rubric": {"dimensions": SPEAKING_RUBRIC_DIMENSIONS},
+        "submission": _speaking_submission_payload(session.id, submission),
+    }
+    if submission is not None and submission.is_submitted:
+        payload["review"] = speaking_review_metadata(submission)
+    return payload
+
+
+class SpeakingDetailView(APIView):
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+            item, submission = get_speaking_submission(session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        return ApiResponse(_speaking_payload(session, item, submission))
+
+    def put(self, request, session_id):
+        serializer = SaveSpeakingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        raw_key = request.headers.get("Idempotency-Key", "")
+        try:
+            idempotency_key = UUID(raw_key)
+        except ValueError:
+            return ApiResponse(
+                {
+                    "code": "invalid_idempotency_key",
+                    "message": "Idempotency-Key must be a UUID.",
+                    "fields": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            session = _session_for_request(request, session_id)
+            submission, replayed = save_speaking(
+                session=session,
+                audio=serializer.validated_data["audio"],
+                duration_ms=serializer.validated_data["duration_ms"],
+                expected_revision=serializer.validated_data["expected_revision"],
+                idempotency_key=idempotency_key,
+            )
+        except AssessmentError as exc:
+            return error_response(exc)
+        return ApiResponse(
+            _speaking_submission_payload(session.id, submission) | {"replayed": replayed}
+        )
+
+
+class SpeakingSubmitView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+            was_submitted = session.state == SessionState.SUBMITTED
+            submission = submit_speaking(session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        return ApiResponse(
+            speaking_review_metadata(submission)
+            | {
+                "session_id": str(session.id),
+                "state": SessionState.SUBMITTED,
+                "submission": _speaking_submission_payload(session.id, submission),
+                "replayed": was_submitted,
+            }
+        )
+
+
+SPEAKING_RANGE_PATTERN = re.compile(r"bytes=(\d*)-(\d*)$")
+
+
+def _recording_range(value: str, size: int):
+    if not value:
+        return 0, size - 1, status.HTTP_200_OK
+    match = SPEAKING_RANGE_PATTERN.fullmatch(value)
+    if not match:
+        return None
+    first, last = match.groups()
+    if not first and not last:
+        return None
+    if not first:
+        suffix = int(last)
+        if suffix <= 0:
+            return None
+        start, end = max(0, size - suffix), size - 1
+    else:
+        start = int(first)
+        end = min(int(last) if last else size - 1, size - 1)
+    if start >= size or start > end:
+        return None
+    return start, end, status.HTTP_206_PARTIAL_CONTENT
+
+
+class SpeakingAudioView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        return self._response(request, session_id, include_body=True)
+
+    def head(self, request, session_id):
+        return self._response(request, session_id, include_body=False)
+
+    def _response(self, request, session_id, *, include_body: bool):
+        try:
+            session = _session_for_request(request, session_id)
+            _, submission = get_speaking_submission(session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        if submission is None or not submission.audio.name:
+            return ApiResponse(
+                {
+                    "code": "missing_recording",
+                    "message": "No speaking recording is available.",
+                    "fields": {},
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        path = Path(submission.audio.path)
+        size = path.stat().st_size
+        parsed = _recording_range(request.headers.get("Range", ""), size)
+        if parsed is None:
+            response = HttpResponse(status=status.HTTP_416_REQUESTED_RANGE_NOT_SATISFIABLE)
+            response["Content-Range"] = f"bytes */{size}"
+            return response
+        start, end, response_status = parsed
+        if include_body:
+            response = StreamingHttpResponse(
+                _private_file_chunks(path, start=start, length=end - start + 1),
+                status=response_status,
+                content_type=submission.mime_type,
+            )
+        else:
+            response = HttpResponse(status=response_status, content_type=submission.mime_type)
+        response["Accept-Ranges"] = "bytes"
+        response["Content-Length"] = str(end - start + 1)
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Content-Disposition"] = (
+            f'inline; filename="speaking-response.{submission.container}"'
+        )
+        if response_status == status.HTTP_206_PARTIAL_CONTENT:
+            response["Content-Range"] = f"bytes {start}-{end}/{size}"
+        return response
+
+
+def _private_file_chunks(path, *, start: int, length: int, chunk_size: int = 64 * 1024):
+    with path.open("rb") as recording:
+        recording.seek(start)
+        remaining = length
+        while remaining:
+            data = recording.read(min(chunk_size, remaining))
+            if not data:
+                break
+            remaining -= len(data)
+            yield data
 
 
 def _result_payload(result) -> dict:

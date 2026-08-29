@@ -6,6 +6,9 @@ from .views import (
     SessionListCreateView,
     SessionResultView,
     SessionSubmitView,
+    SpeakingAudioView,
+    SpeakingDetailView,
+    SpeakingSubmitView,
     WritingDetailView,
     WritingSubmitView,
 )
@@ -39,5 +42,20 @@ urlpatterns = [
         "sessions/<uuid:session_id>/writing/submit/",
         WritingSubmitView.as_view(),
         name="writing-submit",
+    ),
+    path(
+        "sessions/<uuid:session_id>/speaking/",
+        SpeakingDetailView.as_view(),
+        name="speaking-detail",
+    ),
+    path(
+        "sessions/<uuid:session_id>/speaking/submit/",
+        SpeakingSubmitView.as_view(),
+        name="speaking-submit",
+    ),
+    path(
+        "sessions/<uuid:session_id>/speaking/audio/",
+        SpeakingAudioView.as_view(),
+        name="speaking-audio",
     ),
 ]

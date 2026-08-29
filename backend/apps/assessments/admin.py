@@ -5,6 +5,7 @@ from .models import (
     ObjectiveResult,
     Response,
     SessionItem,
+    SpeakingSubmission,
     WritingSubmission,
 )
 
@@ -26,3 +27,16 @@ admin.site.register(ObjectiveResult)
 class WritingSubmissionAdmin(admin.ModelAdmin):
     list_display = ("session_item", "word_count", "revision", "submitted_at")
     readonly_fields = ("last_idempotency_key", "last_payload_hash")
+
+
+@admin.register(SpeakingSubmission)
+class SpeakingSubmissionAdmin(admin.ModelAdmin):
+    list_display = (
+        "session_item",
+        "container",
+        "byte_size",
+        "duration_ms",
+        "revision",
+        "submitted_at",
+    )
+    readonly_fields = ("audio", "last_idempotency_key", "last_payload_hash")

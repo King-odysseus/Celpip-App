@@ -103,6 +103,7 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
           <SkillLink active={false} to={isLearn ? '/learn' : '/practice'}>Reading</SkillLink>
           <SkillLink active={false} to={isLearn ? '/learn/listening' : '/practice/listening'}>Listening</SkillLink>
           <SkillLink active to={isLearn ? '/learn/writing' : '/practice/writing'}>Writing</SkillLink>
+          <SkillLink active={false} to={isLearn ? '/learn/speaking' : '/practice/speaking'}>Speaking</SkillLink>
         </nav>
       </header>
 

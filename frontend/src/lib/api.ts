@@ -84,19 +84,26 @@ type RequestOptions = {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = (options.method ?? 'GET').toUpperCase()
   const headers: Record<string, string> = { ...options.headers }
+  const formBody = options.body instanceof FormData
 
-  if (options.body !== undefined) headers['Content-Type'] = 'application/json'
+  if (options.body !== undefined && !formBody) headers['Content-Type'] = 'application/json'
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
   if (UNSAFE_METHODS.has(method)) {
     const csrf = await ensureCsrfToken()
     if (csrf) headers[CSRF_HEADER] = csrf
   }
 
+  const requestBody: BodyInit | undefined = options.body === undefined
+    ? undefined
+    : formBody
+      ? options.body as FormData
+      : JSON.stringify(options.body)
+
   const response = await fetch(`${BASE_URL}${path}`, {
     method,
     headers,
     credentials: 'include',
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+    body: requestBody,
   })
 
   // One transparent refresh-and-retry after an access-token expiry.
@@ -111,6 +118,27 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return parseResponse<T>(response)
+}
+
+async function requestBlob(
+  path: string,
+  headers: Record<string, string> = {},
+  retried = false,
+): Promise<Blob> {
+  const requestHeaders = { ...headers }
+  if (accessToken) requestHeaders.Authorization = `Bearer ${accessToken}`
+  const url = path.startsWith(BASE_URL) ? path : `${BASE_URL}${path}`
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: requestHeaders,
+    credentials: 'include',
+  })
+  if (response.status === 401 && !retried && !isAuthPath(path) && refreshHandler) {
+    const refreshed = await refreshHandler()
+    if (refreshed) return requestBlob(path, headers, true)
+  }
+  if (!response.ok) return parseResponse<never>(response)
+  return response.blob()
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -151,6 +179,7 @@ export const api = {
     request<T>(path, { method: 'POST', body, headers }),
   put: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
     request<T>(path, { method: 'PUT', body, headers }),
+  getBlob: (path: string, headers?: Record<string, string>) => requestBlob(path, headers),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }

@@ -10,6 +10,8 @@ import { ReadingCatalogPage } from '../features/reading/ReadingCatalogPage'
 import { ReadingSessionPage } from '../features/reading/ReadingSessionPage'
 import { WritingCatalogPage } from '../features/writing/WritingCatalogPage'
 import { WritingSessionPage } from '../features/writing/WritingSessionPage'
+import { SpeakingCatalogPage } from '../features/speaking/SpeakingCatalogPage'
+import { SpeakingSessionPage } from '../features/speaking/SpeakingSessionPage'
 import {
   MistakesPage,
   MockPage,
@@ -31,11 +33,14 @@ export const routes = [
       { path: 'learn', element: <ReadingCatalogPage mode="learn" /> },
       { path: 'learn/listening', element: <ReadingCatalogPage mode="learn" skill="listening" /> },
       { path: 'learn/writing', element: <WritingCatalogPage mode="learn" /> },
+      { path: 'learn/speaking', element: <SpeakingCatalogPage mode="learn" /> },
       { path: 'practice', element: <ReadingCatalogPage mode="practice" /> },
       { path: 'practice/listening', element: <ReadingCatalogPage mode="practice" skill="listening" /> },
       { path: 'practice/writing', element: <WritingCatalogPage mode="practice" /> },
+      { path: 'practice/speaking', element: <SpeakingCatalogPage mode="practice" /> },
       { path: 'reading/session/:sessionId', element: <ReadingSessionPage /> },
       { path: 'writing/session/:sessionId', element: <WritingSessionPage /> },
+      { path: 'speaking/session/:sessionId', element: <SpeakingSessionPage /> },
       { path: 'mock', element: <MockPage /> },
       { path: 'mistakes', element: <MistakesPage /> },
       { path: 'progress', element: <ProgressPage /> },
