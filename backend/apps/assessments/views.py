@@ -30,6 +30,7 @@ from .services import (
     SPEAKING_RUBRIC_DIMENSIONS,
     WRITING_RUBRIC_DIMENSIONS,
     AssessmentError,
+    ComparisonUnavailable,
     GuestAccessExpired,
     IdempotencyConflict,
     SessionAccessDenied,
@@ -37,11 +38,14 @@ from .services import (
     SessionNotActive,
     StaleRevision,
     authorize_session,
+    create_speaking_retry,
     get_speaking_submission,
     get_writing_submission,
     save_response,
     save_speaking,
     save_writing,
+    speaking_attempt_metadata,
+    speaking_comparison,
     speaking_review_metadata,
     start_session,
     submit_session,
@@ -55,6 +59,8 @@ def error_response(exc: AssessmentError) -> ApiResponse:
     response_status = status.HTTP_400_BAD_REQUEST
     if isinstance(exc, (SessionAccessDenied, GuestAccessExpired)):
         response_status = status.HTTP_403_FORBIDDEN
+    elif isinstance(exc, ComparisonUnavailable):
+        response_status = status.HTTP_404_NOT_FOUND
     elif isinstance(
         exc,
         (StaleRevision, IdempotencyConflict, SessionNotActive, SessionDeadlinePassed),
@@ -416,6 +422,7 @@ def _speaking_payload(session, item, submission) -> dict:
         ),
         "rubric": {"dimensions": SPEAKING_RUBRIC_DIMENSIONS},
         "submission": _speaking_submission_payload(session.id, submission),
+        "attempt": speaking_attempt_metadata(session),
     }
     if session.mode == SessionMode.MOCK:
         payload["mock"] = _mock_context(session)
@@ -488,6 +495,37 @@ class SpeakingSubmitView(APIView):
                 "replayed": was_submitted,
             }
         )
+
+
+class SpeakingRetryView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+            retry, replayed = create_speaking_retry(session=session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        payload = {
+            "id": str(retry.id),
+            "attempt_number": retry.attempt_number,
+            "replayed": replayed,
+            "launch_url": f"/speaking/session/{retry.id}",
+        }
+        response_status = status.HTTP_200_OK if replayed else status.HTTP_201_CREATED
+        return ApiResponse(payload, status=response_status)
+
+
+class SpeakingComparisonView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+            payload = speaking_comparison(session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        return ApiResponse(payload)
 
 
 SPEAKING_RANGE_PATTERN = re.compile(r"bytes=(\d*)-(\d*)$")

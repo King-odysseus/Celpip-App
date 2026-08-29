@@ -18,6 +18,7 @@ from apps.assessments.models import (
     AssessmentSession,
     ObjectiveResult,
     Response,
+    SpeakingRetry,
     SpeakingSubmission,
     WritingSubmission,
 )
@@ -106,6 +107,20 @@ def _feedback_payload(feedback: AIFeedback | None) -> dict | None:
     }
 
 
+def _attempt_payload(session: AssessmentSession) -> dict:
+    """Attempt number and retry linkage IDs, never tokens or audio paths."""
+    payload: dict = {"attempt_number": session.attempt_number}
+    try:
+        payload["retry_id"] = str(session.speaking_retry.retry_id)
+    except SpeakingRetry.DoesNotExist:
+        pass
+    try:
+        payload["source_id"] = str(session.speaking_retry_of.source_id)
+    except SpeakingRetry.DoesNotExist:
+        pass
+    return payload
+
+
 def _sessions(user: User) -> list[dict]:
     sessions = (
         AssessmentSession.objects.filter(user=user)
@@ -149,6 +164,7 @@ def _sessions(user: User) -> list[dict]:
                     getattr(session, "objective_result", None)
                 ),
                 "ai_feedback": _feedback_payload(feedback),
+                "attempt": _attempt_payload(session),
             }
         )
     return exported

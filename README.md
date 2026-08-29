@@ -11,7 +11,7 @@ four-skill **CELPIP-General test used for immigration**.
 This repository is a monorepo. Architecture is governed by
 [`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md).
 
-## Current status — Phase 10 (dashboard completion)
+## Current status — Phase 10B (full Speaking comparison)
 
 Phase 1 adds the smallest end-to-end account slice on top of the Phase 1A shell:
 

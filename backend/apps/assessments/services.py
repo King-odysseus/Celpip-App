@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 
 from apps.content.models import Choice, ContentVersion, PublicationStatus, Question
@@ -20,6 +20,7 @@ from .models import (
     SessionItem,
     SessionMode,
     SessionState,
+    SpeakingRetry,
     SpeakingSubmission,
     WritingSubmission,
 )
@@ -99,6 +100,15 @@ SPEAKING_MIME_CONTAINERS = {
     "audio/x-wav": "wav",
 }
 
+# The audited AI feedback schema keys the delivery dimension as ``delivery`` for
+# both skills; the speaking prompt maps it to the learner-facing "Listenability".
+SPEAKING_FEEDBACK_DIMENSION_LABELS = {
+    "content_coherence": "Content/Coherence",
+    "vocabulary": "Vocabulary",
+    "delivery": "Listenability",
+    "task_fulfillment": "Task Fulfillment",
+}
+
 
 class AssessmentError(Exception):
     code = "assessment_error"
@@ -158,6 +168,14 @@ class RecordingTooLarge(AssessmentError):
 
 class MissingRecording(AssessmentError):
     code = "missing_recording"
+
+
+class RetryNotAllowed(AssessmentError):
+    code = "retry_not_allowed"
+
+
+class ComparisonUnavailable(AssessmentError):
+    code = "comparison_unavailable"
 
 
 @dataclass(frozen=True)
@@ -715,3 +733,306 @@ def speaking_review_metadata(submission: SpeakingSubmission) -> dict:
             "This is practice self-review, not an official CELPIP score or level."
         ),
     }
+
+
+# --- Speaking attempt 2 (retry) -------------------------------------------
+
+
+@transaction.atomic
+def create_speaking_retry(
+    *, session: AssessmentSession
+) -> tuple[AssessmentSession, bool]:
+    """Create (or idempotently return) the single retry for a submitted attempt.
+
+    The source session row is locked so concurrent requests serialise: the first
+    creates the retry link, later ones observe it and replay the same result.
+    The DB one-to-one uniqueness on ``SpeakingRetry.source`` is the final guard.
+    """
+    locked = AssessmentSession.objects.select_for_update().get(pk=session.pk)
+    if locked.mode == SessionMode.MOCK:
+        raise RetryNotAllowed("Mock speaking components cannot be retried.")
+    item = _speaking_item(locked)  # raises WrongSkill for non-speaking sessions
+    if locked.state != SessionState.SUBMITTED:
+        raise SessionNotActive("Only a submitted speaking session can be retried.")
+    if SpeakingRetry.objects.filter(retry=locked).exists():
+        raise RetryNotAllowed("A retry session cannot be retried again.")
+
+    existing = SpeakingRetry.objects.select_related("retry").filter(source=locked).first()
+    if existing:
+        return existing.retry, True
+
+    # A timed source grants attempt 2 a *fresh* window of the same length, never
+    # the original absolute deadline (which has already passed). An untimed
+    # (learn) source stays untimed. A non-positive original window is degenerate
+    # and cannot yield a usable retry window.
+    deadline = None
+    if locked.deadline_at is not None:
+        duration = locked.deadline_at - locked.started_at
+        if duration <= timedelta(0):
+            raise RetryNotAllowed("The original attempt has no usable time window to retry.")
+        deadline = timezone.now() + duration
+
+    # Wrap the write set in a savepoint. If a concurrent request wins the race and
+    # commits the ``SpeakingRetry.source`` one-to-one first, the IntegrityError
+    # rolls back only to the savepoint, leaving the outer transaction usable so we
+    # can fetch and replay the winner's link instead of orphaning a retry session.
+    try:
+        with transaction.atomic():
+            retry = AssessmentSession.objects.create(
+                user=locked.user,
+                guest_token_hash=locked.guest_token_hash,
+                guest_expires_at=locked.guest_expires_at,
+                mode=locked.mode,
+                state=SessionState.ACTIVE,
+                attempt_number=2,
+                deadline_at=deadline,
+            )
+            SessionItem.objects.create(
+                session=retry,
+                content_version=item.content_version,
+                order=1,
+                snapshot=item.snapshot,
+            )
+            SpeakingRetry.objects.create(source=locked, retry=retry)
+    except IntegrityError:
+        winner = SpeakingRetry.objects.select_related("retry").filter(source=locked).first()
+        if winner is None:
+            raise
+        return winner.retry, True
+    return retry, False
+
+
+def speaking_attempt_metadata(session: AssessmentSession) -> dict:
+    """Safely expose attempt linkage without leaking tokens or audio paths."""
+    metadata: dict = {"attempt_number": session.attempt_number}
+    try:
+        link = session.speaking_retry
+    except SpeakingRetry.DoesNotExist:
+        pass
+    else:
+        metadata["retry_id"] = str(link.retry_id)
+    try:
+        link = session.speaking_retry_of
+    except SpeakingRetry.DoesNotExist:
+        pass
+    else:
+        metadata["source_id"] = str(link.source_id)
+    return metadata
+
+
+def _speaking_retry_pair(session: AssessmentSession) -> tuple[AssessmentSession, AssessmentSession]:
+    """Resolve ``(attempt_1, attempt_2)`` for a session in a linked retry pair."""
+    try:
+        link = session.speaking_retry
+    except SpeakingRetry.DoesNotExist:
+        try:
+            link = session.speaking_retry_of
+        except SpeakingRetry.DoesNotExist as exc:
+            raise ComparisonUnavailable(
+                "This session is not part of a speaking retry pair."
+            ) from exc
+        return link.source, session
+    return session, link.retry
+
+
+# --- Speaking attempt 1 vs attempt 2 comparison ----------------------------
+
+SPEAKING_COMPARISON_DISCLAIMER = (
+    "This is an AI-assisted practice comparison, not an official CELPIP score. "
+    "A midpoint change is not an official score difference."
+)
+
+# Learner-facing failure copy. The raw ``AIJob.error_message`` may embed provider
+# internals or snapshot fragments, so it is never surfaced; only a stable machine
+# code and this generic sentence are exposed.
+COMPARISON_FEEDBACK_FAILED_MESSAGE = (
+    "AI-assisted feedback could not be completed for this attempt."
+)
+
+
+def _feedback_state(item: SessionItem) -> str:
+    """Classify one attempt's feedback as ``ready``, ``failed``, or ``pending``."""
+    from apps.ai_services.models import AIFeedback, AIJob, AIJobStatus
+
+    if AIFeedback.objects.filter(session_item=item).exists():
+        return "ready"
+    job = AIJob.objects.filter(session_item=item).order_by("-created_at").first()
+    if job is None:
+        return "pending"
+    if job.status == AIJobStatus.FAILED:
+        return "failed"
+    return "pending"
+
+
+def speaking_comparison(session: AssessmentSession) -> dict:
+    """Build the attempt 1 vs attempt 2 comparison payload.
+
+    No new AI job or provider call is made: everything is derived from the two
+    immutable AIFeedback artifacts (or the absence/state of their jobs).
+    """
+    source, retry = _speaking_retry_pair(session)
+    source_item = _speaking_item(source)
+    retry_item = _speaking_item(retry)
+
+    source_state = _feedback_state(source_item)
+    retry_state = _feedback_state(retry_item)
+
+    if source_state == "failed" or retry_state == "failed":
+        status = "failed"
+    elif source_state == "ready" and retry_state == "ready":
+        status = "ready"
+    else:
+        status = "pending"
+
+    payload: dict = {
+        "status": status,
+        "attempts": {
+            "1": _comparison_attempt_state(source, source_item, source_state),
+            "2": _comparison_attempt_state(retry, retry_item, retry_state),
+        },
+        "disclaimer": SPEAKING_COMPARISON_DISCLAIMER,
+    }
+    if status == "ready":
+        payload |= _comparison_ready(source, retry, source_item, retry_item)
+    return payload
+
+
+def _comparison_attempt_state(session, item, state: str) -> dict:
+    from apps.ai_services.models import AIJob
+
+    attempt = {
+        "session_id": str(session.id),
+        "attempt_number": session.attempt_number,
+        "feedback_status": state,
+    }
+    if state != "ready":
+        job = AIJob.objects.filter(session_item=item).order_by("-created_at").first()
+        attempt["job_status"] = job.status if job else None
+        if state == "failed":
+            # Never leak the raw provider error text; expose a stable code and a
+            # generic learner-facing message instead.
+            attempt["error_code"] = (job.error_code if job and job.error_code else "") or (
+                "evaluation_failed"
+            )
+            attempt["error"] = COMPARISON_FEEDBACK_FAILED_MESSAGE
+    return attempt
+
+
+def _comparison_ready(source, retry, source_item, retry_item) -> dict:
+    source_feedback = source_item.ai_feedback
+    retry_feedback = retry_item.ai_feedback
+    source_assessment = source_feedback.assessment
+    retry_assessment = retry_feedback.assessment
+
+    low_1 = source_assessment["estimated_level_low"]
+    high_1 = source_assessment["estimated_level_high"]
+    low_2 = retry_assessment["estimated_level_low"]
+    high_2 = retry_assessment["estimated_level_high"]
+    midpoint_1 = round((low_1 + high_1) / 2, 1)
+    midpoint_2 = round((low_2 + high_2) / 2, 1)
+
+    dimensions_1 = {dim["key"]: dim for dim in source_assessment["dimensions"]}
+    dimensions_2 = {dim["key"]: dim for dim in retry_assessment["dimensions"]}
+
+    dimension_deltas = []
+    improved_dimensions = []
+    non_improved_next_steps = []
+    for key, label in SPEAKING_FEEDBACK_DIMENSION_LABELS.items():
+        dim_1 = dimensions_1.get(key)
+        dim_2 = dimensions_2.get(key)
+        rating_1 = dim_1["rating"] if dim_1 else None
+        rating_2 = dim_2["rating"] if dim_2 else None
+        delta = (rating_2 - rating_1) if (rating_1 is not None and rating_2 is not None) else None
+        dimension_deltas.append(
+            {
+                "key": key,
+                "label": label,
+                "rating_1": rating_1,
+                "rating_2": rating_2,
+                "delta": delta,
+            }
+        )
+        if delta is not None and delta > 0:
+            improved_dimensions.append(
+                {"kind": "dimension", "label": label, "evidence": dim_2["evidence"]}
+            )
+        elif dim_2 is not None:
+            non_improved_next_steps.append(dim_2["next_step"])
+
+    improvements = _dedup_improvements(
+        [
+            *improved_dimensions,
+            *(
+                {"kind": "strength", "text": strength}
+                for strength in retry_assessment.get("strengths", [])
+            ),
+        ]
+    )
+
+    remaining_priorities = _dedup_preserving_order(
+        [
+            *retry_assessment.get("priorities", []),
+            *non_improved_next_steps,
+        ]
+    )
+
+    return {
+        "attempt_1": _comparison_estimate(source, source_feedback, low_1, high_1, midpoint_1),
+        "attempt_2": _comparison_estimate(retry, retry_feedback, low_2, high_2, midpoint_2),
+        "midpoint_delta": round(midpoint_2 - midpoint_1, 1),
+        "dimension_deltas": dimension_deltas,
+        "improvements": improvements,
+        "remaining_priorities": remaining_priorities,
+    }
+
+
+def _comparison_estimate(session, feedback, low, high, midpoint) -> dict:
+    return {
+        "session_id": str(session.id),
+        "attempt_number": session.attempt_number,
+        "estimated_range": {"low": low, "high": high},
+        "estimated_midpoint": midpoint,
+        "audit": {
+            "provider": feedback.provider,
+            "model": feedback.model,
+            "prompt_version": feedback.prompt_version,
+        },
+    }
+
+
+def _dedup_preserving_order(values: list) -> list:
+    seen: set = set()
+    result: list = []
+    for value in values:
+        if value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
+
+
+def _normalize_text(value) -> str:
+    """Case- and whitespace-insensitive key for deduplication."""
+    return " ".join(str(value).split()).casefold()
+
+
+def _dedup_improvements(improvements: list[dict]) -> list[dict]:
+    """Deterministically drop duplicate improvements.
+
+    Ordering is fixed by construction: dimension improvements first (canonical
+    rubric order), then strengths (assessment order). Within that order the first
+    occurrence of each case/whitespace-normalized visible text wins; the retained
+    entry's payload shape is preserved exactly.
+    """
+    seen: set[str] = set()
+    result: list[dict] = []
+    for improvement in improvements:
+        if improvement.get("kind") == "dimension":
+            text = improvement.get("label")
+        else:
+            text = improvement.get("text")
+        key = _normalize_text(text)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(improvement)
+    return result

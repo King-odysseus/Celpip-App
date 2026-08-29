@@ -27,6 +27,20 @@ and tests; production (`config.settings.prod`) refuses to start without a real
 - `DELETE /api/v1/me/` — delete the account after a password or recovery-code
   confirmation; cascades owned data and private recordings.
 
+Speaking attempts can be retried and compared:
+
+- `POST /api/v1/sessions/{id}/speaking/retry/` — idempotently create the single
+  Attempt 2 for a submitted, non-mock speaking **Attempt 1** session (a retry
+  session can never be retried again). Returns the new session id,
+  `attempt_number=2`, `replayed`, and a `launch_url`. The source recording and
+  feedback stay immutable; guest retries reuse the same token hash.
+- `GET /api/v1/sessions/{id}/speaking/comparison/` — owner/guest-authorized
+  Attempt 1 vs Attempt 2 comparison, derived entirely from the two immutable
+  AI-feedback artifacts (no new provider call). Returns `pending`, `failed`, or
+  `ready`; the `ready` payload carries estimated ranges/midpoints, midpoint
+  delta, per-dimension rating deltas, ordered improvements, and remaining
+  priorities, with a strong not-official-score disclaimer.
+
 Views stay thin: request/response shaping lives in
 `apps/accounts/{serializers,views}.py`, and all state changes live in
 `apps/accounts/services.py` and `apps/accounts/tokens.py`.

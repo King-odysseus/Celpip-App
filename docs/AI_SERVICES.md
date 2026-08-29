@@ -40,7 +40,9 @@ python manage.py run_ai_worker
 
 Writing and Speaking submissions enqueue feedback automatically. The frontend
 polls the owner/guest-authorized feedback endpoint and clearly labels the result
-as an AI-assisted practice range.
+as an AI-assisted practice range. The Speaking Attempt 1 vs Attempt 2 comparison
+endpoint is derived entirely from the two stored AI-feedback artifacts; it never
+issues a new job or provider call.
 
 ## First-party implementation references
 

@@ -6,7 +6,7 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q
 
 from apps.content.models import Choice, ContentVersion, Question
 
@@ -39,6 +39,7 @@ class AssessmentSession(models.Model):
     state = models.CharField(
         max_length=12, choices=SessionState.choices, default=SessionState.ACTIVE
     )
+    attempt_number = models.PositiveSmallIntegerField(default=1)
     started_at = models.DateTimeField(auto_now_add=True)
     deadline_at = models.DateTimeField(null=True, blank=True)
     submitted_at = models.DateTimeField(null=True, blank=True)
@@ -60,6 +61,10 @@ class AssessmentSession(models.Model):
                     | Q(deadline_at__isnull=True)
                 ),
                 name="assessments_timed_modes_have_deadline",
+            ),
+            models.CheckConstraint(
+                condition=Q(attempt_number__in=[1, 2]),
+                name="assessments_session_attempt_in_range",
             ),
         ]
         indexes = [
@@ -236,3 +241,86 @@ class ObjectiveResult(models.Model):
 
     def __str__(self) -> str:
         return f"{self.raw_correct}/{self.raw_possible} for {self.session_id}"
+
+
+class SpeakingRetry(models.Model):
+    """Link a submitted speaking session (attempt 1) to its single retry.
+
+    Both ``source`` and ``retry`` are one-to-one so a submitted attempt has at
+    most one retry and a retry can never be retried again. The retry is a brand
+    new session/item/submission; the source recording and feedback stay frozen.
+    """
+
+    source = models.OneToOneField(
+        AssessmentSession,
+        on_delete=models.CASCADE,
+        related_name="speaking_retry",
+    )
+    retry = models.OneToOneField(
+        AssessmentSession,
+        on_delete=models.CASCADE,
+        related_name="speaking_retry_of",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Speaking retry"
+        verbose_name_plural = "Speaking retries"
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(source=F("retry")),
+                name="assessments_speaking_retry_distinct_sessions",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Speaking retry {self.source_id} -> {self.retry_id}"
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        return super().save(*args, **kwargs)
+
+    def clean(self) -> None:
+        """Reject direct ORM writes that would build an incoherent retry link.
+
+        The service layer (:func:`create_speaking_retry`) always produces a valid
+        link, but this guard also protects shell, admin, and future code paths
+        from wiring two unrelated sessions together. Uniqueness is left to the DB
+        so a duplicate ``source``/``retry`` still surfaces as an ``IntegrityError``.
+        """
+        source = self.source if self.source_id else None
+        retry = self.retry if self.retry_id else None
+        if source is None or retry is None:
+            return
+        if source.pk == retry.pk:
+            raise ValidationError("A session cannot be its own speaking retry.")
+        if source.user_id != retry.user_id:
+            raise ValidationError("A speaking retry must share the source's owner.")
+        if source.user_id is None:
+            if source.guest_token_hash != retry.guest_token_hash:
+                raise ValidationError("A guest retry must reuse the source guest identity.")
+            if source.guest_expires_at != retry.guest_expires_at:
+                raise ValidationError("A guest retry must reuse the source guest expiry.")
+        if source.mode != retry.mode:
+            raise ValidationError("A speaking retry must keep the source's mode.")
+        if source.attempt_number != 1:
+            raise ValidationError("A speaking retry source must be attempt 1.")
+        if retry.attempt_number != 2:
+            raise ValidationError("A speaking retry must be attempt 2.")
+        if source.state != SessionState.SUBMITTED:
+            raise ValidationError("A speaking retry source must be submitted.")
+        if retry.state != SessionState.ACTIVE:
+            raise ValidationError("A speaking retry must start from an active session.")
+        source_item = source.items.first()
+        retry_item = retry.items.first()
+        if source_item is None or retry_item is None:
+            raise ValidationError("Both sessions in a retry pair must have a frozen item.")
+        if (
+            source_item.snapshot.get("skill") != "speaking"
+            or retry_item.snapshot.get("skill") != "speaking"
+        ):
+            raise ValidationError("A speaking retry may only link speaking sessions.")
+        if source_item.content_version_id != retry_item.content_version_id:
+            raise ValidationError("A speaking retry must reuse the source content version.")
+        if source_item.snapshot != retry_item.snapshot:
+            raise ValidationError("A speaking retry must reuse the frozen source snapshot.")

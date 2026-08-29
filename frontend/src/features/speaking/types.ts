@@ -53,6 +53,13 @@ export type SpeakingStimulus = {
 
 export type RubricDimension = { key: string; label: string; prompt: string }
 
+/** Attempt linkage exposed by the backend; never leaks tokens or audio paths. */
+export type SpeakingAttempt = {
+  attempt_number: 1 | 2
+  retry_id?: string
+  source_id?: string
+}
+
 export type SpeakingRecording = {
   mime_type: string
   container: string
@@ -99,6 +106,7 @@ export type SpeakingSession = {
   rubric: { dimensions: RubricDimension[] }
   submission: SpeakingRecording | null
   review?: SpeakingReview
+  attempt: SpeakingAttempt
   mock?: MockContext
 }
 
@@ -114,3 +122,58 @@ export type SpeakingSubmitResult = SpeakingReview & {
 export type SpeakingSubmitResponse = SpeakingSubmitResult | MockSubmitResult
 
 export type StartedSpeakingSession = { id: string; guest_token?: string }
+
+/** Result of POST /sessions/{id}/speaking/retry/. */
+export type SpeakingRetryResult = {
+  id: string
+  attempt_number: 2
+  replayed: boolean
+  launch_url: string
+}
+
+export type SpeakingComparisonStatus = 'pending' | 'failed' | 'ready'
+
+/** Per-attempt evaluation state; the backend never exposes raw provider errors. */
+export type SpeakingComparisonAttemptState = {
+  session_id: string
+  attempt_number: 1 | 2
+  feedback_status: 'pending' | 'failed' | 'ready'
+  job_status?: string | null
+  error_code?: string
+  error?: string
+}
+
+export type SpeakingComparisonEstimate = {
+  session_id: string
+  attempt_number: 1 | 2
+  estimated_range: { low: number; high: number }
+  estimated_midpoint: number
+  audit: { provider: string; model: string; prompt_version: string }
+}
+
+export type SpeakingDimensionDelta = {
+  key: string
+  label: string
+  rating_1: number | null
+  rating_2: number | null
+  delta: number | null
+}
+
+export type SpeakingImprovement =
+  | { kind: 'dimension'; label: string; evidence: string }
+  | { kind: 'strength'; text: string }
+
+export type SpeakingComparison = {
+  status: SpeakingComparisonStatus
+  attempts: {
+    '1': SpeakingComparisonAttemptState
+    '2': SpeakingComparisonAttemptState
+  }
+  disclaimer: string
+  attempt_1?: SpeakingComparisonEstimate
+  attempt_2?: SpeakingComparisonEstimate
+  midpoint_delta?: number
+  dimension_deltas?: SpeakingDimensionDelta[]
+  improvements?: SpeakingImprovement[]
+  remaining_priorities?: string[]
+}

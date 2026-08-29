@@ -12,11 +12,14 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Card } from '../../components/ui'
+import { Button, ButtonLink, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
+import { RetryAction } from './RetryAction'
+import { SpeakingComparisonPanel } from './SpeakingComparisonPanel'
+import { tokenHeaders } from './token'
 import type {
   SpeakingRecording,
   SpeakingReview,
@@ -27,11 +30,6 @@ import type {
 } from './types'
 
 type RecorderPhase = 'ready' | 'preparing' | 'recording' | 'recorded' | 'uploading'
-
-function tokenHeaders(sessionId: string): Record<string, string> {
-  const token = sessionStorage.getItem(`celpip-guest-${sessionId}`)
-  return token ? { 'X-Guest-Token': token } : {}
-}
 
 function preferredMimeType(): string | null {
   if (typeof MediaRecorder === 'undefined') return null
@@ -267,7 +265,7 @@ export function SpeakingSessionPage() {
   if (review && recording) {
     return (
       <SpeakingReviewView
-        sessionId={session.id}
+        session={session}
         review={review}
         recording={recording}
         audioUrl={audioUrl}
@@ -300,7 +298,12 @@ export function SpeakingSessionPage() {
           <p className="text-xs font-bold uppercase tracking-wider text-accent">
             Speaking · {isMock ? 'Mock component' : session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
           </p>
-          <h1 className="truncate font-bold text-ink">{session.content.title}</h1>
+          <h1 className="flex flex-wrap items-center gap-2 truncate font-bold text-ink">
+            <span className="truncate">{session.content.title}</span>
+            <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">
+              Attempt {session.attempt.attempt_number}
+            </span>
+          </h1>
         </div>
         {(phase === 'preparing' || phase === 'recording') && (
           <Countdown label={timerLabel} seconds={remaining} recording={phase === 'recording'} />
@@ -372,13 +375,16 @@ export function SpeakingSessionPage() {
               )}
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
                 <Button variant="secondary" disabled={!recording} onClick={() => void begin()}>
-                  <RefreshCcw size={17} /> Record again
+                  <RefreshCcw size={17} /> Replace draft
                 </Button>
                 <Button disabled={!recording || submitting} onClick={() => void submit()}>
                   <CheckCircle2 size={17} /> {submitting ? 'Submitting…' : 'Submit recording'}
                 </Button>
               </div>
-              <p className="mt-3 text-center text-xs text-muted">Submission is final. Feedback is guided self-review, not an official score.</p>
+              <p className="mt-3 text-center text-xs text-muted">
+                Replace draft records a fresh response over this unsent one. It does not start
+                Attempt 2. Submission is final. Feedback is guided self-review, not an official score.
+              </p>
             </div>
           )}
         </Card>
@@ -451,7 +457,10 @@ function Countdown({ label, seconds, recording }: { label: string; seconds: numb
   )
 }
 
-function SpeakingReviewView({ sessionId, review, recording, audioUrl, onBack }: { sessionId: string; review: SpeakingReview; recording: SpeakingRecording; audioUrl: string; onBack: () => void }) {
+function SpeakingReviewView({ session, review, recording, audioUrl, onBack }: { session: SpeakingSession; review: SpeakingReview; recording: SpeakingRecording; audioUrl: string; onBack: () => void }) {
+  const attempt = session.attempt
+  const isAttempt2 = attempt.attempt_number === 2
+  const isMock = session.mode === 'mock'
   return (
     <div className="mx-auto max-w-4xl space-y-6 animate-fade-up">
       <Card className="overflow-hidden p-0 text-center">
@@ -459,9 +468,27 @@ function SpeakingReviewView({ sessionId, review, recording, audioUrl, onBack }: 
           <p className="text-xs font-bold uppercase tracking-widest text-accent-soft">{review.score_label}</p>
           <p className="mt-3 flex items-center justify-center gap-2 text-4xl font-bold"><CheckCircle2 size={30} /> Submitted</p>
           <p className="mt-2 text-lg font-semibold">{(recording.duration_ms / 1000).toFixed(1)} second recording</p>
+          <p className="mt-3">
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-accent-soft">
+              Attempt {attempt.attempt_number}
+            </span>
+          </p>
         </div>
         <p className="p-4 text-sm text-muted">{review.disclaimer}</p>
       </Card>
+
+      {isAttempt2 && attempt.source_id && (
+        <Card className="p-4">
+          <p className="text-sm leading-6 text-ink">
+            <strong>Attempt 1 is preserved.</strong> Your first response stays available for replay
+            and comparison.
+          </p>
+          <ButtonLink to={`/speaking/session/${attempt.source_id}`} variant="secondary" className="mt-3">
+            <ArrowLeft size={16} /> Open Attempt 1 review
+          </ButtonLink>
+        </Card>
+      )}
+
       <Card className="p-5">
         <h2 className="text-xl font-bold text-ink">Replay your response</h2>
         {audioUrl ? <audio className="mt-3 w-full" controls src={audioUrl}>Your browser cannot play this recording.</audio> : <p className="mt-2 text-sm text-muted">Loading your private recording…</p>}
@@ -475,7 +502,9 @@ function SpeakingReviewView({ sessionId, review, recording, audioUrl, onBack }: 
           ))}
         </div>
       </section>
-      <AIFeedbackPanel sessionId={sessionId} />
+      <AIFeedbackPanel sessionId={session.id} />
+      {!isMock && !isAttempt2 && <RetryAction sessionId={session.id} />}
+      {!isMock && isAttempt2 && <SpeakingComparisonPanel sessionId={session.id} />}
       <Button onClick={onBack}>Choose another prompt</Button>
     </div>
   )
