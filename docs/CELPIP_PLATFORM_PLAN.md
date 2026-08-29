@@ -1,6 +1,6 @@
 # CELPIP-General Practice Platform Plan
 
-Status: Phases 1–9 implemented (production hardening and account privacy UI)
+Status: Phases 1–10 implemented (candidate dashboard completion)
 
 Last verified against official CELPIP sources: 29 August 2026
 
@@ -522,6 +522,44 @@ Learning: production settings, data-export/deletion boundaries, retention, obser
 Tests: export never leaks hashes, tokens, answer keys, other users, or private audio; deletion confirms and cascades; retention is dry-run by default; production settings fail fast on missing secrets; structured logs exclude response bodies and audio; account privacy UI smoke and accessibility checks.
 
 Exit: the beta release checklist passes with no critical accessibility/security issues, documented recovery/rollback, and a self-service account privacy path in the frontend.
+
+### Phase 10 — Candidate dashboard
+
+**Status:** implemented.
+
+Deliverables: a cohesive authenticated Dashboard at `GET /api/v1/me/dashboard/` backed by a single selector/service payload (`learning.services.dashboard_payload`). The payload layers the existing progress measures with totals, study streak, recent results, practice signals, today's tasks, the next upcoming task, and a transparent readiness planning indicator. The frontend Dashboard is split into focused, accessible subcomponents (stats, today's tasks, skill estimates, practice signals, recent results, readiness) with loading, error, empty, and anonymous states.
+
+Learning: read-model composition, cross-entity activity-date aggregation, honest uncertainty labelling, and deterministic score-free planning signals.
+
+Tests: streak anchoring and boundaries, future-date exclusion, gap and zero cases, timezone day boundaries, authentication and owner scoping, empty/partial/full evidence, signal ordering, recent-result ordering and limit, readiness formula determinism and recency decay, today/next-upcoming task selection, and frontend state/accessibility coverage.
+
+Exit: the dashboard reads cleanly for a learner with or without prior practice, and no number on the page claims to be a CELPIP score.
+
+#### Readiness indicator (practice planning only)
+
+The overall readiness value is deliberately not a CELPIP score and never predicts one. It is an **unofficial practice planning indicator** computed from evidence the learner has produced in the app. Its formula is deterministic and fully explained in the UI:
+
+```
+readiness = 0.30 × coverage + 0.25 × recency + 0.25 × volume + 0.20 × performance
+```
+
+Each component is normalised to 0–100:
+
+- **coverage** — the share of the four skills with at least one objective result or AI-assisted estimate (0, 25, 50, 75, or 100).
+- **recency** — 100 for activity today, minus 10 per full day since the most recent activity (floor 0).
+- **volume** — 10 points per completed attempt, capped at 100. A completed attempt is a submitted session, counted even when AI feedback is still queued or failed.
+- **performance** — the average of the per-skill *practice planning signals* described below (0 when no signals exist).
+
+The component weights, values, and plain-language explanations are surfaced to the learner, and every component is displayed alongside the formula so the number is auditable. When no completed attempts exist, readiness returns `state="insufficient_evidence"` and `indicator=null` (no number) rather than a misleading zero; otherwise it returns `state="estimated"`.
+
+#### Practice planning signals (cross-skill comparison)
+
+Cross-skill comparison uses a per-skill **practice planning signal**, normalised to 0–100, and never labelled as a CELPIP level:
+
+- **Listening / Reading** — objective accuracy (already 0–100).
+- **Writing / Speaking** — the AI-assisted estimate midpoint divided by 12 and multiplied by 100, because AI estimates use the CELPIP 0–12 scale while objective accuracy uses percentages. (0 → 0, 12 → 100.)
+
+Unpractised skills are reported as **needs-attention** with the basis "No practice recorded yet", and are never silently scored zero. Among practised skills, the strongest signal becomes the *strongest* card and the weakest the *needs-attention* card; an unpractised skill otherwise takes precedence for needs-attention. Objective accuracy and AI estimates remain distinct measures and are never combined into a single skill number.
 
 ## 16. Architecture decisions and risks
 

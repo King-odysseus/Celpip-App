@@ -1,29 +1,26 @@
 import { Link } from 'react-router-dom'
-import { CalendarClock, Compass, Target } from 'lucide-react'
+import { CalendarClock, Target } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Card, CardTitle, Meter } from '../../components/ui'
+import { Card, CardTitle } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
-import { SKILLS, type LearnerProfile } from '../auth/types'
-import type { Progress, StudyPlan } from '../learning/types'
+import type { LearnerProfile } from '../auth/types'
 import { countdownLabel, daysUntilExam } from '../../lib/countdown'
-
-const SKILL_LABELS: Record<(typeof SKILLS)[number], string> = {
-  listening: 'Listening',
-  reading: 'Reading',
-  writing: 'Writing',
-  speaking: 'Speaking',
-}
+import type { Dashboard } from '../learning/types'
+import { DashboardStats } from './DashboardStats'
+import { TodayTasks } from './TodayTasks'
+import { SkillEstimates } from './SkillEstimates'
+import { SkillSignals } from './SkillSignals'
+import { RecentResults } from './RecentResults'
+import { ReadinessIndicator } from './ReadinessIndicator'
 
 function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
-  const days = profile
-    ? daysUntilExam(profile.exam_date, profile.timezone)
-    : null
+  const days = profile ? daysUntilExam(profile.exam_date, profile.timezone) : null
 
   return (
     <Card>
       <div className="flex items-start gap-3">
-        <CalendarClock size={22} className="mt-0.5 shrink-0 text-accent" />
+        <CalendarClock size={22} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0">
           <CardTitle>Exam countdown</CardTitle>
           {days === null ? (
@@ -54,15 +51,13 @@ function TargetCard({ profile }: { profile: LearnerProfile | null }) {
   return (
     <Card>
       <div className="flex items-start gap-3">
-        <Target size={22} className="mt-0.5 shrink-0 text-accent" />
+        <Target size={22} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div>
           <CardTitle>Your target</CardTitle>
           {profile ? (
             <p className="mt-1 text-sm text-muted">
               Default target{' '}
-              <span className="font-semibold text-ink">
-                CELPIP {profile.target_level}
-              </span>{' '}
+              <span className="font-semibold text-ink">CELPIP {profile.target_level}</span>{' '}
               across all skills. Adjust per-skill targets in your{' '}
               <Link to="/account" className="font-semibold text-brand hover:underline">
                 account
@@ -71,8 +66,7 @@ function TargetCard({ profile }: { profile: LearnerProfile | null }) {
             </p>
           ) : (
             <p className="mt-1 text-sm text-muted">
-              Sign in and set a target level to track your readiness against a
-              goal.
+              Sign in and set a target level to track your readiness against a goal.
             </p>
           )}
         </div>
@@ -84,24 +78,32 @@ function TargetCard({ profile }: { profile: LearnerProfile | null }) {
 export function DashboardPage() {
   const { status, profile } = useAuth()
   const isAuthed = status === 'authenticated'
-  const [progress, setProgress] = useState<Progress | null>(null)
-  const [plan, setPlan] = useState<StudyPlan | null>(null)
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!isAuthed) return
-    void Promise.all([
-      api.get<Progress>('/me/progress/'),
-      api.get<StudyPlan>('/me/study-plan/'),
-    ]).then(([nextProgress, nextPlan]) => {
-      setProgress(nextProgress)
-      setPlan(nextPlan)
-    }).catch(() => {
-      // The dedicated pages expose detailed errors; the public dashboard keeps
-      // its useful fallback state if either summary is temporarily unavailable.
-    })
+    if (!isAuthed) {
+      setDashboard(null)
+      setError('')
+      return
+    }
+    let active = true
+    api
+      .get<Dashboard>('/me/dashboard/')
+      .then((data) => {
+        if (active) setDashboard(data)
+      })
+      .catch((reason: unknown) => {
+        if (active) {
+          setError(
+            reason instanceof Error ? reason.message : 'Could not load your dashboard.',
+          )
+        }
+      })
+    return () => {
+      active = false
+    }
   }, [isAuthed])
-
-  const nextTask = plan?.tasks.find((task) => task.state === 'pending')
 
   return (
     <section aria-labelledby="dashboard-title" className="space-y-6">
@@ -115,7 +117,7 @@ export function DashboardPage() {
         </h1>
         <p className="max-w-2xl text-sm text-muted sm:text-base">
           {isAuthed
-            ? 'Your countdown, targets, and per-skill readiness. Estimates appear here once you start practising.'
+            ? 'Your countdown, targets, streak, today\u2019s work, recent results, and a transparent practice planning indicator.'
             : 'Preview of your study overview. Create an account to save an exam date, targets, and progress.'}
         </p>
       </header>
@@ -123,9 +125,8 @@ export function DashboardPage() {
       {!isAuthed && (
         <Card className="border-brand/30 bg-brand-soft/40">
           <p className="text-sm text-ink">
-            You are browsing without an account. Sample Learn and Practice pages
-            are open to everyone, but saving a profile and progress needs a free
-            account.{' '}
+            You are browsing without an account. Sample Learn and Practice pages are open
+            to everyone, but saving a profile and progress needs a free account.{' '}
             <Link to="/register" className="font-semibold text-brand hover:underline">
               Create one
             </Link>{' '}
@@ -143,64 +144,33 @@ export function DashboardPage() {
         <TargetCard profile={profile} />
       </div>
 
-      <div>
-        <h2 className="mb-3 text-lg font-semibold tracking-tight text-ink">
-          Skill estimates
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {SKILLS.map((skill) => {
-            const summary = progress?.skills.find((item) => item.skill === skill)
-            const measure = summary?.accuracy_percent !== null && summary?.accuracy_percent !== undefined
-              ? `${summary.accuracy_percent}% accuracy`
-              : summary?.estimate_low !== null && summary?.estimate_low !== undefined
-                ? `Estimated ${summary.estimate_low}–${summary.estimate_high}`
-                : '—'
-            const meterValue = summary?.accuracy_percent ?? (summary?.estimate_high ? summary.estimate_high / 12 * 100 : 0)
-            return <Card key={skill}>
-              <div className="mb-2 flex items-center justify-between">
-                <CardTitle>{SKILL_LABELS[skill]}</CardTitle>
-                <span className="text-sm tabular-nums text-muted">{measure}</span>
-              </div>
-              <Meter value={meterValue} label={`${SKILL_LABELS[skill]}: ${measure}`} />
-              <p className="mt-2 text-sm text-muted">{summary?.attempts ? `${summary.attempts} completed attempt${summary.attempts === 1 ? '' : 's'}.` : 'No practice recorded yet.'}</p>
-            </Card>
-          })}
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card>
-          <CardTitle className="mb-2">Overall readiness</CardTitle>
-          <p className="text-sm text-muted">
-            {progress?.readiness_explanation ?? 'A single readiness score is withheld. CELPIP reports Listening, Reading, Writing, and Speaking separately.'}
+      {isAuthed &&
+        (error ? (
+          <p role="alert" className="rounded-input bg-bad-soft p-3 text-bad">
+            {error}
           </p>
-        </Card>
-
-        <Card>
-          <div className="flex items-start gap-3">
-            <Compass size={22} className="mt-0.5 shrink-0 text-accent" />
-            <div>
-              <CardTitle className="mb-2">Recommended next activity</CardTitle>
-              <p className="text-sm text-muted">
-                {nextTask?.reason ?? 'Start by understanding one task type end to end.'}
-              </p>
-              <p className="mt-2 text-sm">
-                <Link to={nextTask?.destination ?? '/learn'} className="font-semibold text-brand hover:underline">
-                  {nextTask ? nextTask.title : 'Open Learn'}
-                </Link>{' '}
-                {nextTask ? 'or ' : 'to explore the four skills, or '}
-                <Link
-                  to={nextTask ? '/study-plan' : '/practice'}
-                  className="font-semibold text-brand hover:underline"
-                >
-                  {nextTask ? 'view your full study plan' : 'browse Practice'}
-                </Link>
-                .
-              </p>
-            </div>
-          </div>
-        </Card>
-      </div>
+        ) : !dashboard ? (
+          <p role="status" className="py-16 text-center text-muted">
+            Loading your dashboard…
+          </p>
+        ) : (
+          <>
+            <DashboardStats
+              streakDays={dashboard.streak.days}
+              totalQuestions={dashboard.totals.objective_questions_completed}
+              completedAttempts={dashboard.totals.completed_attempts}
+            />
+            <TodayTasks
+              date={dashboard.today.date}
+              tasks={dashboard.today.tasks}
+              nextUpcoming={dashboard.next_upcoming_task}
+            />
+            <SkillEstimates skills={dashboard.skills} />
+            <SkillSignals signals={dashboard.signals} />
+            <RecentResults results={dashboard.recent_results} />
+            <ReadinessIndicator readiness={dashboard.readiness} />
+          </>
+        ))}
     </section>
   )
 }

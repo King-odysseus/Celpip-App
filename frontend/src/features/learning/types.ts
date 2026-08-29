@@ -64,3 +64,64 @@ export type StudyPlan = {
   reason_summary: { priorities: Record<Skill, number>; rule: string; source_attempts: number }
   tasks: StudyTask[]
 }
+
+export type SkillSignal = {
+  skill: Skill
+  measure: 'accuracy_percent' | 'estimated_midpoint' | null
+  value: number | null
+  planning_signal: number | null
+  attempts: number
+  basis: string
+}
+
+export type ReadinessComponent = {
+  key: string
+  label: string
+  weight: number
+  value: number
+  raw: string
+  explanation: string
+}
+
+export type Readiness = {
+  label: string
+  indicator: number | null
+  state: 'estimated' | 'insufficient_evidence'
+  is_official: false
+  formula: string
+  components: ReadinessComponent[]
+  explanation: string
+  disclaimer: string
+}
+
+export type RecentResult = {
+  date: string
+  skill: Skill
+  task_type: string
+  title: string
+  measure: 'accuracy_percent' | 'estimated_midpoint'
+  value: number
+  label: string
+  destination: string
+}
+
+export type Dashboard = {
+  skills: Progress['skills']
+  task_types: Progress['task_types']
+  trends: Progress['trends']
+  coverage: Progress['coverage']
+  totals: { objective_questions_completed: number; completed_attempts: number }
+  streak: {
+    days: number
+    active_today: boolean
+    anchor: 'today' | 'yesterday' | null
+    timezone: string
+    rule: string
+  }
+  recent_results: RecentResult[]
+  signals: { strongest: SkillSignal | null; needs_attention: SkillSignal | null; note: string }
+  readiness: Readiness
+  today: { date: string; timezone: string; tasks: StudyTask[] }
+  next_upcoming_task: StudyTask | null
+  disclaimer: string
+}

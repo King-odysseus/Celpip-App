@@ -11,7 +11,7 @@ four-skill **CELPIP-General test used for immigration**.
 This repository is a monorepo. Architecture is governed by
 [`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md).
 
-## Current status — Phase 9 (production hardening & account privacy UI)
+## Current status — Phase 10 (dashboard completion)
 
 Phase 1 adds the smallest end-to-end account slice on top of the Phase 1A shell:
 
@@ -133,6 +133,53 @@ Phase 9 hardens the backend for production and adds the account privacy UI:
   TLS/HSTS, and security headers. See [`docs/PRODUCTION_DEPLOYMENT.md`](docs/PRODUCTION_DEPLOYMENT.md),
   [`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md), and
   [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md).
+
+Phase 10 completes the authenticated candidate Dashboard:
+
+- **Dashboard read model** at `GET /api/v1/me/dashboard/`, reusing the progress
+  selector for per-skill measures and layering on totals, streak, recent
+  results, practice signals, today's tasks, and a transparent readiness
+  planning indicator. Selector-only — no schema migration is required.
+- **Totals** — total objective questions completed and total completed attempts
+  across all four skills.
+- **Study streak** — unique submitted/completed activity dates (objective
+  submissions, Writing/Speaking submissions, and completed study tasks) in the
+  learner's profile timezone. The streak is anchored on today when today has
+  activity, otherwise on yesterday; future dates are ignored.
+- **Recent results** — the five most recent objective-accuracy and AI-assisted
+  estimate outcomes, newest first, with skill, task, date, measure, value, and
+  destination but no prompt text or responses.
+- **Strongest / needs-attention practice signals.** Cross-skill comparison uses
+  an unofficial *practice planning indicator*: objective accuracy stays 0–100
+  for Listening/Reading, while the AI-assisted Writing/Speaking midpoint is
+  divided by 12 and multiplied by 100. Unpractised skills are shown as
+  needs-attention, never silently scored zero, and objective accuracy is never
+  labelled an estimated CELPIP level.
+- **Overall readiness** is a transparent, deterministic *practice planning
+  indicator*, not a CELPIP score or score prediction:
+
+  ```
+  0.30 × coverage + 0.25 × recency + 0.25 × volume + 0.20 × performance
+  ```
+
+  - **coverage** — share of the four skills with at least one objective result
+    or AI-assisted estimate.
+  - **recency** — 100 for activity today, minus 10 per full day since the most
+    recent activity (floor 0).
+  - **volume** — 10 points per completed attempt, capped at 100. A completed
+    attempt is a submitted session, counted even when AI feedback is still
+    queued or failed.
+  - **performance** — average of per-skill practice planning signals.
+
+  Every component's weight, value, and explanation is shown to the learner, and
+  the indicator returns an *insufficient-evidence* state (no number) until at
+  least one attempt exists. A prominent disclaimer states it is unofficial and
+  not a score prediction. Per-skill measures remain separate on the Progress
+  page.
+
+The Dashboard is split into cohesive, accessible subcomponents (stats, today's
+tasks, skill estimates, practice signals, recent results, readiness) with
+loading, error, empty, and anonymous states.
 
 ## Layout
 

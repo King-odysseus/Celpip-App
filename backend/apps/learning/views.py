@@ -6,7 +6,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
-from .services import plan_payload, progress_payload, regenerate_plan, set_task_state
+from .services import (
+    dashboard_payload,
+    plan_payload,
+    progress_payload,
+    regenerate_plan,
+    set_task_state,
+)
 
 
 def _mistake_payload(mistake: MistakeRecord) -> dict:
@@ -32,6 +38,13 @@ class ProgressView(APIView):
 
     def get(self, request):
         return Response(progress_payload(request.user))
+
+
+class DashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(dashboard_payload(request.user))
 
 
 class MistakeListView(APIView):

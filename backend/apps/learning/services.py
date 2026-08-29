@@ -12,7 +12,14 @@ from django.utils import timezone
 
 from apps.accounts.models import LearnerProfile
 from apps.ai_services.models import AIFeedback
-from apps.assessments.models import ObjectiveResult
+from apps.assessments.models import (
+    AssessmentSession,
+    ObjectiveResult,
+    SessionMode,
+    SessionState,
+    SpeakingSubmission,
+    WritingSubmission,
+)
 from apps.content.models import Question, Skill, TaskType
 
 from .models import (
@@ -25,6 +32,48 @@ from .models import (
 
 SKILLS = (Skill.LISTENING, Skill.READING, Skill.WRITING, Skill.SPEAKING)
 SKILL_LABELS = dict(Skill.choices)
+
+# Number of most-recent results shown on the dashboard. Small and privacy-safe:
+# only the learner's own submitted/estimated outcomes, with no prompt text.
+RECENT_RESULTS_LIMIT = 5
+
+STREAK_RULE = (
+    "Unique submitted/completed activity dates in the learner's profile timezone. "
+    "The streak is anchored on today when today has activity, otherwise on yesterday. "
+    "Future dates are ignored."
+)
+
+SIGNALS_NOTE = (
+    "Cross-skill comparison uses an unofficial practice planning indicator: objective "
+    "accuracy is 0-100 for Listening/Reading, and the AI-assisted midpoint is divided by "
+    "12 and multiplied by 100 for Writing/Speaking. Unpractised skills are shown as "
+    "needs-attention rather than silently scored zero."
+)
+
+DESTINATIONS = {
+    Skill.READING: "/practice",
+    Skill.LISTENING: "/practice/listening",
+    Skill.WRITING: "/practice/writing",
+    Skill.SPEAKING: "/practice/speaking",
+}
+
+# Deterministic, documented weights for the overall readiness planning indicator.
+# They always sum to 1.0 and are shown to the learner alongside each component.
+READINESS_WEIGHTS = {
+    "coverage": 0.30,
+    "recency": 0.25,
+    "volume": 0.25,
+    "performance": 0.20,
+}
+READINESS_FORMULA = "0.30 × coverage + 0.25 × recency + 0.25 × volume + 0.20 × performance"
+READINESS_DISCLAIMER = (
+    "This is an unofficial practice planning indicator, not a CELPIP score and not a "
+    "score prediction. It weighs skill coverage, recency, practice volume, and available "
+    "practice signals to help you decide what to do next. Listening/Reading use objective "
+    "accuracy; Writing/Speaking use the AI-assisted midpoint divided by 12 and multiplied "
+    "by 100. These measures are not directly comparable to each other or to an official "
+    "CELPIP level."
+)
 
 
 def _profile_for(user):
@@ -295,28 +344,29 @@ def regenerate_plan(user) -> StudyPlan:
     return plan
 
 
+def _task_payload(task: StudyTask) -> dict:
+    return {
+        "id": task.pk,
+        "scheduled_date": task.scheduled_date,
+        "order": task.order,
+        "skill": task.skill,
+        "task_type": task.task_type_id,
+        "title": task.title,
+        "minutes": task.minutes,
+        "reason": task.reason,
+        "destination": task.destination,
+        "state": task.state,
+        "completed_at": task.completed_at,
+    }
+
+
 def plan_payload(plan: StudyPlan) -> dict:
     return {
         "id": plan.pk,
         "version": plan.version,
         "generated_at": plan.generated_at,
         "reason_summary": plan.reason_summary,
-        "tasks": [
-            {
-                "id": task.pk,
-                "scheduled_date": task.scheduled_date,
-                "order": task.order,
-                "skill": task.skill,
-                "task_type": task.task_type_id,
-                "title": task.title,
-                "minutes": task.minutes,
-                "reason": task.reason,
-                "destination": task.destination,
-                "state": task.state,
-                "completed_at": task.completed_at,
-            }
-            for task in plan.tasks.select_related("task_type")
-        ],
+        "tasks": [_task_payload(task) for task in plan.tasks.select_related("task_type")],
     }
 
 
@@ -332,3 +382,367 @@ def set_task_state(*, user, task_id: int, state: str) -> StudyTask:
     task.completed_at = timezone.now() if state == StudyTaskState.COMPLETED else None
     task.save(update_fields=["state", "completed_at"])
     return task
+
+
+# ── Dashboard selector ───────────────────────────────────────────────────────
+# A cohesive read model for the authenticated dashboard. It reuses the progress
+# selector for per-skill measures, then layers on totals, streak, recent results,
+# practice signals, and a transparent readiness planning indicator. No schema
+# changes are required: every value is derived from already-stored evidence.
+
+
+def _activity_dates(user, zone: ZoneInfo) -> set:
+    """Unique calendar dates (in ``zone``) with submitted/completed activity.
+
+    Sources: objective submissions, writing submissions, speaking submissions,
+    and completed study tasks. Future dates are ignored by the streak logic.
+    """
+    dates = set()
+    scored_dates = ObjectiveResult.objects.filter(session__user=user).values_list(
+        "scored_at", flat=True
+    )
+    dates.update(value.astimezone(zone).date() for value in scored_dates)
+
+    writing_dates = WritingSubmission.objects.filter(
+        session_item__session__user=user, submitted_at__isnull=False
+    ).values_list("submitted_at", flat=True)
+    dates.update(value.astimezone(zone).date() for value in writing_dates)
+
+    speaking_dates = SpeakingSubmission.objects.filter(
+        session_item__session__user=user, submitted_at__isnull=False
+    ).values_list("submitted_at", flat=True)
+    dates.update(value.astimezone(zone).date() for value in speaking_dates)
+
+    task_dates = StudyTask.objects.filter(
+        plan__user=user, state=StudyTaskState.COMPLETED, completed_at__isnull=False
+    ).values_list("completed_at", flat=True)
+    dates.update(value.astimezone(zone).date() for value in task_dates)
+    return dates
+
+
+def study_streak(activity_dates: set, today) -> dict:
+    """Count consecutive activity days ending today or yesterday.
+
+    The anchor is today when today has activity, otherwise yesterday. Future
+    dates are ignored. A learner with no recent activity has a zero-day streak.
+    """
+    active = {day for day in activity_dates if day <= today}
+    if today in active:
+        anchor = today
+        anchor_label = "today"
+    elif today - timedelta(days=1) in active:
+        anchor = today - timedelta(days=1)
+        anchor_label = "yesterday"
+    else:
+        return {"days": 0, "active_today": False, "anchor": None}
+
+    days = 0
+    cursor = anchor
+    while cursor in active:
+        days += 1
+        cursor -= timedelta(days=1)
+    return {"days": days, "active_today": anchor == today, "anchor": anchor_label}
+
+
+def _recent_results(user) -> list[dict]:
+    """Merge objective accuracy and AI-assisted estimates, newest first."""
+    entries = []
+    objective = list(
+        ObjectiveResult.objects.filter(session__user=user)
+        .select_related("session")
+        .prefetch_related("session__items")
+    )
+    for result in objective:
+        item = result.session.items.first()
+        snapshot = item.snapshot if item else {}
+        value = (
+            round(100 * result.raw_correct / result.raw_possible)
+            if result.raw_possible
+            else None
+        )
+        entries.append(
+            {
+                "date": result.scored_at,
+                "skill": snapshot.get("skill"),
+                "task_type": snapshot.get("task_type"),
+                "title": snapshot.get("title", snapshot.get("task_type", "")),
+                "measure": "accuracy_percent",
+                "value": value,
+                "label": "Practice accuracy",
+                "destination": DESTINATIONS.get(snapshot.get("skill"), "/practice"),
+            }
+        )
+
+    feedback = AIFeedback.objects.filter(session_item__session__user=user).select_related(
+        "session_item"
+    )
+    for artifact in feedback:
+        snapshot = artifact.session_item.snapshot
+        low = artifact.assessment["estimated_level_low"]
+        high = artifact.assessment["estimated_level_high"]
+        entries.append(
+            {
+                "date": artifact.created_at,
+                "skill": snapshot.get("skill"),
+                "task_type": snapshot.get("task_type"),
+                "title": snapshot.get("title", snapshot.get("task_type", "")),
+                "measure": "estimated_midpoint",
+                "value": round((low + high) / 2, 1),
+                "label": "AI-assisted practice estimate",
+                "destination": DESTINATIONS.get(snapshot.get("skill"), "/practice"),
+            }
+        )
+
+    entries.sort(key=lambda entry: entry["date"], reverse=True)
+    return [
+        {**entry, "date": entry["date"].isoformat()}
+        for entry in entries[:RECENT_RESULTS_LIMIT]
+    ]
+
+
+def _practice_signal(summary: dict) -> dict | None:
+    """Normalise one skill summary to a 0-100 planning signal, or None.
+
+    Objective accuracy stays 0-100. An AI-assisted Writing/Speaking estimate is
+    normalised as midpoint ÷ 12 × 100. Unpractised skills return None.
+    """
+    if summary["accuracy_percent"] is not None:
+        value = summary["accuracy_percent"]
+        return {
+            "measure": "accuracy_percent",
+            "value": value,
+            "planning_signal": value,
+            "basis": f"{value}% practice accuracy",
+        }
+    if summary["estimate_low"] is not None:
+        midpoint = round((summary["estimate_low"] + summary["estimate_high"]) / 2, 1)
+        normalised = round(midpoint / 12 * 100)
+        return {
+            "measure": "estimated_midpoint",
+            "value": midpoint,
+            "planning_signal": normalised,
+            "basis": f"AI-assisted midpoint {midpoint}/12 (≈{normalised}% planning signal)",
+        }
+    return None
+
+
+def _practice_signals(skills: list[dict]) -> tuple[dict | None, dict | None]:
+    """Return the strongest and needs-attention practice signals.
+
+    Unpractised skills rank first for needs-attention (no evidence), then the
+    lowest planning signal among practised skills.
+    """
+    practised = []
+    unpractised = []
+    for summary in skills:
+        signal = _practice_signal(summary)
+        entry = {"skill": summary["skill"], "attempts": summary["attempts"]}
+        if signal:
+            practised.append({**entry, **signal})
+        else:
+            unpractised.append(summary["skill"])
+
+    strongest = max(practised, key=lambda item: item["planning_signal"]) if practised else None
+
+    if unpractised:
+        needs_attention = {
+            "skill": unpractised[0],
+            "measure": None,
+            "value": None,
+            "planning_signal": None,
+            "attempts": 0,
+            "basis": "No practice recorded yet",
+        }
+    else:
+        needs_attention = min(practised, key=lambda item: item["planning_signal"])
+
+    return strongest, needs_attention
+
+
+def _completed_attempts(user) -> int:
+    """Count the learner's completed attempts from submitted sessions.
+
+    A learner completes an attempt when their owned session is submitted, even
+    if AI feedback is still queued, has failed, or is unavailable. Each
+    submitted session is one attempt. Mock sessions are excluded because a
+    single mock attempt fans out into many per-task sessions and is reported
+    separately on the mock results page.
+    """
+    return (
+        AssessmentSession.objects.filter(user=user, state=SessionState.SUBMITTED)
+        .exclude(mode=SessionMode.MOCK)
+        .count()
+    )
+
+
+def _readiness_indicator(
+    skills: list[dict], activity_dates: set, today, completed_attempts: int
+) -> dict:
+    """Transparent planning indicator from coverage, recency, volume, performance.
+
+    Coverage and performance stay evidence-based (objective results or succeeded
+    AI feedback); volume counts every completed attempt (submitted session),
+    whether or not feedback has been produced yet.
+    """
+    practised = sum(1 for summary in skills if summary["attempts"] > 0)
+
+    coverage_value = round(100 * practised / len(SKILLS))
+    volume_value = min(100, completed_attempts * 10)
+
+    past_dates = [day for day in activity_dates if day <= today]
+    if past_dates:
+        days_since = (today - max(past_dates)).days
+        recency_value = max(0, 100 - 10 * days_since)
+        recency_raw = f"Most recent activity {days_since} day(s) ago"
+    else:
+        recency_value = 0
+        recency_raw = "No activity yet"
+
+    signals = [signal for summary in skills if (signal := _practice_signal(summary))]
+    performance_value = (
+        round(sum(signal["planning_signal"] for signal in signals) / len(signals))
+        if signals
+        else 0
+    )
+
+    components = [
+        {
+            "key": "coverage",
+            "label": "Skill coverage",
+            "weight": READINESS_WEIGHTS["coverage"],
+            "value": coverage_value,
+            "raw": f"{practised} of {len(SKILLS)} skills practised",
+            "explanation": (
+                "The share of the four CELPIP skills with at least one objective result "
+                "or AI-assisted estimate."
+            ),
+        },
+        {
+            "key": "recency",
+            "label": "Recency",
+            "weight": READINESS_WEIGHTS["recency"],
+            "value": recency_value,
+            "raw": recency_raw,
+            "explanation": (
+                "100 for activity today, minus 10 per full day since your most recent "
+                "activity (never below 0)."
+            ),
+        },
+        {
+            "key": "volume",
+            "label": "Practice volume",
+            "weight": READINESS_WEIGHTS["volume"],
+            "value": volume_value,
+            "raw": f"{completed_attempts} completed attempt(s)",
+            "explanation": "10 points per completed attempt, capped at 100.",
+        },
+        {
+            "key": "performance",
+            "label": "Performance signal",
+            "weight": READINESS_WEIGHTS["performance"],
+            "value": performance_value,
+            "raw": f"{len(signals)} skill(s) with evidence",
+            "explanation": (
+                "Average of per-skill practice planning signals (objective accuracy for "
+                "Listening/Reading; AI-assisted midpoint ÷ 12 × 100 for Writing/Speaking)."
+            ),
+        },
+    ]
+
+    if completed_attempts == 0:
+        state = "insufficient_evidence"
+        indicator = None
+        explanation = (
+            "There is not enough practice evidence yet. Complete an attempt in any skill "
+            "to see a planning indicator."
+        )
+    else:
+        state = "estimated"
+        indicator = round(sum(component["weight"] * component["value"] for component in components))
+        explanation = (
+            "A weighted planning aid, not a score. The components below show exactly what "
+            "drives it and what each measure means."
+        )
+
+    return {
+        "label": "Practice planning indicator",
+        "indicator": indicator,
+        "state": state,
+        "is_official": False,
+        "formula": READINESS_FORMULA,
+        "components": components,
+        "explanation": explanation,
+        "disclaimer": READINESS_DISCLAIMER,
+    }
+
+
+def _today_and_next(plan: StudyPlan | None, today) -> tuple[list[dict], dict | None]:
+    if plan is None:
+        return [], None
+    tasks = list(plan.tasks.all())
+    today_tasks = [_task_payload(task) for task in tasks if task.scheduled_date == today]
+    upcoming = [
+        task
+        for task in tasks
+        if task.scheduled_date > today and task.state == StudyTaskState.PENDING
+    ]
+    upcoming.sort(key=lambda task: (task.scheduled_date, task.order))
+    next_upcoming = _task_payload(upcoming[0]) if upcoming else None
+    return today_tasks, next_upcoming
+
+
+def dashboard_payload(user) -> dict:
+    """Authenticated dashboard read model (see module docstring above)."""
+    profile = _profile_for(user)
+    progress = progress_payload(user)
+    try:
+        zone = ZoneInfo(profile.timezone)
+    except Exception:
+        zone = ZoneInfo("UTC")
+    today = timezone.now().astimezone(zone).date()
+
+    activity_dates = _activity_dates(user, zone)
+    streak = study_streak(activity_dates, today)
+
+    skills = progress["skills"]
+    strongest, needs_attention = _practice_signals(skills)
+    completed_attempts = _completed_attempts(user)
+
+    plan = (
+        StudyPlan.objects.filter(user=user, is_active=True)
+        .prefetch_related("tasks__task_type")
+        .first()
+    )
+    today_tasks, next_upcoming = _today_and_next(plan, today)
+
+    return {
+        "skills": skills,
+        "task_types": progress["task_types"],
+        "trends": progress["trends"],
+        "coverage": progress["coverage"],
+        "totals": {
+            "objective_questions_completed": sum(
+                summary["questions_total"] for summary in skills
+            ),
+            "completed_attempts": completed_attempts,
+        },
+        "streak": {
+            **streak,
+            "timezone": profile.timezone,
+            "rule": STREAK_RULE,
+        },
+        "recent_results": _recent_results(user),
+        "signals": {
+            "strongest": strongest,
+            "needs_attention": needs_attention,
+            "note": SIGNALS_NOTE,
+        },
+        "readiness": _readiness_indicator(skills, activity_dates, today, completed_attempts),
+        "today": {
+            "date": today.isoformat(),
+            "timezone": profile.timezone,
+            "tasks": today_tasks,
+        },
+        "next_upcoming_task": next_upcoming,
+        "disclaimer": "Practice analytics are not official CELPIP results.",
+    }
