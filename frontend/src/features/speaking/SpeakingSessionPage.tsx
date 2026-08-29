@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
+import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
 import type {
   SpeakingRecording,
   SpeakingReview,
@@ -248,6 +249,7 @@ export function SpeakingSessionPage() {
   if (review && recording) {
     return (
       <SpeakingReviewView
+        sessionId={session.id}
         review={review}
         recording={recording}
         audioUrl={audioUrl}
@@ -420,7 +422,7 @@ function Countdown({ label, seconds, recording }: { label: string; seconds: numb
   )
 }
 
-function SpeakingReviewView({ review, recording, audioUrl, onBack }: { review: SpeakingReview; recording: SpeakingRecording; audioUrl: string; onBack: () => void }) {
+function SpeakingReviewView({ sessionId, review, recording, audioUrl, onBack }: { sessionId: string; review: SpeakingReview; recording: SpeakingRecording; audioUrl: string; onBack: () => void }) {
   return (
     <div className="mx-auto max-w-4xl space-y-6 animate-fade-up">
       <Card className="overflow-hidden p-0 text-center">
@@ -444,6 +446,7 @@ function SpeakingReviewView({ review, recording, audioUrl, onBack }: { review: S
           ))}
         </div>
       </section>
+      <AIFeedbackPanel sessionId={sessionId} />
       <Button onClick={onBack}>Choose another prompt</Button>
     </div>
   )

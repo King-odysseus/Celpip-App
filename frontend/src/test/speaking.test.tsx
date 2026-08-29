@@ -217,12 +217,34 @@ describe('Speaking recorder', () => {
       [`GET /sessions/${sessionId}/speaking/audio/`]: () => new Response('private-audio', {
         headers: { 'Content-Type': 'audio/webm' },
       }),
+      [`GET /sessions/${sessionId}/ai-feedback/`]: () => jsonResponse({
+        status: 'succeeded',
+        transcript: 'I would suggest taking the evening course.',
+        assessment: {
+          overall_summary: 'Clear advice with room for more support.',
+          dimensions: [
+            { key: 'content_coherence', rating: 3, evidence: 'Two connected ideas.', next_step: 'Add one example.' },
+            { key: 'vocabulary', rating: 3, evidence: 'Appropriate everyday words.', next_step: 'Use more precise verbs.' },
+            { key: 'delivery', rating: 2, evidence: 'Generally understandable.', next_step: 'Reduce long pauses.' },
+            { key: 'task_fulfillment', rating: 3, evidence: 'Advice addressed the friend.', next_step: 'Close with a recommendation.' },
+          ],
+          strengths: ['Clear recommendation.'],
+          priorities: ['Add support.'],
+          estimated_level_low: 6,
+          estimated_level_high: 7,
+          confidence: 'medium',
+          disclaimer: 'AI-assisted practice estimate — not an official CELPIP score.',
+        },
+        audit: { provider: 'fake', model: 'fake-v1', prompt_version: 'v1', created_at: '2026-08-29T08:03:00Z' },
+      }),
     })
     renderApp(`/speaking/session/${sessionId}`)
 
     expect(await screen.findByRole('heading', { name: 'Guided self-review' })).toBeInTheDocument()
     expect(screen.getByText('Content/Coherence')).toBeInTheDocument()
-    expect(screen.getByText(/not an official CELPIP score/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/not an official CELPIP score/i).length).toBeGreaterThan(0)
+    expect(await screen.findByRole('heading', { name: 'Estimated range: 6–7' })).toBeInTheDocument()
+    expect(screen.getByText('AI transcript used for feedback')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Replay your response').parentElement?.querySelector('audio')).toHaveAttribute('src', 'blob:server-speaking'))
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/api/v1/api/v1/'))).toBe(false)
   })

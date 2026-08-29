@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "apps.content",
     "apps.assessments",
     "apps.media_assets",
+    "apps.ai_services",
 ]
 
 # The custom user model must be declared before its first migration runs, and
@@ -213,3 +214,18 @@ PRIVATE_MEDIA_ROOT = Path(
 # Application metadata surfaced by the health endpoint.
 SERVICE_NAME = "celpip-backend"
 SERVICE_VERSION = "0.1.0"
+
+# ── Audited AI services ──────────────────────────────────────────────────
+# The fake provider keeps development/tests deterministic. Production can
+# switch to OpenAI without changing domain code. API responses are never
+# treated as official CELPIP scores and generated content remains a draft.
+AI_PROVIDER = os.environ.get("AI_PROVIDER", "fake").strip().lower()
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+OPENAI_TEXT_MODEL = os.environ.get("OPENAI_TEXT_MODEL", "gpt-5.6-luna").strip()
+OPENAI_TRANSCRIBE_MODEL = os.environ.get(
+    "OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe"
+).strip()
+OPENAI_TTS_MODEL = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts").strip()
+OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2").strip()
+AI_MAX_ATTEMPTS = int(os.environ.get("AI_MAX_ATTEMPTS", "3"))
+AI_JOB_POLL_SECONDS = float(os.environ.get("AI_JOB_POLL_SECONDS", "2"))

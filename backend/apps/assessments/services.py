@@ -373,6 +373,14 @@ def count_words(text: str) -> int:
     return len(text.split())
 
 
+def _queue_ai_feedback(item_id: int) -> None:
+    # Local import keeps the assessment domain provider-neutral and avoids an
+    # app-import cycle during Django startup.
+    from apps.ai_services.services import enqueue_feedback
+
+    enqueue_feedback(SessionItem.objects.select_related("session").get(pk=item_id))
+
+
 def _writing_payload_hash(*, text: str, expected_revision: int) -> str:
     payload = json.dumps(
         {"text": text, "expected_revision": expected_revision},
@@ -459,6 +467,7 @@ def submit_writing(
         # Idempotent: a submitted writing session already froze its response.
         if submission is None or not submission.is_submitted:
             raise EmptyResponse("No writing response was recorded for this session.")
+        transaction.on_commit(lambda: _queue_ai_feedback(item.pk), robust=True)
         return submission
 
     if final_text is not None:
@@ -481,13 +490,17 @@ def submit_writing(
     now = timezone.now()
     submission.submitted_at = now
     submission.word_count = count_words(submission.text)
-    submission.save(
-        update_fields=["text", "word_count", "revision", "submitted_at", "saved_at"]
-    )
+    if submission.pk:
+        submission.save(
+            update_fields=["text", "word_count", "revision", "submitted_at", "saved_at"]
+        )
+    else:
+        submission.save()
 
     locked.state = SessionState.SUBMITTED
     locked.submitted_at = now
     locked.save(update_fields=["state", "submitted_at", "last_activity_at"])
+    transaction.on_commit(lambda: _queue_ai_feedback(item.pk), robust=True)
     return submission
 
 
@@ -662,6 +675,7 @@ def submit_speaking(session: AssessmentSession) -> SpeakingSubmission:
     if locked.state == SessionState.SUBMITTED:
         if submission is None or not submission.is_submitted:
             raise MissingRecording("No speaking recording was saved for this session.")
+        transaction.on_commit(lambda: _queue_ai_feedback(item.pk), robust=True)
         return submission
     if submission is None or not submission.audio.name or not submission.byte_size:
         raise MissingRecording("Record and save a response before submitting.")
@@ -672,6 +686,7 @@ def submit_speaking(session: AssessmentSession) -> SpeakingSubmission:
     locked.state = SessionState.SUBMITTED
     locked.submitted_at = now
     locked.save(update_fields=["state", "submitted_at", "last_activity_at"])
+    transaction.on_commit(lambda: _queue_ai_feedback(item.pk), robust=True)
     return submission
 
 

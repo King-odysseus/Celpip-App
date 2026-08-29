@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
+import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
 import { countWords, targetState } from './wordCount'
 import type {
   WritingReview,
@@ -540,6 +541,8 @@ function WritingReviewView({
           <p className="whitespace-pre-line text-sm leading-7 text-ink">{submittedText}</p>
         </Card>
       </section>
+
+      <AIFeedbackPanel sessionId={session.id} />
 
       <div className="flex flex-wrap gap-3">
         <Button onClick={onBack}>Choose another prompt</Button>
