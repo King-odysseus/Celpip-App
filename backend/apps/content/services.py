@@ -7,7 +7,9 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from .models import ContentVersion, PublicationStatus, SourceType
+from .models import ContentVersion, PublicationStatus, Skill, SourceType
+
+WRITING_TASK_KINDS = {"email", "survey"}
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,15 @@ def validate_content_version(version: ContentVersion) -> list[ValidationIssue]:
         issues.append(
             ValidationIssue("missing_provenance", "Original-content provenance is required.")
         )
+
+    # Validation is skill-aware. Writing prompts are constructed responses, so
+    # zero objective questions is valid and expected; a writing prompt is instead
+    # validated against its structured prompt schema. Reading and Listening keep
+    # their objective-question and answer-key checks.
+    if version.item.task_type.skill == Skill.WRITING:
+        if isinstance(version.stimulus, dict) and version.stimulus:
+            issues.extend(_validate_writing_prompt(version.stimulus))
+        return issues
 
     questions = list(version.questions.prefetch_related("choices"))
     if not questions:
@@ -58,6 +69,81 @@ def validate_content_version(version: ContentVersion) -> list[ValidationIssue]:
                 ValidationIssue(
                     "missing_choice_feedback",
                     f"Question {question.order} has unexplained choices.",
+                )
+            )
+    return issues
+
+
+def _validate_writing_prompt(stimulus: dict) -> list[ValidationIssue]:
+    """Validate the structured prompt data carried by a writing_prompt stimulus."""
+    issues: list[ValidationIssue] = []
+    if stimulus.get("type") != "writing_prompt":
+        issues.append(
+            ValidationIssue(
+                "invalid_writing_stimulus_type",
+                "Writing content must use a 'writing_prompt' stimulus.",
+            )
+        )
+    task_kind = stimulus.get("task_kind")
+    if task_kind not in WRITING_TASK_KINDS:
+        issues.append(
+            ValidationIssue(
+                "invalid_writing_task_kind",
+                "A writing prompt needs task_kind of 'email' or 'survey'.",
+            )
+        )
+    if not str(stimulus.get("scenario", "")).strip():
+        issues.append(
+            ValidationIssue("missing_writing_scenario", "A writing scenario is required.")
+        )
+
+    points = stimulus.get("requested_points")
+    if not isinstance(points, list) or not any(str(point).strip() for point in points):
+        issues.append(
+            ValidationIssue(
+                "missing_writing_points",
+                "A writing prompt needs at least one requested point.",
+            )
+        )
+
+    target = stimulus.get("target_words")
+    if (
+        not isinstance(target, dict)
+        or not isinstance(target.get("min"), int)
+        or not isinstance(target.get("max"), int)
+        or target["min"] <= 0
+        or target["max"] < target["min"]
+    ):
+        issues.append(
+            ValidationIssue(
+                "invalid_target_words",
+                "A writing prompt needs a target word range with min and max.",
+            )
+        )
+
+    duration = stimulus.get("suggested_duration_seconds")
+    if not isinstance(duration, int) or duration <= 0:
+        issues.append(
+            ValidationIssue(
+                "missing_writing_duration",
+                "A writing prompt needs a positive suggested duration.",
+            )
+        )
+
+    if task_kind == "survey":
+        options = stimulus.get("options")
+        if not isinstance(options, list) or len(options) < 2:
+            issues.append(
+                ValidationIssue(
+                    "missing_survey_options",
+                    "A survey prompt needs at least two options to choose between.",
+                )
+            )
+        if not str(stimulus.get("survey_question", "")).strip():
+            issues.append(
+                ValidationIssue(
+                    "missing_survey_question",
+                    "A survey prompt needs a survey question.",
                 )
             )
     return issues

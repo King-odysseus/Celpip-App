@@ -20,7 +20,44 @@ from .models import (
     SessionItem,
     SessionMode,
     SessionState,
+    WritingSubmission,
 )
+
+# Safety cap on stored writing length. The suggested target is 150-200 words;
+# this is a generous upper bound (well above any realistic response) so a runaway
+# or pasted payload is rejected without constraining legitimate writing.
+MAX_WRITING_CHARS = 12000
+
+# Honest editorial self-review rubric. These dimensions are presented as
+# guidance, never as an automatic official CELPIP level.
+WRITING_RUBRIC_DIMENSIONS = [
+    {
+        "key": "content_coherence",
+        "label": "Content/Coherence",
+        "prompt": (
+            "Did you address every requested point and organize ideas so they connect clearly?"
+        ),
+    },
+    {
+        "key": "vocabulary",
+        "label": "Vocabulary",
+        "prompt": "Did you use varied, precise word choices that suit the reader and purpose?",
+    },
+    {
+        "key": "readability",
+        "label": "Readability",
+        "prompt": (
+            "Are sentences correct and easy to follow, with helpful paragraphing and punctuation?"
+        ),
+    },
+    {
+        "key": "task_fulfillment",
+        "label": "Task Fulfillment",
+        "prompt": (
+            "Does the response match the task, tone, and audience, and stay near the target length?"
+        ),
+    },
+]
 
 
 class AssessmentError(Exception):
@@ -57,6 +94,18 @@ class InvalidAnswer(AssessmentError):
 
 class ContentUnavailable(AssessmentError):
     code = "content_unavailable"
+
+
+class EmptyResponse(AssessmentError):
+    code = "empty_response"
+
+
+class ResponseTooLong(AssessmentError):
+    code = "response_too_long"
+
+
+class WrongSkill(AssessmentError):
+    code = "wrong_skill"
 
 
 @dataclass(frozen=True)
@@ -224,6 +273,8 @@ def submit_session(session: AssessmentSession) -> ObjectiveResult:
         return locked.objective_result
 
     item = locked.items.get()
+    if item.snapshot.get("skill") == "writing":
+        raise WrongSkill("Use the writing submit endpoint for writing sessions.")
     responses = {
         response.question_id: response
         for response in item.responses.select_related("selected_choice")
@@ -260,3 +311,157 @@ def submit_session(session: AssessmentSession) -> ObjectiveResult:
     locked.submitted_at = timezone.now()
     locked.save(update_fields=["state", "submitted_at", "last_activity_at"])
     return result
+
+
+# --- Writing responses ----------------------------------------------------
+
+
+def count_words(text: str) -> int:
+    """Server-authoritative word count. Whitespace-delimited tokens."""
+    return len(text.split())
+
+
+def _writing_payload_hash(*, text: str, expected_revision: int) -> str:
+    payload = json.dumps(
+        {"text": text, "expected_revision": expected_revision},
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _writing_item(session: AssessmentSession) -> SessionItem:
+    item = session.items.get()
+    if item.snapshot.get("skill") != "writing":
+        raise WrongSkill("This session is not a writing session.")
+    return item
+
+
+def get_writing_submission(
+    session: AssessmentSession,
+) -> tuple[SessionItem, WritingSubmission | None]:
+    item = _writing_item(session)
+    submission = WritingSubmission.objects.filter(session_item=item).first()
+    return item, submission
+
+
+@transaction.atomic
+def save_writing(
+    *,
+    session: AssessmentSession,
+    text: str,
+    expected_revision: int,
+    idempotency_key: UUID,
+) -> tuple[WritingSubmission, bool]:
+    locked = AssessmentSession.objects.select_for_update().get(pk=session.pk)
+    if locked.state != SessionState.ACTIVE:
+        raise SessionNotActive("Submitted sessions cannot be changed.")
+    if locked.deadline_at and locked.deadline_at <= timezone.now():
+        raise SessionDeadlinePassed("The practice time limit has ended. Submit for results.")
+
+    item = _writing_item(locked)
+    if len(text) > MAX_WRITING_CHARS:
+        raise ResponseTooLong(
+            f"The response exceeds the {MAX_WRITING_CHARS}-character limit."
+        )
+
+    submission = (
+        WritingSubmission.objects.select_for_update().filter(session_item=item).first()
+    )
+    if submission and submission.is_submitted:
+        raise SessionNotActive("A submitted response is final and cannot be changed.")
+
+    payload_hash = _writing_payload_hash(text=text, expected_revision=expected_revision)
+    if submission and submission.last_idempotency_key == idempotency_key:
+        if submission.last_payload_hash != payload_hash:
+            raise IdempotencyConflict("The idempotency key was reused with different data.")
+        return submission, True
+
+    current_revision = submission.revision if submission else 0
+    if expected_revision != current_revision:
+        raise StaleRevision(
+            f"Expected revision {expected_revision}; current is {current_revision}."
+        )
+    if submission is None:
+        submission = WritingSubmission(session_item=item)
+    submission.text = text
+    submission.word_count = count_words(text)
+    submission.revision = current_revision + 1
+    submission.last_idempotency_key = idempotency_key
+    submission.last_payload_hash = payload_hash
+    submission.save()
+    return submission, False
+
+
+@transaction.atomic
+def submit_writing(
+    session: AssessmentSession, *, final_text: str | None = None
+) -> WritingSubmission:
+    locked = AssessmentSession.objects.select_for_update().get(pk=session.pk)
+    item = _writing_item(locked)
+    submission = (
+        WritingSubmission.objects.select_for_update().filter(session_item=item).first()
+    )
+
+    if locked.state == SessionState.SUBMITTED:
+        # Idempotent: a submitted writing session already froze its response.
+        if submission is None or not submission.is_submitted:
+            raise EmptyResponse("No writing response was recorded for this session.")
+        return submission
+
+    if final_text is not None:
+        if len(final_text) > MAX_WRITING_CHARS:
+            raise ResponseTooLong(
+                f"The response exceeds the {MAX_WRITING_CHARS}-character limit."
+            )
+        if not final_text.strip():
+            raise EmptyResponse("Write a response before submitting.")
+        if submission is None:
+            submission = WritingSubmission(session_item=item)
+        if submission.text != final_text:
+            submission.text = final_text
+            submission.word_count = count_words(final_text)
+            submission.revision += 1
+
+    if submission is None or not submission.text.strip():
+        raise EmptyResponse("Write a response before submitting.")
+
+    now = timezone.now()
+    submission.submitted_at = now
+    submission.word_count = count_words(submission.text)
+    submission.save(
+        update_fields=["text", "word_count", "revision", "submitted_at", "saved_at"]
+    )
+
+    locked.state = SessionState.SUBMITTED
+    locked.submitted_at = now
+    locked.save(update_fields=["state", "submitted_at", "last_activity_at"])
+    return submission
+
+
+def writing_review_metadata(item: SessionItem, submission: WritingSubmission) -> dict:
+    """Honest rubric/self-review metadata. Never fabricates a CELPIP level."""
+    stimulus = item.snapshot.get("stimulus", {})
+    target_words = stimulus.get("target_words", {})
+    min_words = target_words.get("min")
+    max_words = target_words.get("max")
+    within_target = None
+    if isinstance(min_words, int) and isinstance(max_words, int):
+        within_target = min_words <= submission.word_count <= max_words
+    return {
+        "word_count": submission.word_count,
+        "target_words": target_words,
+        "within_target": within_target,
+        "score_label": "Editorial self-review",
+        "rubric": {
+            "dimensions": WRITING_RUBRIC_DIMENSIONS,
+            "note": (
+                "These dimensions mirror how CELPIP Writing is assessed, but this "
+                "is guided self-review, not an official rating."
+            ),
+        },
+        "estimated_level": None,
+        "disclaimer": (
+            "This is practice self-review, not an official CELPIP score or level."
+        ),
+    }

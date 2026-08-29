@@ -6,6 +6,8 @@ from .views import (
     SessionListCreateView,
     SessionResultView,
     SessionSubmitView,
+    WritingDetailView,
+    WritingSubmitView,
 )
 
 app_name = "assessments"
@@ -27,5 +29,15 @@ urlpatterns = [
         "sessions/<uuid:session_id>/results/",
         SessionResultView.as_view(),
         name="session-results",
+    ),
+    path(
+        "sessions/<uuid:session_id>/writing/",
+        WritingDetailView.as_view(),
+        name="writing-detail",
+    ),
+    path(
+        "sessions/<uuid:session_id>/writing/submit/",
+        WritingSubmitView.as_view(),
+        name="writing-submit",
     ),
 ]

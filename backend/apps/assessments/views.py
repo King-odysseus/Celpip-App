@@ -14,8 +14,15 @@ from apps.content.models import Choice, Question
 from apps.media_assets.models import MediaAsset
 
 from .models import AssessmentSession, SessionMode, SessionState
-from .serializers import SaveResponseSerializer, StartSessionSerializer, public_snapshot
+from .serializers import (
+    SaveResponseSerializer,
+    SaveWritingSerializer,
+    StartSessionSerializer,
+    SubmitWritingSerializer,
+    public_snapshot,
+)
 from .services import (
+    WRITING_RUBRIC_DIMENSIONS,
     AssessmentError,
     GuestAccessExpired,
     IdempotencyConflict,
@@ -24,9 +31,13 @@ from .services import (
     SessionNotActive,
     StaleRevision,
     authorize_session,
+    get_writing_submission,
     save_response,
+    save_writing,
     start_session,
     submit_session,
+    submit_writing,
+    writing_review_metadata,
 )
 
 
@@ -215,6 +226,104 @@ class SessionResultView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
         return ApiResponse(_result_payload(session.objective_result))
+
+
+def _submission_payload(submission) -> dict | None:
+    if submission is None:
+        return None
+    return {
+        "text": submission.text,
+        "word_count": submission.word_count,
+        "revision": submission.revision,
+        "saved_at": submission.saved_at,
+        "submitted_at": submission.submitted_at,
+    }
+
+
+def _writing_payload(session: AssessmentSession, item, submission) -> dict:
+    payload = {
+        "id": str(session.id),
+        "mode": session.mode,
+        "state": session.state,
+        "started_at": session.started_at,
+        "deadline_at": session.deadline_at,
+        "submitted_at": session.submitted_at,
+        "server_now": timezone.now(),
+        "is_guest": session.user_id is None,
+        "content": public_snapshot(
+            item.snapshot,
+            include_learning_notes=session.mode == SessionMode.LEARN,
+        ),
+        "rubric": {"dimensions": WRITING_RUBRIC_DIMENSIONS},
+        "submission": _submission_payload(submission),
+    }
+    if submission is not None and submission.is_submitted:
+        payload["review"] = writing_review_metadata(item, submission)
+    return payload
+
+
+class WritingDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+            item, submission = get_writing_submission(session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        return ApiResponse(_writing_payload(session, item, submission))
+
+    def put(self, request, session_id):
+        serializer = SaveWritingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        raw_key = request.headers.get("Idempotency-Key", "")
+        try:
+            idempotency_key = UUID(raw_key)
+        except ValueError:
+            return ApiResponse(
+                {
+                    "code": "invalid_idempotency_key",
+                    "message": "Idempotency-Key must be a UUID.",
+                    "fields": {},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            session = _session_for_request(request, session_id)
+            submission, replayed = save_writing(
+                session=session,
+                text=serializer.validated_data["text"],
+                expected_revision=serializer.validated_data["expected_revision"],
+                idempotency_key=idempotency_key,
+            )
+        except AssessmentError as exc:
+            return error_response(exc)
+        return ApiResponse(_submission_payload(submission) | {"replayed": replayed})
+
+
+class WritingSubmitView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        serializer = SubmitWritingSerializer(data=request.data or {})
+        serializer.is_valid(raise_exception=True)
+        try:
+            session = _session_for_request(request, session_id)
+            was_submitted = session.state == SessionState.SUBMITTED
+            submission = submit_writing(
+                session, final_text=serializer.validated_data.get("text")
+            )
+            item, _ = get_writing_submission(session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        payload = writing_review_metadata(item, submission)
+        payload |= {
+            "session_id": str(session.id),
+            "state": SessionState.SUBMITTED,
+            "submission": _submission_payload(submission),
+            "replayed": was_submitted,
+        }
+        return ApiResponse(payload)
 
 
 def _result_payload(result) -> dict:

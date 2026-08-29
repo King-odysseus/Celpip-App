@@ -20,6 +20,19 @@ class SaveResponseSerializer(serializers.Serializer):
     expected_revision = serializers.IntegerField(min_value=0)
 
 
+class SaveWritingSerializer(serializers.Serializer):
+    # Blank is allowed so a learner can autosave an empty or cleared draft.
+    text = serializers.CharField(allow_blank=True, trim_whitespace=False)
+    expected_revision = serializers.IntegerField(min_value=0)
+
+
+class SubmitWritingSerializer(serializers.Serializer):
+    # Supplying the editor's current text makes final submission atomic even if
+    # the last debounced autosave was interrupted or the timer just expired.
+    # It remains optional for backward-compatible replay of an autosaved draft.
+    text = serializers.CharField(allow_blank=True, trim_whitespace=False, required=False)
+
+
 def public_snapshot(snapshot: dict, *, include_learning_notes: bool) -> dict:
     result = {
         key: value
@@ -28,6 +41,13 @@ def public_snapshot(snapshot: dict, *, include_learning_notes: bool) -> dict:
     }
     if include_learning_notes:
         result["learning_notes"] = snapshot.get("learning_notes", "")
+    elif isinstance(result.get("stimulus"), dict):
+        # Prompt-specific coaching is a Learn-mode aid, not part of a timed
+        # practice prompt. Copy before removing it so the frozen snapshot stays
+        # unchanged.
+        result["stimulus"] = {
+            key: value for key, value in result["stimulus"].items() if key != "guidance"
+        }
     result["questions"] = [
         {
             key: value

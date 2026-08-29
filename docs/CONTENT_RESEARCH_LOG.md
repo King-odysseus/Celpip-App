@@ -44,3 +44,40 @@ Implementation interpretation:
 - Seed audio may use a clearly identified synthetic voice during development.
   Synthetic output is reviewed for transcript fidelity and is never described
   as an official recording or exact test-centre audio.
+
+## Writing revalidation — 29 August 2026
+
+Primary sources:
+
+- [Official CELPIP test format](https://www.celpip.ca/take-celpip/test-format/)
+- [Official 2026 Writing Pro Study Pack](https://www.celpip.ca/wp-content/uploads/2026/03/Writing-Pro-Study-Pack-2026.pdf)
+- [Official free resources and Writing tips](https://www.celpip.ca/prepare-for-celpip/free-resources/)
+- [Official results and scoring explanation](https://www.celpip.ca/take-celpip/test-results/)
+
+Verified product rules:
+
+- CELPIP-General Writing has two tasks in this order: Writing an Email and
+  Responding to Survey Questions. The component is currently listed at about
+  53 minutes total.
+- Public preparation guidance suggests roughly 27 minutes for the email task
+  and 26 minutes for the survey task, and a response of about 150–200 words for
+  each. These are learner-facing suggestions, not official per-task hard limits.
+- Writing is assessed independently by four to six qualified, trained raters
+  across Content/Coherence, Vocabulary, Readability, and Task Fulfilment on the
+  0–12 scale. A short practice tool cannot reproduce that rating, so this
+  platform presents those four dimensions only as an honest self-review
+  checklist and never outputs an estimated CELPIP level for a practice response.
+
+Implementation interpretation:
+
+- Seed prompts are original Canadian-context scenarios authored for this
+  repository. Each carries structured prompt data (task kind, scenario,
+  requested points, survey options, target word range, suggested duration, and
+  learning guidance) that is frozen into the session snapshot at start time.
+- Writing content stores no objective questions or answer keys. Content
+  validation is skill-aware: for `writing` task types, zero questions is valid
+  and expected, and the structured prompt schema is validated instead.
+- A submitted writing response is immutable. Autosave is revision-aware and
+  idempotent, and the server — not the client — computes the stored word count.
+- Practice writing feedback is explicitly non-official: rubric dimensions are
+  shown for self-review, and no field claims an automatic CELPIP score or level.

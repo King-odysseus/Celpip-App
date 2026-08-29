@@ -6,6 +6,8 @@ from .views import (
     ListeningCatalogView,
     ListeningDetailView,
     TaskTypeListView,
+    WritingCatalogView,
+    WritingDetailView,
 )
 
 app_name = "content"
@@ -19,5 +21,11 @@ urlpatterns = [
         "content/listening/<slug:slug>/",
         ListeningDetailView.as_view(),
         name="listening-detail",
+    ),
+    path("content/writing/", WritingCatalogView.as_view(), name="writing-catalog"),
+    path(
+        "content/writing/<slug:slug>/",
+        WritingDetailView.as_view(),
+        name="writing-detail",
     ),
 ]

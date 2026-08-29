@@ -129,6 +129,49 @@ class Response(models.Model):
             raise ValidationError("Choice does not belong to the response question.")
 
 
+class WritingSubmission(models.Model):
+    """A learner's constructed writing response for a single frozen prompt.
+
+    One submission per :class:`SessionItem`. Autosave bumps ``revision``
+    monotonically; ``last_idempotency_key`` and ``last_payload_hash`` make a
+    repeated autosave a safe replay. Once ``submitted_at`` is set the response
+    is frozen and may never change.
+    """
+
+    session_item = models.OneToOneField(
+        SessionItem, on_delete=models.CASCADE, related_name="writing_submission"
+    )
+    text = models.TextField(blank=True)
+    word_count = models.PositiveIntegerField(default=0)
+    revision = models.PositiveIntegerField(default=0)
+    last_idempotency_key = models.UUIDField(null=True, blank=True)
+    last_payload_hash = models.CharField(max_length=64, blank=True)
+    saved_at = models.DateTimeField(auto_now=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:
+        return f"Writing submission for {self.session_item_id}"
+
+    def save(self, *args, **kwargs) -> None:
+        """Reject direct model writes after the response has been submitted.
+
+        The service layer already serializes normal writes, but this guard also
+        protects against accidental admin, shell, or future code-path edits.
+        """
+        if self.pk and type(self).objects.filter(pk=self.pk, submitted_at__isnull=False).exists():
+            raise ValidationError("A submitted writing response is immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk, submitted_at__isnull=False).exists():
+            raise ValidationError("A submitted writing response is immutable.")
+        return super().delete(*args, **kwargs)
+
+    @property
+    def is_submitted(self) -> bool:
+        return self.submitted_at is not None
+
+
 class ObjectiveResult(models.Model):
     session = models.OneToOneField(
         AssessmentSession, on_delete=models.CASCADE, related_name="objective_result"

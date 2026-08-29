@@ -8,6 +8,8 @@ import { SignInPage } from '../features/auth/SignInPage'
 import { RecoveryPage } from '../features/auth/RecoveryPage'
 import { ReadingCatalogPage } from '../features/reading/ReadingCatalogPage'
 import { ReadingSessionPage } from '../features/reading/ReadingSessionPage'
+import { WritingCatalogPage } from '../features/writing/WritingCatalogPage'
+import { WritingSessionPage } from '../features/writing/WritingSessionPage'
 import {
   MistakesPage,
   MockPage,
@@ -28,9 +30,12 @@ export const routes = [
       { index: true, element: <DashboardPage /> },
       { path: 'learn', element: <ReadingCatalogPage mode="learn" /> },
       { path: 'learn/listening', element: <ReadingCatalogPage mode="learn" skill="listening" /> },
+      { path: 'learn/writing', element: <WritingCatalogPage mode="learn" /> },
       { path: 'practice', element: <ReadingCatalogPage mode="practice" /> },
       { path: 'practice/listening', element: <ReadingCatalogPage mode="practice" skill="listening" /> },
+      { path: 'practice/writing', element: <WritingCatalogPage mode="practice" /> },
       { path: 'reading/session/:sessionId', element: <ReadingSessionPage /> },
+      { path: 'writing/session/:sessionId', element: <WritingSessionPage /> },
       { path: 'mock', element: <MockPage /> },
       { path: 'mistakes', element: <MistakesPage /> },
       { path: 'progress', element: <ProgressPage /> },
