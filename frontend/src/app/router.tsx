@@ -6,12 +6,12 @@ import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { RegisterPage } from '../features/auth/RegisterPage'
 import { SignInPage } from '../features/auth/SignInPage'
 import { RecoveryPage } from '../features/auth/RecoveryPage'
+import { ReadingCatalogPage } from '../features/reading/ReadingCatalogPage'
+import { ReadingSessionPage } from '../features/reading/ReadingSessionPage'
 import {
-  LearnPage,
   MistakesPage,
   MockPage,
   NotFoundPage,
-  PracticePage,
   ProgressPage,
   StudyPlanPage,
 } from '../pages/placeholder-pages'
@@ -26,8 +26,9 @@ export const routes = [
     element: <AppShell />,
     children: [
       { index: true, element: <DashboardPage /> },
-      { path: 'learn', element: <LearnPage /> },
-      { path: 'practice', element: <PracticePage /> },
+      { path: 'learn', element: <ReadingCatalogPage mode="learn" /> },
+      { path: 'practice', element: <ReadingCatalogPage mode="practice" /> },
+      { path: 'reading/session/:sessionId', element: <ReadingSessionPage /> },
       { path: 'mock', element: <MockPage /> },
       { path: 'mistakes', element: <MistakesPage /> },
       { path: 'progress', element: <ProgressPage /> },

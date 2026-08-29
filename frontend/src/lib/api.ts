@@ -76,13 +76,14 @@ function isAuthPath(path: string): boolean {
 type RequestOptions = {
   method?: string
   body?: unknown
+  headers?: Record<string, string>
   /** Internal: prevents infinite retry loops after a refresh attempt. */
   _retry?: boolean
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = (options.method ?? 'GET').toUpperCase()
-  const headers: Record<string, string> = {}
+  const headers: Record<string, string> = { ...options.headers }
 
   if (options.body !== undefined) headers['Content-Type'] = 'application/json'
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`
@@ -145,8 +146,11 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
+  get: <T>(path: string, headers?: Record<string, string>) => request<T>(path, { headers }),
+  post: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+    request<T>(path, { method: 'POST', body, headers }),
+  put: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+    request<T>(path, { method: 'PUT', body, headers }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   del: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }

@@ -40,11 +40,11 @@ describe('AppShell', () => {
 })
 
 describe('routing', () => {
-  it('renders each placeholder destination heading', async () => {
+  it('renders each primary destination heading', async () => {
     const cases: Array<[string, string]> = [
       ['/', 'Dashboard'],
-      ['/learn', 'Learn'],
-      ['/practice', 'Practice'],
+      ['/learn', 'Reading Learn'],
+      ['/practice', 'Reading Practice'],
       ['/mock', 'Mock Tests'],
       ['/mistakes', 'Mistake Bank'],
       ['/progress', 'Progress'],

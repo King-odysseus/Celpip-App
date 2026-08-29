@@ -22,6 +22,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  sessionStorage.clear()
   document.documentElement.removeAttribute('data-theme')
   // Reset the module-level auth state shared by the API client.
   setAccessToken(null)

@@ -11,7 +11,7 @@ four-skill **CELPIP-General test used for immigration**.
 This repository is a monorepo. Architecture is governed by
 [`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md).
 
-## Current status — Phase 1
+## Current status — Phase 2
 
 Phase 1 adds the smallest end-to-end account slice on top of the Phase 1A shell:
 
@@ -35,9 +35,24 @@ Phase 1 adds the smallest end-to-end account slice on top of the Phase 1A shell:
   Dashboard with a timezone-aware exam countdown, target, four skill cards, a
   readiness empty state, and a recommended next activity.
 
-Sample Learn/Practice pages and the Dashboard stay viewable without an account;
-saving a profile and progress requires the loose account. Later phases add the
-practice and mock engines.
+Phase 2 adds the first complete practice loop:
+
+- A versioned, editorially reviewed bank of eight original Reading sets across
+  all four CELPIP-General Reading task families (24 questions, 96 choices).
+- Human-only publishing for AI-assisted drafts, immutable published versions,
+  provenance, validation tooling, and learner APIs that never expose answer
+  keys or explanations early.
+- Learn sessions with untimed, immediate evidence-based feedback and Practice
+  sessions with a learner-selected timer and corrections held until submission.
+- Frozen session content, server-side scoring, revision-aware idempotent
+  autosave, private account ownership, and 24-hour guest resume tokens stored
+  only in browser session storage. Practice accuracy is never presented as an
+  official CELPIP score.
+- Responsive email, notice, table, article, and viewpoint readers using the
+  LifeInTheUk-inspired design system.
+
+Learn and Practice work without registration. An account remains the easiest
+way to keep durable progress as later analytics and study-plan phases arrive.
 
 ## Layout
 
@@ -69,6 +84,11 @@ pip install -e ".[dev]"
 cp ../.env.example .env
 
 python manage.py migrate
+
+# Seed and validate the reviewed original Reading bank. Both commands are safe
+# to repeat; seeding never overwrites an existing authored item.
+python manage.py seed_reading_content
+python manage.py validate_content --published-only
 
 # Optional: seed the single owner account. The exam date defaults to
 # 2026-10-10 (a command default, not a global constant) and is overridable.
