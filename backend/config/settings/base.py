@@ -11,6 +11,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import dj_database_url
+from corsheaders.defaults import default_headers
 
 # backend/config/settings/base.py -> parents[2] == backend/
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -58,6 +59,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.content",
     "apps.assessments",
+    "apps.media_assets",
 ]
 
 # The custom user model must be declared before its first migration runs, and
@@ -193,6 +195,7 @@ CORS_ALLOWED_ORIGINS = env_list(
     default="http://localhost:5173,http://127.0.0.1:5173",
 )
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_HEADERS = (*default_headers, "idempotency-key", "x-guest-token")
 
 # ── Internationalisation ────────────────────────────────────────────────────
 LANGUAGE_CODE = "en-ca"
@@ -203,6 +206,9 @@ USE_TZ = True
 # ── Static files ────────────────────────────────────────────────────────────
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+PRIVATE_MEDIA_ROOT = Path(
+    os.environ.get("PRIVATE_MEDIA_ROOT") or BASE_DIR / "private_media"
+)
 
 # Application metadata surfaced by the health endpoint.
 SERVICE_NAME = "celpip-backend"

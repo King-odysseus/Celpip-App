@@ -13,13 +13,9 @@ from apps.content.models import (
     TaskType,
     TestFormatVersion,
 )
+from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
 from apps.content.seed_data import READING_SETS, TASK_TYPES
 from apps.content.services import publish, submit_for_review
-
-OFFICIAL_SOURCES = [
-    "https://www.celpip.ca/take-celpip/test-format/",
-    "https://www.celpip.ca/wp-content/uploads/2026/03/CELPIP-General-Overview-Study-Pack-2026.pdf",
-]
 
 
 class Command(BaseCommand):
@@ -53,8 +49,8 @@ class Command(BaseCommand):
             defaults={
                 "name": "CELPIP-General format verified August 2026",
                 "is_active": True,
-                "verified_on": date(2026, 8, 28),
-                "official_source_urls": OFFICIAL_SOURCES,
+                "verified_on": date(2026, 8, 29),
+                "official_source_urls": OFFICIAL_FORMAT_SOURCES,
                 "notes": "Public structural facts only; all seeded practice content is original.",
             },
         )

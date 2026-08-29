@@ -1,10 +1,23 @@
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock3, Flag, Save, XCircle } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  Flag,
+  Headphones,
+  Pause,
+  Play,
+  RotateCcw,
+  Save,
+  XCircle,
+} from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Meter } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import type {
   LearningFeedback,
+  AudioAccess,
   ReadingSession,
   SaveResult,
   SessionResult,
@@ -124,6 +137,7 @@ export function ReadingSessionPage() {
 
   const answeredCount = session.responses.filter((response) => response.selected_choice_id).length
   const isLast = index === session.content.questions.length - 1
+  const isListening = session.content.skill === 'listening'
   return (
     <div className="mx-auto w-full max-w-7xl animate-fade-in">
       <header className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface px-4 py-3 shadow-card">
@@ -132,7 +146,7 @@ export function ReadingSessionPage() {
         </Button>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-wider text-accent">
-            Reading · {session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
+            {isListening ? 'Listening' : 'Reading'} · {session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
           </p>
           <h1 className="truncate font-bold text-ink">{session.content.title}</h1>
         </div>
@@ -150,7 +164,13 @@ export function ReadingSessionPage() {
         <Card className="max-h-[calc(100vh-12rem)] overflow-y-auto p-5 sm:p-7">
           <p className="eyebrow">Source material</p>
           <p className="mt-2 text-sm font-medium text-muted">{session.content.instructions}</p>
-          <div className="mt-5"><Stimulus stimulus={session.content.stimulus} /></div>
+          <div className="mt-5">
+            {isListening && session.audio ? (
+              <AudioPlayer session={session} />
+            ) : (
+              <Stimulus stimulus={session.content.stimulus} />
+            )}
+          </div>
           {session.content.learning_notes && (
             <aside className="mt-6 rounded-input border border-info/30 bg-info-bg p-4 text-sm text-ink">
               <strong>Learning note:</strong> {session.content.learning_notes}
@@ -194,14 +214,17 @@ export function ReadingSessionPage() {
             </fieldset>
 
             {feedback && (
-              <div role="status" className={`mt-5 rounded-input p-4 ${feedback.is_correct ? 'bg-good-soft' : 'bg-bad-soft'}`}>
-                <p className={`flex items-center gap-2 font-bold ${feedback.is_correct ? 'text-good' : 'text-bad'}`}>
-                  {feedback.is_correct ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
-                  {feedback.is_correct ? 'Correct' : 'Not quite'}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-ink">{feedback.selected_choice_explanation}</p>
-                <p className="mt-2 text-sm leading-6 text-muted"><strong>Evidence:</strong> {feedback.evidence}</p>
-              </div>
+              <>
+                <div role="status" className={`mt-5 rounded-input p-4 ${feedback.is_correct ? 'bg-good-soft' : 'bg-bad-soft'}`}>
+                  <p className={`flex items-center gap-2 font-bold ${feedback.is_correct ? 'text-good' : 'text-bad'}`}>
+                    {feedback.is_correct ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                    {feedback.is_correct ? 'Correct' : 'Not quite'}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-ink">{feedback.selected_choice_explanation}</p>
+                  <p className="mt-2 text-sm leading-6 text-muted"><strong>Evidence:</strong> {feedback.evidence}</p>
+                </div>
+                {feedback.transcript && <Transcript text={feedback.transcript} />}
+              </>
             )}
 
             {error && <p role="alert" className="mt-4 rounded-input bg-bad-soft p-3 text-sm text-bad">{error}</p>}
@@ -234,6 +257,128 @@ export function ReadingSessionPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+function AudioPlayer({ session }: { session: ReadingSession }) {
+  const audio = session.audio!
+  const element = useRef<HTMLAudioElement>(null)
+  const [url, setUrl] = useState('')
+  const [requesting, setRequesting] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const [ended, setEnded] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [error, setError] = useState('')
+  const duration = Math.ceil(audio.duration_ms / 1000)
+  const onePlayEnded = audio.playback_policy === 'one_play' && ended
+
+  async function togglePlayback() {
+    if (playing) {
+      element.current?.pause()
+      setPlaying(false)
+      return
+    }
+    if (url && !ended) {
+      await element.current?.play()
+      return
+    }
+    if (onePlayEnded) return
+    setRequesting(true)
+    setError('')
+    try {
+      const access = await api.post<AudioAccess>(
+        `/sessions/${session.id}/media/${audio.asset_id}/access/`,
+        undefined,
+        tokenHeaders(session.id),
+      )
+      setCurrentTime(0)
+      setEnded(false)
+      setUrl(access.url)
+      window.setTimeout(() => {
+        element.current?.play().catch(() => {
+          setError('Audio is ready. Select Play again to begin.')
+        })
+      }, 0)
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'Audio could not be prepared.')
+    } finally {
+      setRequesting(false)
+    }
+  }
+
+  return (
+    <section aria-label="Practice audio" className="rounded-input border border-line bg-surface-secondary p-5">
+      <div className="flex items-start gap-3">
+        <Headphones className="mt-0.5 shrink-0 text-accent" aria-hidden="true" />
+        <div>
+          <h2 className="font-bold text-ink">Listen carefully</h2>
+          <p className="mt-1 text-sm leading-6 text-muted">
+            {String(session.content.stimulus.introduction ?? '')}
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            {audio.playback_policy === 'one_play'
+              ? 'Timed Practice: the recording can be started once. You may pause and resume before it ends.'
+              : 'Learn mode: replay is available for study.'}
+          </p>
+        </div>
+      </div>
+      <audio
+        ref={element}
+        src={url || undefined}
+        preload="none"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onEnded={() => {
+          setPlaying(false)
+          setEnded(true)
+        }}
+      />
+      <div className="mt-5 flex items-center gap-3">
+        <Button
+          type="button"
+          variant="accent"
+          disabled={requesting || onePlayEnded}
+          onClick={() => void togglePlayback()}
+          aria-label={playing ? 'Pause practice audio' : ended ? 'Replay practice audio' : 'Play practice audio'}
+        >
+          {playing ? <Pause size={18} /> : ended ? <RotateCcw size={18} /> : <Play size={18} />}
+          {requesting ? 'Preparing…' : playing ? 'Pause' : ended ? 'Replay' : 'Play audio'}
+        </Button>
+        <span className="text-sm font-semibold text-muted tabular-nums">
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Audio progress"
+        aria-valuemin={0}
+        aria-valuemax={duration}
+        aria-valuenow={Math.round(currentTime)}
+        className="mt-3 h-2 overflow-hidden rounded-full bg-line"
+      >
+        <div className="h-full rounded-full bg-accent transition-[width]" style={{ width: `${Math.min(100, currentTime / duration * 100)}%` }} />
+      </div>
+      {onePlayEnded && <p role="status" className="mt-3 text-sm font-semibold text-muted">The one-play recording has ended. Submit the set to unlock its transcript.</p>}
+      {error && <p role="alert" className="mt-3 text-sm text-bad">{error}</p>}
+      <p className="mt-3 text-xs text-muted">{audio.voice_label}. Original independent practice audio.</p>
+    </section>
+  )
+}
+
+function formatTime(seconds: number) {
+  const whole = Math.max(0, Math.floor(seconds))
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
+}
+
+function Transcript({ text }: { text: string }) {
+  return (
+    <details className="mt-4 rounded-input border border-info/30 bg-info-bg p-4">
+      <summary className="cursor-pointer font-bold text-ink focus-visible:outline-2 focus-visible:outline-brand">
+        Study the transcript
+      </summary>
+      <p className="mt-3 whitespace-pre-line text-sm leading-7 text-ink">{text}</p>
+    </details>
   )
 }
 
@@ -328,6 +473,7 @@ function Results({ session, result }: { session: ReadingSession; result: Session
           })}
         </div>
       </section>
+      {result.transcript && <Transcript text={result.transcript} />}
       <div className="flex flex-wrap gap-3">
         <ButtonLinkSafe to={session.mode === 'learn' ? '/learn' : '/practice'}>Choose another set</ButtonLinkSafe>
       </div>

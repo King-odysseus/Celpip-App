@@ -1,6 +1,6 @@
 export type ReadingTaskType = {
   code: string
-  skill: 'reading'
+  skill: 'reading' | 'listening'
   title: string
   part_number: number
   description: string
@@ -29,6 +29,7 @@ export type Question = {
 }
 
 export type ReadingContent = ReadingCatalogItem & {
+  skill: 'reading' | 'listening'
   instructions: string
   stimulus: Record<string, unknown>
   learning_notes?: string
@@ -57,6 +58,12 @@ export type ReadingSession = {
   guest_expires_at?: string
   content: ReadingContent
   responses: SavedResponse[]
+  audio?: {
+    asset_id: string
+    duration_ms: number
+    voice_label: string
+    playback_policy: 'one_play' | 'unlimited_learning'
+  }
 }
 
 export type LearningFeedback = {
@@ -65,6 +72,7 @@ export type LearningFeedback = {
   evidence: string
   explanation: string
   selected_choice_explanation: string
+  transcript?: string
 }
 
 export type SaveResult = SavedResponse & {
@@ -92,6 +100,13 @@ export type SessionResult = {
   score_label: string
   disclaimer: string
   replayed?: boolean
+  transcript?: string
+}
+
+export type AudioAccess = {
+  url: string
+  expires_in_seconds: number
+  plays_remaining: number | null
 }
 
 export type Paginated<T> = {

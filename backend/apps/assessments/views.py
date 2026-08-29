@@ -11,6 +11,7 @@ from rest_framework.response import Response as ApiResponse
 from rest_framework.views import APIView
 
 from apps.content.models import Choice, Question
+from apps.media_assets.models import MediaAsset
 
 from .models import AssessmentSession, SessionMode, SessionState
 from .serializers import SaveResponseSerializer, StartSessionSerializer, public_snapshot
@@ -59,7 +60,7 @@ def _session_for_request(request, session_id) -> AssessmentSession:
 
 def _session_payload(session: AssessmentSession) -> dict:
     item = session.items.get()
-    return {
+    payload = {
         "id": str(session.id),
         "mode": session.mode,
         "state": session.state,
@@ -82,6 +83,20 @@ def _session_payload(session: AssessmentSession) -> dict:
             for response in item.responses.all()
         ],
     }
+    try:
+        asset = item.content_version.audio_asset
+    except MediaAsset.DoesNotExist:
+        asset = None
+    if asset:
+        payload["audio"] = {
+            "asset_id": str(asset.id),
+            "duration_ms": asset.duration_ms,
+            "voice_label": asset.voice_label,
+            "playback_policy": (
+                "one_play" if session.mode == SessionMode.PRACTICE else "unlimited_learning"
+            ),
+        }
+    return payload
 
 
 class SessionListCreateView(APIView):
@@ -160,6 +175,12 @@ class ResponseSaveView(APIView):
                 "explanation": question.explanation,
                 "selected_choice_explanation": selected.explanation,
             }
+            try:
+                payload["feedback"]["transcript"] = (
+                    saved.session_item.content_version.audio_asset.transcript
+                )
+            except MediaAsset.DoesNotExist:
+                pass
         return ApiResponse(payload)
 
 
@@ -197,7 +218,7 @@ class SessionResultView(APIView):
 
 
 def _result_payload(result) -> dict:
-    return {
+    payload = {
         "session_id": str(result.session_id),
         "raw_correct": result.raw_correct,
         "raw_possible": result.raw_possible,
@@ -207,3 +228,9 @@ def _result_payload(result) -> dict:
         "score_label": "Practice accuracy",
         "disclaimer": "This is practice feedback, not an official CELPIP score.",
     }
+    item = result.session.items.get()
+    try:
+        payload["transcript"] = item.content_version.audio_asset.transcript
+    except MediaAsset.DoesNotExist:
+        pass
+    return payload

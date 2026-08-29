@@ -27,7 +27,9 @@ export const routes = [
     children: [
       { index: true, element: <DashboardPage /> },
       { path: 'learn', element: <ReadingCatalogPage mode="learn" /> },
+      { path: 'learn/listening', element: <ReadingCatalogPage mode="learn" skill="listening" /> },
       { path: 'practice', element: <ReadingCatalogPage mode="practice" /> },
+      { path: 'practice/listening', element: <ReadingCatalogPage mode="practice" skill="listening" /> },
       { path: 'reading/session/:sessionId', element: <ReadingSessionPage /> },
       { path: 'mock', element: <MockPage /> },
       { path: 'mistakes', element: <MistakesPage /> },

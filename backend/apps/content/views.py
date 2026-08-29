@@ -1,7 +1,8 @@
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.permissions import AllowAny
 
-from .selectors import active_reading_task_types, published_reading_versions
+from .models import Skill
+from .selectors import active_task_types, published_versions
 from .serializers import ContentCatalogSerializer, PublicContentSerializer, TaskTypeSerializer
 
 
@@ -12,16 +13,20 @@ class TaskTypeListView(ListAPIView):
     pagination_class = None
 
     def get_queryset(self):
-        return active_reading_task_types()
+        skill = self.request.query_params.get("skill", Skill.READING)
+        if skill not in Skill.values:
+            return active_task_types(Skill.READING).none()
+        return active_task_types(skill)
 
 
 class ContentCatalogView(ListAPIView):
     permission_classes = [AllowAny]
     authentication_classes: list = []
     serializer_class = ContentCatalogSerializer
+    skill = Skill.READING
 
     def get_queryset(self):
-        queryset = published_reading_versions()
+        queryset = published_versions(self.skill)
         task_type = self.request.query_params.get("task_type")
         difficulty = self.request.query_params.get("difficulty")
         if task_type:
@@ -37,6 +42,15 @@ class ContentDetailView(RetrieveAPIView):
     serializer_class = PublicContentSerializer
     lookup_field = "item__slug"
     lookup_url_kwarg = "slug"
+    skill = Skill.READING
 
     def get_queryset(self):
-        return published_reading_versions()
+        return published_versions(self.skill)
+
+
+class ListeningCatalogView(ContentCatalogView):
+    skill = Skill.LISTENING
+
+
+class ListeningDetailView(ContentDetailView):
+    skill = Skill.LISTENING

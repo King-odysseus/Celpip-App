@@ -77,6 +77,7 @@ def _snapshot(version: ContentVersion) -> dict:
         "difficulty": version.item.difficulty,
         "estimated_level": version.item.estimated_level,
         "task_type": version.item.task_type_id,
+        "skill": version.item.task_type.skill,
         "instructions": version.instructions,
         "stimulus": version.stimulus,
         "learning_notes": version.learning_notes,

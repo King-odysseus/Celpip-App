@@ -1,6 +1,6 @@
 import { BookOpenCheck, Clock3, GraduationCap, Play, Target } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { useAuth } from '../auth/AuthProvider'
 import { ApiError, api } from '../../lib/api'
@@ -14,7 +14,13 @@ import type {
 
 const difficultyLabel = { 1: 'Foundation', 2: 'Developing', 3: 'Challenge' } as const
 
-export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
+export function ReadingCatalogPage({
+  mode,
+  skill = 'reading',
+}: {
+  mode: SessionMode
+  skill?: 'reading' | 'listening'
+}) {
   const navigate = useNavigate()
   const { status: authStatus } = useAuth()
   const [taskTypes, setTaskTypes] = useState<ReadingTaskType[]>([])
@@ -28,8 +34,8 @@ export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
   useEffect(() => {
     let active = true
     Promise.all([
-      api.get<ReadingTaskType[]>('/content/task-types/'),
-      api.get<Paginated<ReadingCatalogItem>>('/content/reading/'),
+      api.get<ReadingTaskType[]>(`/content/task-types/?skill=${skill}`),
+      api.get<Paginated<ReadingCatalogItem>>(`/content/${skill}/`),
     ])
       .then(([types, catalog]) => {
         if (!active) return
@@ -43,7 +49,7 @@ export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
     return () => {
       active = false
     }
-  }, [])
+  }, [skill])
 
   const filtered = useMemo(
     () =>
@@ -78,6 +84,7 @@ export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
   }
 
   const isLearn = mode === 'learn'
+  const skillTitle = skill === 'listening' ? 'Listening' : 'Reading'
   return (
     <div className="mx-auto w-full max-w-6xl space-y-8 animate-fade-up">
       <header className="rounded-card bg-brand px-5 py-8 text-white shadow-elevated sm:px-8">
@@ -85,12 +92,16 @@ export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
           {isLearn ? 'Understand before you practise' : 'Timed, targeted preparation'}
         </p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-          Reading {isLearn ? 'Learn' : 'Practice'}
+          {skillTitle} {isLearn ? 'Learn' : 'Practice'}
         </h1>
         <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80 sm:text-base">
-          Work with original Canadian-context material across all four CELPIP-General Reading task
+          Work with original Canadian-context material across all {skill === 'listening' ? 'six Listening' : 'four Reading'} task
           families. {isLearn ? 'Get feedback after every answer.' : 'Corrections stay hidden until you submit.'}
         </p>
+        <nav aria-label={`${skillTitle} skill switch`} className="mt-5 flex flex-wrap gap-2">
+          <SkillLink active={skill === 'reading'} to={mode === 'learn' ? '/learn' : '/practice'}>Reading</SkillLink>
+          <SkillLink active={skill === 'listening'} to={mode === 'learn' ? '/learn/listening' : '/practice/listening'}>Listening</SkillLink>
+        </nav>
       </header>
 
       {isLearn && <TaskGuides taskTypes={taskTypes} />}
@@ -98,9 +109,9 @@ export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
       <section aria-labelledby="reading-sets-title" className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="eyebrow">Original reviewed content</p>
+          <p className="eyebrow">Original reviewed {skillTitle} content</p>
             <h2 id="reading-sets-title" className="mt-1 text-2xl font-bold text-ink">
-              Choose a Reading set
+              Choose a {skillTitle} set
             </h2>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -111,7 +122,7 @@ export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
                 value={taskFilter}
                 onChange={(event) => setTaskFilter(event.target.value)}
               >
-                <option value="all">All four parts</option>
+                <option value="all">All {skill === 'listening' ? 'six' : 'four'} parts</option>
                 {taskTypes.map((task) => (
                   <option key={task.code} value={task.code}>Part {task.part_number}: {task.title}</option>
                 ))}
@@ -179,7 +190,7 @@ export function ReadingCatalogPage({ mode }: { mode: SessionMode }) {
 function TaskGuides({ taskTypes }: { taskTypes: ReadingTaskType[] }) {
   return (
     <section aria-labelledby="task-guides-title">
-      <p className="eyebrow">Know the four parts</p>
+      <p className="eyebrow">Know the task types</p>
       <h2 id="task-guides-title" className="mt-1 text-2xl font-bold text-ink">Task-type guides</h2>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         {taskTypes.map((task) => (
@@ -202,5 +213,27 @@ function TaskGuides({ taskTypes }: { taskTypes: ReadingTaskType[] }) {
         ))}
       </div>
     </section>
+  )
+}
+
+function SkillLink({
+  active,
+  to,
+  children,
+}: {
+  active: boolean
+  to: string
+  children: string
+}) {
+  return (
+    <Link
+      to={to}
+      aria-current={active ? 'page' : undefined}
+      className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+        active ? 'bg-white text-brand' : 'bg-white/10 text-white hover:bg-white/20'
+      }`}
+    >
+      {children}
+    </Link>
   )
 }

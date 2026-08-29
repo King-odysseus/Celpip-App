@@ -11,7 +11,7 @@ four-skill **CELPIP-General test used for immigration**.
 This repository is a monorepo. Architecture is governed by
 [`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md).
 
-## Current status — Phase 2
+## Current status — Phase 3
 
 Phase 1 adds the smallest end-to-end account slice on top of the Phase 1A shell:
 
@@ -54,6 +54,21 @@ Phase 2 adds the first complete practice loop:
 Learn and Practice work without registration. An account remains the easiest
 way to keep durable progress as later analytics and study-plan phases arrive.
 
+Phase 3 adds Listening preparation:
+
+- All six current CELPIP-General Listening task families, represented by six
+  reviewed original Canadian-context scripts and 18 objective questions.
+- Locally generated development recordings using installed Canadian-English
+  synthetic voices. They are labelled transparently and are not represented as
+  official audio or exact test-centre acoustics.
+- Private audio outside public static/media roots, metadata/checksum validation,
+  short-lived signed access, byte-range streaming, and session ownership checks.
+- Unlimited replay plus post-answer transcript study in Learn mode; one playback
+  grant and delayed transcript/corrections in timed Practice mode.
+
+Current format facts and the implementation interpretation are source-dated in
+[`docs/CONTENT_RESEARCH_LOG.md`](docs/CONTENT_RESEARCH_LOG.md).
+
 ## Layout
 
 ```text
@@ -89,6 +104,11 @@ python manage.py migrate
 # to repeat; seeding never overwrites an existing authored item.
 python manage.py seed_reading_content
 python manage.py validate_content --published-only
+
+# Listening audio is committed for the starter bank. On Windows it can be
+# regenerated from the reviewed scripts using installed OS voices:
+# powershell -File ..\scripts\generate-listening-audio.ps1
+python manage.py seed_listening_content
 
 # Optional: seed the single owner account. The exam date defaults to
 # 2026-10-10 (a command default, not a global constant) and is overridable.
