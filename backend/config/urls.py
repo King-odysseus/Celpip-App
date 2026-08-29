@@ -15,4 +15,5 @@ urlpatterns = [
     path("api/v1/", include("apps.media_assets.urls")),
     path("api/v1/", include("apps.ai_services.urls")),
     path("api/v1/", include("apps.learning.urls")),
+    path("api/v1/", include("apps.mocks.urls")),
 ]

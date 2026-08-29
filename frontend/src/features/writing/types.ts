@@ -1,6 +1,11 @@
-import type { Paginated, SessionMode } from '../reading/types'
+import type {
+  MockContext,
+  MockSubmitResult,
+  Paginated,
+  SessionMode,
+} from '../reading/types'
 
-export type { Paginated, SessionMode }
+export type { MockContext, MockSubmitResult, Paginated, SessionMode }
 
 export type WritingTaskType = {
   code: string
@@ -90,6 +95,7 @@ export type WritingSession = {
   rubric: { dimensions: RubricDimension[] }
   submission: WritingSubmissionDraft | null
   review?: WritingReview
+  mock?: MockContext
 }
 
 export type WritingSaveResult = WritingSubmissionDraft & { replayed: boolean }
@@ -100,6 +106,9 @@ export type WritingSubmitResult = WritingReview & {
   submission: WritingSubmissionDraft
   replayed: boolean
 }
+
+/** Normal review or, for mock sessions, the neutral embargoed response. */
+export type WritingSubmitResponse = WritingSubmitResult | MockSubmitResult
 
 /** The lightweight session payload returned by POST /sessions/ at start. */
 export type StartedWritingSession = { id: string; guest_token?: string }

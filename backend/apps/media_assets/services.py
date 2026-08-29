@@ -104,11 +104,11 @@ def grant_audio_access(
         asset=asset,
     )
     limited = (
-        locked_session.mode == SessionMode.PRACTICE
+        locked_session.mode in (SessionMode.PRACTICE, SessionMode.MOCK)
         and locked_session.state == SessionState.ACTIVE
     )
     if limited and grant.grants_issued >= 1:
-        raise PlaybackLimitReached("Timed Practice allows one audio playback.")
+        raise PlaybackLimitReached("Timed sessions allow one audio playback.")
     grant.grants_issued += 1
     grant.last_granted_at = timezone.now()
     grant.save(update_fields=["grants_issued", "last_granted_at"])

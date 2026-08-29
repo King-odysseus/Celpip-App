@@ -6,7 +6,14 @@ from .models import SessionMode
 
 class StartSessionSerializer(serializers.Serializer):
     content_slug = serializers.SlugField(max_length=120)
-    mode = serializers.ChoiceField(choices=SessionMode.choices)
+    # Full mocks are assembled via apps.mocks (POST /mocks/), never started
+    # directly as a bare timed session.
+    mode = serializers.ChoiceField(
+        choices=[
+            (SessionMode.LEARN, "Learn"),
+            (SessionMode.PRACTICE, "Practice"),
+        ],
+    )
     time_limit_seconds = serializers.IntegerField(
         min_value=60,
         max_value=3600,

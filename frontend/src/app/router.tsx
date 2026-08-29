@@ -12,10 +12,9 @@ import { WritingCatalogPage } from '../features/writing/WritingCatalogPage'
 import { WritingSessionPage } from '../features/writing/WritingSessionPage'
 import { SpeakingCatalogPage } from '../features/speaking/SpeakingCatalogPage'
 import { SpeakingSessionPage } from '../features/speaking/SpeakingSessionPage'
-import {
-  MockPage,
-  NotFoundPage,
-} from '../pages/placeholder-pages'
+import { MockTestsPage } from '../features/mocks/MockTestsPage'
+import { MockWorkspacePage } from '../features/mocks/MockWorkspacePage'
+import { NotFoundPage } from '../pages/placeholder-pages'
 import { MistakesPage } from '../features/learning/MistakesPage'
 import { ProgressPage } from '../features/learning/ProgressPage'
 import { StudyPlanPage } from '../features/learning/StudyPlanPage'
@@ -41,7 +40,8 @@ export const routes = [
       { path: 'reading/session/:sessionId', element: <ReadingSessionPage /> },
       { path: 'writing/session/:sessionId', element: <WritingSessionPage /> },
       { path: 'speaking/session/:sessionId', element: <SpeakingSessionPage /> },
-      { path: 'mock', element: <MockPage /> },
+      { path: 'mock', element: <MockTestsPage /> },
+      { path: 'mock/:attemptId', element: <MockWorkspacePage /> },
       { path: 'mistakes', element: <MistakesPage /> },
       { path: 'progress', element: <ProgressPage /> },
       { path: 'study-plan', element: <StudyPlanPage /> },

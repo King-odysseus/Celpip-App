@@ -1,8 +1,8 @@
 # CELPIP-General Practice Platform Plan
 
-Status: architecture proposal for review
+Status: Phases 1–8 implemented (compact full mock); Phase 9 pending
 
-Last verified against official CELPIP sources: 28 August 2026
+Last verified against official CELPIP sources: 29 August 2026
 
 Target exam date for the owner's profile: 10 October 2026
 
@@ -415,6 +415,8 @@ Each phase is a review boundary. A phase is not complete merely because screens 
 
 ### Phase 1 — Foundation, account, profile, dashboard shell
 
+**Status:** implemented.
+
 Goal: establish the smallest end-to-end Django/React slice.
 
 Deliverables: monorepo tooling; design tokens and responsive shell; Django/DRF/PostgreSQL; custom user; loose registration/login/logout/refresh; profile with exam date, target, minutes/day and study days; owner seed/setup path for 10 October 2026; dashboard API and honest empty-state shell.
@@ -427,6 +429,8 @@ Exit: a new user can register with two fields, set the plan inputs, refresh safe
 
 ### Phase 2 — Question bank and Reading practice
 
+**Status:** implemented.
+
 Deliverables: task types, format versions, content/version/editorial models, Django admin workflow, original Reading seed set, Practice session engine, objective responses, scoring, explanations, and content validation command.
 
 Learning: relationships, choices/enums, transactions, admin customization, fixtures/management commands, selectors/services.
@@ -436,6 +440,8 @@ Tests: editorial transitions, AI-draft publishing guard, version freezing, all f
 Exit: reviewed original Reading content completes end to end in learning and timed practice modes.
 
 ### Phase 3 — Listening and audio
+
+**Status:** implemented.
 
 Deliverables: private media abstraction, original Canadian-context recordings/transcripts, playback policy, exam replay limits, post-answer transcript/evidence, listening question flow.
 
@@ -447,6 +453,8 @@ Exit: a complete reviewed Listening practice section works without leaking trans
 
 ### Phase 4 — Writing practice
 
+**Status:** implemented.
+
 Deliverables: both writing tasks, timer, editor, word count, revision-aware autosave, final immutable submission, response history, feedback placeholder/rubric schema.
 
 Learning: debouncing, optimistic concurrency, idempotency, transaction boundaries, text validation.
@@ -456,6 +464,8 @@ Tests: fake-clock timing, reload/resume, offline/error notice, stale revision 40
 Exit: a learner cannot lose a normally autosaved response and can review the submitted version.
 
 ### Phase 5 — Speaking recording and retry
+
+**Status:** implemented.
 
 Deliverables: all eight task shells, preparation/recording countdowns, permission handling, recording/upload/replay, private access, retry and attempt comparison shell.
 
@@ -467,6 +477,8 @@ Exit: recordings are reliably captured, privately stored, replayed by their owne
 
 ### Phase 6 — AI services and feedback
 
+**Status:** implemented and audited.
+
 Deliverables: provider-neutral contracts; async jobs; writing evaluation; speaking transcription/evaluation; prompt/model/rubric versioning; immutable feedback; human-review tools for generated content.
 
 Learning: interfaces/abstract base classes, adapters, background work, structured output validation, retries and privacy.
@@ -476,6 +488,8 @@ Tests: provider contract/fakes, malformed output, timeout/retry, labels/disclaim
 Exit: switching a fake provider and configured provider requires no domain/UI rewrite, and every estimate is auditable and non-official.
 
 ### Phase 7 — Study plan, mistakes, and analytics
+
+**Status:** implemented.
 
 Deliverables: mistake taxonomy, repeat detection, review queue, four-skill trends, streak/volume, explainable readiness, plan generation/adaptation and task calendar.
 
@@ -487,6 +501,8 @@ Exit: new results version the plan and visibly change future tasks for a defensi
 
 ### Phase 8 — Full mock exams
 
+**Status:** implemented (compact task-family mock).
+
 Deliverables: frozen test assembly, Listening → Reading → Writing → Speaking progression, server deadlines, autosave, restricted navigation, abandon/resume rules, simulated unscored-item support, delayed feedback, section results and summary.
 
 Learning: orchestration, state machines, server/client clock reconciliation, failure recovery.
@@ -496,6 +512,8 @@ Tests: full fake-clock mock, refresh/reconnect, timeout, double submit, no early
 Exit: a full mock completes reliably and results never reveal corrections before the configured release state.
 
 ### Phase 9 — Polish and deployment preparation
+
+**Status:** pending.
 
 Deliverables: accessibility audit, performance profiling, browser/device matrix, security/privacy review, backup/restore, monitoring, deployment docs, data export/deletion, retention jobs, content accuracy revalidation.
 

@@ -16,13 +16,15 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
+import { advanceMock } from '../mocks/api'
+import { MockReturnNotice } from '../mocks/MockReturnNotice'
 import { countWords, targetState } from './wordCount'
 import type {
   WritingReview,
   WritingSaveResult,
   WritingSession,
   WritingStimulus,
-  WritingSubmitResult,
+  WritingSubmitResponse,
 } from './types'
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'unsaved' | 'error'
@@ -233,11 +235,15 @@ export function WritingSessionPage() {
     window.clearTimeout(debounceRef.current)
     await saveNow() // best-effort flush; POST below atomically carries the latest text
     try {
-      const result = await api.post<WritingSubmitResult>(
+      const result = await api.post<WritingSubmitResponse>(
         `${writingPath}submit/`,
         { text: textRef.current },
         tokenHeaders(sessionId),
       )
+      if ('awaiting_mock_results' in result) {
+        await advanceAndReturn(result.mock.attempt_id, result.mock.task_order)
+        return
+      }
       submittedRef.current = true
       setReview(result)
       setSubmittedState(true)
@@ -263,6 +269,18 @@ export function WritingSessionPage() {
     }
   }
 
+  // Advance the parent mock after a neutral embargoed submit. The server treats
+  // a repeated advance as an idempotent replay, and the workspace GET reconciles
+  // any expiry, so a transient failure still navigates to a safe view.
+  async function advanceAndReturn(attemptId: string, taskOrder: number) {
+    try {
+      await advanceMock(attemptId, taskOrder)
+    } catch {
+      // Fall through: the workspace reconciles server state on load.
+    }
+    navigate(`/mock/${attemptId}`)
+  }
+
   const wordCount = useMemo(() => countWords(text), [text])
 
   if (loadError) {
@@ -279,18 +297,29 @@ export function WritingSessionPage() {
   if (submittedState && review) {
     return <WritingReviewView session={session} review={review} text={text} onBack={() => navigate('/practice/writing')} />
   }
+  if (submittedState && session.mock && !review) {
+    return (
+      <MockReturnNotice
+        attemptId={session.mock.attempt_id}
+        taskOrder={session.mock.task_order}
+        returnUrl={session.mock.return_url}
+      />
+    )
+  }
 
   const editingLocked = submittedState || deadlinePassed
+  const isMock = session.mode === 'mock'
+  const exitTo = isMock ? session.mock?.return_url ?? '/mock' : session.mode === 'learn' ? '/learn/writing' : '/practice/writing'
 
   return (
     <div className="mx-auto w-full max-w-7xl animate-fade-in">
       <header className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface px-4 py-3 shadow-card">
-        <Button variant="ghost" onClick={() => navigate(session.mode === 'learn' ? '/learn/writing' : '/practice/writing')}>
+        <Button variant="ghost" onClick={() => navigate(exitTo)}>
           <ArrowLeft size={17} /> Exit
         </Button>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-wider text-accent">
-            Writing · {session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
+            Writing · {isMock ? 'Mock component' : session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
           </p>
           <h1 className="truncate font-bold text-ink">{session.content.title}</h1>
         </div>

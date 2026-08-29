@@ -16,6 +16,7 @@ from .storage import private_recording_storage
 class SessionMode(models.TextChoices):
     LEARN = "learn", "Learn"
     PRACTICE = "practice", "Practice"
+    MOCK = "mock", "Mock"
 
 
 class SessionState(models.TextChoices):
@@ -54,8 +55,11 @@ class AssessmentSession(models.Model):
                 name="assessments_session_has_owner",
             ),
             models.CheckConstraint(
-                condition=Q(mode=SessionMode.PRACTICE) | Q(deadline_at__isnull=True),
-                name="assessments_only_practice_has_deadline",
+                condition=(
+                    Q(mode__in=[SessionMode.PRACTICE, SessionMode.MOCK])
+                    | Q(deadline_at__isnull=True)
+                ),
+                name="assessments_timed_modes_have_deadline",
             ),
         ]
         indexes = [

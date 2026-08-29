@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "apps.media_assets",
     "apps.ai_services",
     "apps.learning",
+    "apps.mocks",
 ]
 
 # The custom user model must be declared before its first migration runs, and

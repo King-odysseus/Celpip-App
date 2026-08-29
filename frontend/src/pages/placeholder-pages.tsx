@@ -20,16 +20,6 @@ export function PracticePage() {
   )
 }
 
-export function MockPage() {
-  return (
-    <PlaceholderPage
-      eyebrow="Full simulation"
-      title="Mock Tests"
-      description="Start or resume realistic Listening → Reading → Writing → Speaking sessions with server-timed sections and delayed results."
-    />
-  )
-}
-
 export function NotFoundPage() {
   return (
     <PlaceholderPage

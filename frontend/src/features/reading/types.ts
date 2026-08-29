@@ -43,7 +43,30 @@ export type SavedResponse = {
   saved_at: string
 }
 
-export type SessionMode = 'learn' | 'practice'
+export type SessionMode = 'learn' | 'practice' | 'mock'
+
+/** Context attached to a session that belongs to a full four-component mock. */
+export type MockContext = {
+  attempt_id: string
+  task_order: number
+  section: 'listening' | 'reading' | 'writing' | 'speaking'
+  results_released: boolean
+  return_url: string
+}
+
+/**
+ * Neutral response returned by a mock session submit while results remain
+ * embargoed. It deliberately carries no corrections, so callers must advance
+ * the mock and return to the workspace instead of rendering a review.
+ */
+export type MockSubmitResult = {
+  session_id: string
+  state: 'submitted'
+  awaiting_mock_results: true
+  mock: MockContext
+  disclaimer: string
+  replayed?: boolean
+}
 
 export type ReadingSession = {
   id: string
@@ -58,6 +81,7 @@ export type ReadingSession = {
   guest_expires_at?: string
   content: ReadingContent
   responses: SavedResponse[]
+  mock?: MockContext
   audio?: {
     asset_id: string
     duration_ms: number

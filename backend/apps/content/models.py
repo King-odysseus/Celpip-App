@@ -35,6 +35,9 @@ class TestFormatVersion(models.Model):
     is_active = models.BooleanField(default=False)
     verified_on = models.DateField()
     official_source_urls = models.JSONField(default=list)
+    component_order = models.JSONField(default=list)
+    component_timings = models.JSONField(default=dict)
+    task_structure = models.JSONField(default=list)
     notes = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

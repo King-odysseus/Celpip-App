@@ -11,7 +11,7 @@ four-skill **CELPIP-General test used for immigration**.
 This repository is a monorepo. Architecture is governed by
 [`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md).
 
-## Current status — Phase 3
+## Current status — Phase 8 (compact full mock)
 
 Phase 1 adds the smallest end-to-end account slice on top of the Phase 1A shell:
 
@@ -66,6 +66,48 @@ Phase 3 adds Listening preparation:
 - Unlimited replay plus post-answer transcript study in Learn mode; one playback
   grant and delayed transcript/corrections in timed Practice mode.
 
+Phase 4 adds Writing preparation:
+
+- Both CELPIP-General Writing tasks — Writing an Email and Responding to Survey
+  Questions — with original Canadian-context prompts.
+- A timer, plain-text editor, server-computed word count, revision-aware
+  idempotent autosave, and an immutable final submission.
+- Honest non-official self-review across the four official rubric dimensions;
+  no automatic CELPIP score or level is produced.
+
+Phase 5 adds Speaking recording:
+
+- All eight CELPIP-General Speaking task shells with preparation and response
+  countdowns.
+- Browser `MediaRecorder` capture, private storage, owner/guest-authorized
+  replay, and immutable submission.
+- Guided self-review only — no transcript, pronunciation score, or level yet.
+
+Phase 6 adds audited AI services:
+
+- A provider-neutral database queue with a deterministic `fake` provider for
+  development/tests and a live `openai` adapter behind a backend-only key.
+- Structured, versioned writing evaluation and speaking transcription/evaluation
+  with immutable, labelled, non-official estimates.
+- AI drafting that can only publish through the existing human editorial gate.
+  See [`docs/AI_SERVICES.md`](docs/AI_SERVICES.md).
+
+Phase 7 adds adaptive learning:
+
+- A mistake bank that merges repeated errors and drives a review queue.
+- Four-skill progress and an explainable readiness summary.
+- Versioned study-plan generation that adapts scheduled tasks to recent results.
+
+Phase 8 adds the compact full mock:
+
+- A frozen four-component attempt in the official order — Listening → Reading →
+  Writing → Speaking — with server-timed sections and restricted navigation.
+- Every current CELPIP-General task family (20 in total), with corrections
+  embargoed until the whole mock completes.
+- Honest compact scope: the original starter bank has fewer objective questions
+  than the live test, so this is a task-family simulation, not an official score
+  conversion. Results never convert raw accuracy into an official CELPIP level.
+
 Current format facts and the implementation interpretation are source-dated in
 [`docs/CONTENT_RESEARCH_LOG.md`](docs/CONTENT_RESEARCH_LOG.md).
 
@@ -110,6 +152,11 @@ python manage.py validate_content --published-only
 # powershell -File ..\scripts\generate-listening-audio.ps1
 python manage.py seed_listening_content
 
+# Writing and Speaking banks seed the same way; all seed commands are safe to
+# repeat and never overwrite an existing authored item.
+python manage.py seed_writing_content
+python manage.py seed_speaking_content
+
 # Optional: seed the single owner account. The exam date defaults to
 # 2026-10-10 (a command default, not a global constant) and is overridable.
 python manage.py bootstrap_owner --identifier owner --password "your-password"
@@ -117,6 +164,12 @@ python manage.py bootstrap_owner --identifier owner --password "your-password"
 
 python manage.py runserver
 ```
+
+The compact full mock requires a signed-in account and one published original
+prompt for every one of the 20 task families. It is assembled on demand via
+`POST /api/v1/mocks/`; `POST /api/v1/mocks/{id}/start/` begins the server-timed
+sequence and `GET /api/v1/mocks/{id}/results/` stays embargoed until all four
+components finish.
 
 Verify the health endpoint:
 

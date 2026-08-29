@@ -79,6 +79,36 @@ def _session_for_request(request, session_id) -> AssessmentSession:
     return session
 
 
+def _mock_context(session: AssessmentSession) -> dict | None:
+    if session.mode != SessionMode.MOCK:
+        return None
+    from apps.mocks.models import MockState
+
+    task = session.mock_task
+    return {
+        "attempt_id": str(task.attempt_id),
+        "task_order": task.order,
+        "section": task.section,
+        "results_released": task.attempt.state == MockState.COMPLETED,
+        "return_url": f"/mock/{task.attempt_id}",
+    }
+
+
+def _mock_embargoed(session: AssessmentSession) -> bool:
+    context = _mock_context(session)
+    return context is not None and not context["results_released"]
+
+
+def _mock_submitted_payload(session: AssessmentSession) -> dict:
+    return {
+        "session_id": str(session.id),
+        "state": SessionState.SUBMITTED,
+        "awaiting_mock_results": True,
+        "mock": _mock_context(session),
+        "disclaimer": "Corrections and practice estimates are released after the full mock.",
+    }
+
+
 def _session_payload(session: AssessmentSession) -> dict:
     item = session.items.get()
     payload = {
@@ -114,9 +144,13 @@ def _session_payload(session: AssessmentSession) -> dict:
             "duration_ms": asset.duration_ms,
             "voice_label": asset.voice_label,
             "playback_policy": (
-                "one_play" if session.mode == SessionMode.PRACTICE else "unlimited_learning"
+                "one_play"
+                if session.mode in (SessionMode.PRACTICE, SessionMode.MOCK)
+                else "unlimited_learning"
             ),
         }
+    if session.mode == SessionMode.MOCK:
+        payload["mock"] = _mock_context(session)
     return payload
 
 
@@ -215,6 +249,8 @@ class SessionSubmitView(APIView):
             result = submit_session(session)
         except AssessmentError as exc:
             return error_response(exc)
+        if _mock_embargoed(session):
+            return ApiResponse(_mock_submitted_payload(session) | {"replayed": was_submitted})
         return ApiResponse(_result_payload(result) | {"replayed": was_submitted})
 
 
@@ -231,6 +267,15 @@ class SessionResultView(APIView):
                 {
                     "code": "results_not_released",
                     "message": "Practice corrections are released after submission.",
+                    "fields": {},
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        if _mock_embargoed(session):
+            return ApiResponse(
+                {
+                    "code": "mock_results_embargoed",
+                    "message": "Corrections are released after all four mock components finish.",
                     "fields": {},
                 },
                 status=status.HTTP_409_CONFLICT,
@@ -267,7 +312,9 @@ def _writing_payload(session: AssessmentSession, item, submission) -> dict:
         "rubric": {"dimensions": WRITING_RUBRIC_DIMENSIONS},
         "submission": _submission_payload(submission),
     }
-    if submission is not None and submission.is_submitted:
+    if session.mode == SessionMode.MOCK:
+        payload["mock"] = _mock_context(session)
+    if submission is not None and submission.is_submitted and not _mock_embargoed(session):
         payload["review"] = writing_review_metadata(item, submission)
     return payload
 
@@ -326,6 +373,8 @@ class WritingSubmitView(APIView):
             item, _ = get_writing_submission(session)
         except AssessmentError as exc:
             return error_response(exc)
+        if _mock_embargoed(session):
+            return ApiResponse(_mock_submitted_payload(session) | {"replayed": was_submitted})
         payload = writing_review_metadata(item, submission)
         payload |= {
             "session_id": str(session.id),
@@ -368,7 +417,9 @@ def _speaking_payload(session, item, submission) -> dict:
         "rubric": {"dimensions": SPEAKING_RUBRIC_DIMENSIONS},
         "submission": _speaking_submission_payload(session.id, submission),
     }
-    if submission is not None and submission.is_submitted:
+    if session.mode == SessionMode.MOCK:
+        payload["mock"] = _mock_context(session)
+    if submission is not None and submission.is_submitted and not _mock_embargoed(session):
         payload["review"] = speaking_review_metadata(submission)
     return payload
 
@@ -426,6 +477,8 @@ class SpeakingSubmitView(APIView):
             submission = submit_speaking(session)
         except AssessmentError as exc:
             return error_response(exc)
+        if _mock_embargoed(session):
+            return ApiResponse(_mock_submitted_payload(session) | {"replayed": was_submitted})
         return ApiResponse(
             speaking_review_metadata(submission)
             | {

@@ -121,3 +121,39 @@ Implementation interpretation:
 - This phase provides recording, replay, and guided self-review only. It returns
   no transcript, pronunciation score, or estimated CELPIP level. Future AI
   coaching must remain explicitly non-official and evidence-linked.
+
+## Full mock verification — 29 August 2026
+
+Primary sources:
+
+- [Official CELPIP test format](https://www.celpip.ca/take-celpip/test-format/)
+- [Official CELPIP Test Taker Guide — June 2026](https://www.celpip.ca/wp-content/uploads/2026/06/Guidebook-CELPIP-Test-Takers-June-2026-3.pdf)
+
+Verified product rules:
+
+- The four components run in this fixed order: Listening, then Reading, then
+  Writing, then Speaking. Public component time boxes are Listening 46–55
+  minutes, Reading 43–56 minutes, Writing 53 minutes, and Speaking 15 minutes.
+- The current structure totals 20 task families: six Listening families
+  (Problem Solving 8, Daily Life Conversation 5, Information 6, News Item 5,
+  Discussion 8, Viewpoints 6), four Reading families (Correspondence 11, Apply
+  a Diagram 8, Information 9, Viewpoints 10), two Writing tasks (Email 1,
+  Survey Questions 1), and eight Speaking tasks (one each).
+- Listening and Reading may contain unscored, test-development items that are
+  indistinguishable to the candidate. A learner is never told which mock item
+  is simulated-unscored; it counts toward timing and navigation but not
+  practice accuracy.
+
+Implementation interpretation:
+
+- The mock is a compact task-family simulation: it covers every one of the 20
+  current families and uses the official component time boxes, but the original
+  starter bank deliberately holds fewer objective questions than the live test.
+  Question volume and practice accuracy are therefore not an official test
+  simulation or score conversion, and the workspace labels this limitation.
+- Section timing is server-authoritative: each section starts with the official
+  component time box as the server deadline, and expiry skips only the
+  unfinished remainder of that section.
+- Corrections and AI-assisted estimates stay embargoed until all four
+  components finish; objective accuracy is reported as raw practice accuracy
+  and is never converted to a CELPIP level.

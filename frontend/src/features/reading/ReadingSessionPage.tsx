@@ -15,9 +15,12 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Meter } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
+import { advanceMock } from '../mocks/api'
+import { MockReturnNotice } from '../mocks/MockReturnNotice'
 import type {
   LearningFeedback,
   AudioAccess,
+  MockSubmitResult,
   ReadingSession,
   SaveResult,
   SessionResult,
@@ -52,7 +55,7 @@ export function ReadingSessionPage() {
           (question) => !loaded.responses.some((response) => response.question_id === question.id),
         )
         setIndex(unanswered >= 0 ? unanswered : 0)
-        if (loaded.state === 'submitted') {
+        if (loaded.state === 'submitted' && !loaded.mock) {
           return api.get<SessionResult>(`/sessions/${sessionId}/results/`, tokenHeaders(sessionId))
         }
       })
@@ -111,11 +114,15 @@ export function ReadingSessionPage() {
     setSaving(true)
     setError('')
     try {
-      const scored = await api.post<SessionResult>(
+      const scored = await api.post<SessionResult | MockSubmitResult>(
         `/sessions/${session.id}/submit/`,
         undefined,
         tokenHeaders(session.id),
       )
+      if ('awaiting_mock_results' in scored) {
+        await advanceAndReturn(scored.mock.attempt_id, scored.mock.task_order)
+        return
+      }
       setResult(scored)
       setSession((current) => current ? { ...current, state: 'submitted' } : current)
     } catch (reason) {
@@ -123,6 +130,18 @@ export function ReadingSessionPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Advance the parent mock after a neutral embargoed submit. The server treats
+  // a repeated advance as an idempotent replay, and the workspace GET reconciles
+  // any expiry, so a transient failure still navigates to a safe view.
+  async function advanceAndReturn(attemptId: string, taskOrder: number) {
+    try {
+      await advanceMock(attemptId, taskOrder)
+    } catch {
+      // Fall through: the workspace reconciles server state on load.
+    }
+    navigate(`/mock/${attemptId}`)
   }
 
   if (error && !session) {
@@ -134,19 +153,30 @@ export function ReadingSessionPage() {
   if (result) {
     return <Results session={session} result={result} />
   }
+  if (session.state === 'submitted' && session.mock) {
+    return (
+      <MockReturnNotice
+        attemptId={session.mock.attempt_id}
+        taskOrder={session.mock.task_order}
+        returnUrl={session.mock.return_url}
+      />
+    )
+  }
 
   const answeredCount = session.responses.filter((response) => response.selected_choice_id).length
   const isLast = index === session.content.questions.length - 1
   const isListening = session.content.skill === 'listening'
+  const isMock = session.mode === 'mock'
+  const exitTo = isMock ? session.mock?.return_url ?? '/mock' : session.mode === 'learn' ? '/learn' : '/practice'
   return (
     <div className="mx-auto w-full max-w-7xl animate-fade-in">
       <header className="mb-4 flex flex-wrap items-center gap-3 rounded-card border border-line bg-surface px-4 py-3 shadow-card">
-        <Button variant="ghost" onClick={() => navigate(session.mode === 'learn' ? '/learn' : '/practice')}>
+        <Button variant="ghost" onClick={() => navigate(exitTo)}>
           <ArrowLeft size={17} /> Exit
         </Button>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-wider text-accent">
-            {isListening ? 'Listening' : 'Reading'} · {session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
+            {isListening ? 'Listening' : 'Reading'} · {isMock ? 'Mock component' : session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
           </p>
           <h1 className="truncate font-bold text-ink">{session.content.title}</h1>
         </div>
@@ -248,9 +278,9 @@ export function ReadingSessionPage() {
                 </Button>
               )}
             </div>
-            {session.mode === 'practice' && isLast && answeredCount === session.content.questions.length && (
+            {session.mode !== 'learn' && isLast && answeredCount === session.content.questions.length && (
               <Button type="button" variant="accent" className="mt-3 w-full" onClick={() => void submit()} disabled={saving}>
-                <Flag size={17} /> Submit practice
+                <Flag size={17} /> {isMock ? 'Submit task' : 'Submit practice'}
               </Button>
             )}
           </form>

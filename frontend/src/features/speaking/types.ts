@@ -1,6 +1,11 @@
-import type { Paginated, SessionMode } from '../reading/types'
+import type {
+  MockContext,
+  MockSubmitResult,
+  Paginated,
+  SessionMode,
+} from '../reading/types'
 
-export type { Paginated, SessionMode }
+export type { MockContext, MockSubmitResult, Paginated, SessionMode }
 
 export type SpeakingTaskType = {
   code: string
@@ -94,6 +99,7 @@ export type SpeakingSession = {
   rubric: { dimensions: RubricDimension[] }
   submission: SpeakingRecording | null
   review?: SpeakingReview
+  mock?: MockContext
 }
 
 export type SpeakingSaveResult = SpeakingRecording & { replayed: boolean }
@@ -103,5 +109,8 @@ export type SpeakingSubmitResult = SpeakingReview & {
   submission: SpeakingRecording
   replayed: boolean
 }
+
+/** Normal review or, for mock sessions, the neutral embargoed response. */
+export type SpeakingSubmitResponse = SpeakingSubmitResult | MockSubmitResult
 
 export type StartedSpeakingSession = { id: string; guest_token?: string }
