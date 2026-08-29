@@ -1,0 +1,158 @@
+"""Authenticated progress, repeat mistakes, and explainable study plans."""
+
+from io import StringIO
+from uuid import uuid4
+
+import pytest
+from django.core.exceptions import ValidationError
+from django.core.management import call_command
+
+from apps.accounts.models import User
+from apps.content.models import ContentVersion
+from apps.learning.models import MistakeRecord, MistakeState, StudyPlan
+from apps.learning.services import regenerate_plan
+
+pytestmark = pytest.mark.django_db
+
+
+@pytest.fixture
+def learner(api_client):
+    user = User.objects.create_user(identifier="progress-learner", password="secret1")
+    api_client.force_authenticate(user)
+    return user
+
+
+def _reading_attempt(api_client, django_capture_on_commit_callbacks, *, correct: bool):
+    version = ContentVersion.objects.get(item__slug="garden-plot-renewal", status="published")
+    started = api_client.post(
+        "/api/v1/sessions/",
+        {
+            "content_slug": "garden-plot-renewal",
+            "mode": "practice",
+            "time_limit_seconds": 600,
+        },
+        format="json",
+    )
+    assert started.status_code == 201
+    session_id = started.json()["id"]
+    for index, question in enumerate(version.questions.prefetch_related("choices")):
+        choices = list(question.choices.all())
+        answer = next(choice for choice in choices if choice.is_correct)
+        if index == 0 and not correct:
+            answer = next(choice for choice in choices if not choice.is_correct)
+        saved = api_client.put(
+            f"/api/v1/sessions/{session_id}/responses/{question.pk}/",
+            {"selected_choice_id": answer.pk, "expected_revision": 0},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY=str(uuid4()),
+        )
+        assert saved.status_code == 200
+    with django_capture_on_commit_callbacks(execute=True):
+        submitted = api_client.post(f"/api/v1/sessions/{session_id}/submit/")
+    assert submitted.status_code == 200
+    return submitted.json()
+
+
+def test_learning_endpoints_require_an_account(api_client):
+    for path in ("/api/v1/me/progress/", "/api/v1/me/mistakes/", "/api/v1/me/study-plan/"):
+        assert api_client.get(path).status_code == 401
+
+
+def test_repeated_mistake_merges_then_correct_retry_resolves(
+    api_client, learner, django_capture_on_commit_callbacks
+):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    _reading_attempt(api_client, django_capture_on_commit_callbacks, correct=False)
+    _reading_attempt(api_client, django_capture_on_commit_callbacks, correct=False)
+
+    mistake = MistakeRecord.objects.get(user=learner)
+    assert mistake.occurrences == 2
+    assert mistake.state == MistakeState.OPEN
+    listing = api_client.get("/api/v1/me/mistakes/?state=open")
+    assert listing.status_code == 200
+    assert listing.json()["results"][0]["selected"]
+    assert listing.json()["results"][0]["correct"]
+
+    _reading_attempt(api_client, django_capture_on_commit_callbacks, correct=True)
+    mistake.refresh_from_db()
+    assert mistake.state == MistakeState.RESOLVED
+    assert mistake.resolved_at is not None
+
+
+def test_progress_keeps_accuracy_separate_from_constructed_estimates(
+    api_client, learner, django_capture_on_commit_callbacks
+):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    result = _reading_attempt(api_client, django_capture_on_commit_callbacks, correct=False)
+    payload = api_client.get("/api/v1/me/progress/").json()
+    reading = next(item for item in payload["skills"] if item["skill"] == "reading")
+
+    assert reading["attempts"] == 1
+    assert reading["accuracy_percent"] == result["accuracy_percent"]
+    assert reading["estimate_low"] is None
+    assert payload["overall_readiness"] is None
+    assert "withheld" in payload["readiness_explanation"]
+    assert payload["coverage"] == {"practised_skills": 1, "total_skills": 4}
+
+
+def test_plan_rotates_every_available_skill_and_versions_explanations(learner):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    call_command("seed_listening_content", verbosity=0, stdout=StringIO())
+    call_command("seed_writing_content", verbosity=0, stdout=StringIO())
+    call_command("seed_speaking_content", verbosity=0, stdout=StringIO())
+
+    first = regenerate_plan(learner)
+    skills = set(first.tasks.values_list("skill", flat=True))
+    assert skills == {"listening", "reading", "writing", "speaking"}
+    assert "rule" in first.reason_summary
+    assert all(task.reason for task in first.tasks.all())
+
+    second = regenerate_plan(learner)
+    first.refresh_from_db()
+    assert first.is_active is False
+    assert second.version == first.version + 1
+    assert StudyPlan.objects.filter(user=learner, is_active=True).count() == 1
+
+
+def test_plan_task_completion_is_owned_and_generated_details_are_immutable(api_client, learner):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    plan = regenerate_plan(learner)
+    task = plan.tasks.first()
+    response = api_client.patch(
+        f"/api/v1/me/study-plan/tasks/{task.pk}/",
+        {"state": "completed"},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["completed_at"]
+    task.refresh_from_db()
+    task.title = "Tampered title"
+    with pytest.raises(ValidationError, match="immutable"):
+        task.save()
+
+    stranger = User.objects.create_user(identifier="plan-stranger", password="secret1")
+    api_client.force_authenticate(stranger)
+    assert (
+        api_client.patch(
+            f"/api/v1/me/study-plan/tasks/{task.pk}/",
+            {"state": "skipped"},
+            format="json",
+        ).status_code
+        == 404
+    )
+
+
+def test_manual_mistake_resolution_is_owner_scoped(
+    api_client, learner, django_capture_on_commit_callbacks
+):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    _reading_attempt(api_client, django_capture_on_commit_callbacks, correct=False)
+    mistake = MistakeRecord.objects.get(user=learner)
+    response = api_client.patch(
+        f"/api/v1/me/mistakes/{mistake.pk}/",
+        {"state": "resolved"},
+        format="json",
+    )
+    assert response.status_code == 200
+    assert response.json()["state"] == "resolved"
+    assert response.json()["resolved_at"]

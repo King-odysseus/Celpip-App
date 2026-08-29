@@ -53,7 +53,7 @@ describe('routing', () => {
     for (const [path, heading] of cases) {
       const { unmount } = renderApp(path)
       expect(
-        screen.getByRole('heading', { level: 1, name: heading }),
+        await screen.findByRole('heading', { level: 1, name: heading }),
       ).toBeInTheDocument()
       unmount()
     }

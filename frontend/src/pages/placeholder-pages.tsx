@@ -30,36 +30,6 @@ export function MockPage() {
   )
 }
 
-export function MistakesPage() {
-  return (
-    <PlaceholderPage
-      eyebrow="Learn from errors"
-      title="Mistake Bank"
-      description="Filter repeated patterns, work a review queue, and track which mistakes you have resolved."
-    />
-  )
-}
-
-export function ProgressPage() {
-  return (
-    <PlaceholderPage
-      eyebrow="Track your trends"
-      title="Progress"
-      description="Four independent skill trends, task-type accuracy, practice volume, and the history of your practice estimates."
-    />
-  )
-}
-
-export function StudyPlanPage() {
-  return (
-    <PlaceholderPage
-      eyebrow="Stay on schedule"
-      title="Study Plan"
-      description="Your preferences, a daily calendar of tasks, completion tracking, and adaptations based on how your practice is going."
-    />
-  )
-}
-
 export function NotFoundPage() {
   return (
     <PlaceholderPage

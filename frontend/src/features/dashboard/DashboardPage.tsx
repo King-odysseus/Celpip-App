@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom'
 import { CalendarClock, Compass, Target } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Card, CardTitle, Meter } from '../../components/ui'
+import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import { SKILLS, type LearnerProfile } from '../auth/types'
+import type { Progress, StudyPlan } from '../learning/types'
 import { countdownLabel, daysUntilExam } from '../../lib/countdown'
 
 const SKILL_LABELS: Record<(typeof SKILLS)[number], string> = {
@@ -81,6 +84,24 @@ function TargetCard({ profile }: { profile: LearnerProfile | null }) {
 export function DashboardPage() {
   const { status, profile } = useAuth()
   const isAuthed = status === 'authenticated'
+  const [progress, setProgress] = useState<Progress | null>(null)
+  const [plan, setPlan] = useState<StudyPlan | null>(null)
+
+  useEffect(() => {
+    if (!isAuthed) return
+    void Promise.all([
+      api.get<Progress>('/me/progress/'),
+      api.get<StudyPlan>('/me/study-plan/'),
+    ]).then(([nextProgress, nextPlan]) => {
+      setProgress(nextProgress)
+      setPlan(nextPlan)
+    }).catch(() => {
+      // The dedicated pages expose detailed errors; the public dashboard keeps
+      // its useful fallback state if either summary is temporarily unavailable.
+    })
+  }, [isAuthed])
+
+  const nextTask = plan?.tasks.find((task) => task.state === 'pending')
 
   return (
     <section aria-labelledby="dashboard-title" className="space-y-6">
@@ -127,16 +148,23 @@ export function DashboardPage() {
           Skill estimates
         </h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          {SKILLS.map((skill) => (
-            <Card key={skill}>
+          {SKILLS.map((skill) => {
+            const summary = progress?.skills.find((item) => item.skill === skill)
+            const measure = summary?.accuracy_percent !== null && summary?.accuracy_percent !== undefined
+              ? `${summary.accuracy_percent}% accuracy`
+              : summary?.estimate_low !== null && summary?.estimate_low !== undefined
+                ? `Estimated ${summary.estimate_low}–${summary.estimate_high}`
+                : '—'
+            const meterValue = summary?.accuracy_percent ?? (summary?.estimate_high ? summary.estimate_high / 12 * 100 : 0)
+            return <Card key={skill}>
               <div className="mb-2 flex items-center justify-between">
                 <CardTitle>{SKILL_LABELS[skill]}</CardTitle>
-                <span className="text-sm tabular-nums text-muted">—</span>
+                <span className="text-sm tabular-nums text-muted">{measure}</span>
               </div>
-              <Meter value={0} label={`${SKILL_LABELS[skill]} estimate: no data yet`} />
-              <p className="mt-2 text-sm text-muted">No practice recorded yet.</p>
+              <Meter value={meterValue} label={`${SKILL_LABELS[skill]}: ${measure}`} />
+              <p className="mt-2 text-sm text-muted">{summary?.attempts ? `${summary.attempts} completed attempt${summary.attempts === 1 ? '' : 's'}.` : 'No practice recorded yet.'}</p>
             </Card>
-          ))}
+          })}
         </div>
       </div>
 
@@ -144,9 +172,7 @@ export function DashboardPage() {
         <Card>
           <CardTitle className="mb-2">Overall readiness</CardTitle>
           <p className="text-sm text-muted">
-            Readiness is a planning indicator, not a fifth CELPIP score. It will
-            appear once there is enough practice across the four skills to be
-            meaningful.
+            {progress?.readiness_explanation ?? 'A single readiness score is withheld. CELPIP reports Listening, Reading, Writing, and Speaking separately.'}
           </p>
         </Card>
 
@@ -156,18 +182,18 @@ export function DashboardPage() {
             <div>
               <CardTitle className="mb-2">Recommended next activity</CardTitle>
               <p className="text-sm text-muted">
-                Start by understanding one task type end to end.
+                {nextTask?.reason ?? 'Start by understanding one task type end to end.'}
               </p>
               <p className="mt-2 text-sm">
-                <Link to="/learn" className="font-semibold text-brand hover:underline">
-                  Open Learn
+                <Link to={nextTask?.destination ?? '/learn'} className="font-semibold text-brand hover:underline">
+                  {nextTask ? nextTask.title : 'Open Learn'}
                 </Link>{' '}
-                to explore the four skills, or{' '}
+                {nextTask ? 'or ' : 'to explore the four skills, or '}
                 <Link
-                  to="/practice"
+                  to={nextTask ? '/study-plan' : '/practice'}
                   className="font-semibold text-brand hover:underline"
                 >
-                  browse Practice
+                  {nextTask ? 'view your full study plan' : 'browse Practice'}
                 </Link>
                 .
               </p>

@@ -362,6 +362,7 @@ def submit_session(session: AssessmentSession) -> ObjectiveResult:
     locked.state = SessionState.SUBMITTED
     locked.submitted_at = timezone.now()
     locked.save(update_fields=["state", "submitted_at", "last_activity_at"])
+    transaction.on_commit(lambda: _record_objective_learning(result.pk), robust=True)
     return result
 
 
@@ -379,6 +380,12 @@ def _queue_ai_feedback(item_id: int) -> None:
     from apps.ai_services.services import enqueue_feedback
 
     enqueue_feedback(SessionItem.objects.select_related("session").get(pk=item_id))
+
+
+def _record_objective_learning(result_id: int) -> None:
+    from apps.learning.services import record_objective_learning
+
+    record_objective_learning(ObjectiveResult.objects.select_related("session").get(pk=result_id))
 
 
 def _writing_payload_hash(*, text: str, expected_revision: int) -> str:

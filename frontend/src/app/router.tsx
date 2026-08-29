@@ -13,12 +13,12 @@ import { WritingSessionPage } from '../features/writing/WritingSessionPage'
 import { SpeakingCatalogPage } from '../features/speaking/SpeakingCatalogPage'
 import { SpeakingSessionPage } from '../features/speaking/SpeakingSessionPage'
 import {
-  MistakesPage,
   MockPage,
   NotFoundPage,
-  ProgressPage,
-  StudyPlanPage,
 } from '../pages/placeholder-pages'
+import { MistakesPage } from '../features/learning/MistakesPage'
+import { ProgressPage } from '../features/learning/ProgressPage'
+import { StudyPlanPage } from '../features/learning/StudyPlanPage'
 
 /**
  * All destinations nested inside the shell. Sample pages (Learn, Practice, …)

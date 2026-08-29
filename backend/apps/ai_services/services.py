@@ -199,6 +199,10 @@ def run_job(job: AIJob, *, provider=None) -> AIJob:
                     "assessment": payload,
                 },
             )
+            if locked.user_id:
+                from apps.learning.services import regenerate_plan
+
+                transaction.on_commit(lambda: regenerate_plan(locked.user), robust=True)
     return locked
 
 
