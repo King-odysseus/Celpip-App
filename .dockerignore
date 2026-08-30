@@ -36,7 +36,7 @@ backend/spa/
 
 # private_media is runtime-only, EXCEPT the reviewed Listening WAVs, which the
 # image bundles so start.sh can stage them into PRIVATE_MEDIA_ROOT when
-# BOOTSTRAP_CONTENT_ON_START=true (seed_listening_content reads them). Exclude
+# the entrypoint seeds a fresh database (seed_listening_content reads them). Exclude
 # the contents, then re-include only the .wav files (a parent dir cannot be
 # excluded outright or the negation below could not re-include its files).
 backend/private_media/*

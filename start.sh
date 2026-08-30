@@ -12,14 +12,40 @@ cd /app/backend
 echo "Running database migrations..."
 python manage.py migrate --noinput
 
-# Optional one-time practice-content bootstrap for a fresh database (e.g. the
-# first deploy against an empty Railway PostgreSQL). Disabled by default so
-# ordinary restarts never touch content. Every seed is idempotent — it skips
-# items that already exist — so re-running is safe, but the guard keeps startup
-# fast once content is present. `set -e` makes any seed failure abort startup so
-# a half-seeded database is never served.
-if [ "${BOOTSTRAP_CONTENT_ON_START:-false}" = "true" ]; then
-    echo "BOOTSTRAP_CONTENT_ON_START=true — seeding practice content..."
+# Practice-content bootstrap. Without content the catalog endpoints return an
+# empty list and the app shows no questions, so a fresh database (e.g. the first
+# deploy against an empty Railway PostgreSQL) must be seeded before it is
+# served. `BOOTSTRAP_CONTENT_ON_START` decides when that happens:
+#
+#   auto (default) — seed only when no published content exists yet, so a fresh
+#                    database heals itself and ordinary restarts stay fast and
+#                    never touch content.
+#   true           — always run the seeds. They are idempotent (each skips items
+#                    that already exist), so this only costs startup time.
+#   false          — never seed, for a deployment that manages content by hand.
+#
+# `set -e` makes any seed failure abort startup so a half-seeded database is
+# never served.
+bootstrap_content="${BOOTSTRAP_CONTENT_ON_START:-auto}"
+
+if [ "$bootstrap_content" = "auto" ]; then
+    # A failure here (e.g. an unreachable database) aborts startup via `set -e`
+    # rather than being mistaken for "content already present".
+    published_content_count="$(python manage.py shell --no-imports -c "
+from apps.content.models import ContentVersion, PublicationStatus
+print(ContentVersion.objects.filter(status=PublicationStatus.PUBLISHED).count())
+")"
+    if [ "$published_content_count" = "0" ]; then
+        echo "No published content found — seeding practice content..."
+        bootstrap_content="true"
+    else
+        echo "Found ${published_content_count} published content versions — skipping seed."
+        bootstrap_content="false"
+    fi
+fi
+
+if [ "$bootstrap_content" = "true" ]; then
+    echo "Seeding practice content..."
 
     # Listening sets require their audio in PRIVATE_MEDIA_ROOT: the seed reads
     # each WAV to record duration/checksum, and the app streams the same files
