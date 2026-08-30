@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, GraduationCap, LogIn, MoreHorizontal, UserPlus, UserRound, X } from 'lucide-react'
+import { ArrowLeft, ChevronRight, GraduationCap, LogIn, MoreHorizontal, UserPlus, UserRound, X } from 'lucide-react'
 import {
   mobileOverflowNav,
   mobilePrimaryNav,
@@ -8,6 +8,8 @@ import {
 } from './navigation'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { AccountControl } from '../components/AccountControl'
+import { AppUpdateNotice } from '../components/AppUpdateNotice'
+import { HardRefreshButton } from '../components/HardRefreshButton'
 import { useAuth } from '../features/auth/AuthProvider'
 
 // Destinations that manage their own navigation chrome (splash/auth pages, and
@@ -27,7 +29,7 @@ function showBackButton(pathname: string): boolean {
   return true
 }
 
-function MoreSheet({
+function MoreMenu({
   open,
   onClose,
   triggerRef,
@@ -76,12 +78,22 @@ function MoreSheet({
     }
   }, [open, onClose, triggerRef])
 
+  // Lock body scroll while the full-screen menu is open.
+  useEffect(() => {
+    if (!open) return
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [open])
+
   if (!open) return null
 
   return (
     <div className="fixed inset-0 z-50 lg:hidden">
       <button
-        className="absolute inset-0 bg-black/40"
+        className="absolute inset-0 bg-black/40 animate-fade-in"
         aria-label="Close menu"
         tabIndex={-1}
         onClick={onClose}
@@ -90,74 +102,109 @@ function MoreSheet({
         ref={panelRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="more-sheet-title"
-        className="absolute right-3 bottom-[calc(6rem+env(safe-area-inset-bottom))] left-3 mx-auto max-w-lg animate-scale-in rounded-3xl border border-line bg-surface p-3 shadow-elevated"
+        aria-labelledby="more-menu-title"
+        className="absolute inset-0 flex flex-col bg-surface animate-slide-up"
       >
-        <div className="mb-1 flex items-center justify-between px-2">
-          <span id="more-sheet-title" className="eyebrow">More destinations</span>
+        <div className="flex items-center justify-between px-5 pt-4 pb-3">
+          <h2 id="more-menu-title" className="text-lg font-semibold tracking-tight text-ink">
+            Menu
+          </h2>
           <button
             ref={closeRef}
             onClick={onClose}
             aria-label="Close menu"
             className="flex h-11 w-11 items-center justify-center rounded-full text-muted hover:bg-surface-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
-            <X size={20} />
+            <X size={22} />
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {mobileOverflowNav.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-sm font-semibold transition-colors ${
-                  isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-surface-secondary hover:text-ink'
-                }`
-              }
-            >
-              <item.icon size={22} strokeWidth={1.9} />
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
-          {status === 'authenticated' ? (
-            <NavLink
-              to="/account"
-              onClick={onClose}
-              className={({ isActive }) =>
-                `col-span-2 flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-sm font-semibold transition-colors ${
-                  isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-surface-secondary hover:text-ink'
-                }`
-              }
-            >
-              <UserRound size={22} strokeWidth={1.9} />
-              <span>Account</span>
-            </NavLink>
-          ) : (
-            <>
+
+        <div className="flex-1 overflow-y-auto px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+          <section aria-labelledby="more-explore-title">
+            <h3 id="more-explore-title" className="eyebrow px-3 pt-4 pb-2">
+              Explore
+            </h3>
+            <ul className="space-y-1">
+              {mobileOverflowNav.map((item) => (
+                <li key={item.to}>
+                  <NavLink
+                    to={item.to}
+                    end={item.end}
+                    onClick={onClose}
+                    className={({ isActive }) =>
+                      `flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2.5 text-base font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-brand-soft text-brand'
+                          : 'text-ink hover:bg-surface-secondary'
+                      }`
+                    }
+                  >
+                    <item.icon size={22} strokeWidth={1.9} />
+                    <span className="flex-1">{item.label}</span>
+                    <ChevronRight size={18} className="text-muted" aria-hidden="true" />
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section aria-labelledby="more-account-title">
+            <h3 id="more-account-title" className="eyebrow px-3 pt-5 pb-2">
+              Account
+            </h3>
+            {status === 'authenticated' ? (
               <NavLink
-                to="/signin"
+                to="/account"
                 onClick={onClose}
-                className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-secondary hover:text-ink"
+                className={({ isActive }) =>
+                  `flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2.5 text-base font-semibold transition-colors ${
+                    isActive
+                      ? 'bg-brand-soft text-brand'
+                      : 'text-ink hover:bg-surface-secondary'
+                  }`
+                }
               >
-                <LogIn size={22} strokeWidth={1.9} />
-                <span>Sign in</span>
+                <UserRound size={22} strokeWidth={1.9} />
+                <span className="flex-1">Account</span>
+                <ChevronRight size={18} className="text-muted" aria-hidden="true" />
               </NavLink>
-              <NavLink
-                to="/register"
-                onClick={onClose}
-                className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-sm font-semibold text-white transition-colors hover:opacity-90 bg-brand"
-              >
-                <UserPlus size={22} strokeWidth={1.9} />
-                <span>Sign up</span>
-              </NavLink>
-            </>
-          )}
-          <div className="col-span-2 flex items-center justify-between rounded-2xl border border-line-light px-3 py-2">
-            <span className="text-sm font-medium text-ink">Theme</span>
-            <ThemeToggle />
-          </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 px-1">
+                <NavLink
+                  to="/signin"
+                  onClick={onClose}
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-2xl px-3 text-sm font-semibold text-ink transition-colors hover:bg-surface-secondary"
+                >
+                  <LogIn size={20} strokeWidth={1.9} />
+                  <span>Sign in</span>
+                </NavLink>
+                <NavLink
+                  to="/register"
+                  onClick={onClose}
+                  className="flex min-h-12 items-center justify-center gap-2 rounded-2xl px-3 text-sm font-semibold text-white transition-opacity hover:opacity-90 bg-brand"
+                >
+                  <UserPlus size={20} strokeWidth={1.9} />
+                  <span>Sign up</span>
+                </NavLink>
+              </div>
+            )}
+          </section>
+
+          <section aria-labelledby="more-preferences-title">
+            <h3 id="more-preferences-title" className="eyebrow px-3 pt-5 pb-2">
+              Preferences
+            </h3>
+            <div className="space-y-1 px-1">
+              <div className="flex items-center justify-between rounded-2xl border border-line-light px-3 py-2.5">
+                <span className="text-sm font-medium text-ink">Theme</span>
+                <ThemeToggle />
+              </div>
+              <div className="[&>button]:w-full">
+                <HardRefreshButton variant="labeled" />
+              </div>
+            </div>
+          </section>
+
           {status === 'authenticated' && (
             <button
               type="button"
@@ -165,7 +212,7 @@ function MoreSheet({
                 onClose()
                 void logout()
               }}
-              className="col-span-2 flex min-h-11 items-center justify-center rounded-2xl px-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-secondary hover:text-ink"
+              className="mt-6 flex min-h-12 w-full items-center justify-center rounded-2xl border border-line px-3 text-sm font-semibold text-muted transition-colors hover:bg-surface-secondary hover:text-ink"
             >
               Sign out
             </button>
@@ -270,6 +317,7 @@ export function AppShell() {
             <span className="hidden lg:inline">
               <AccountControl />
             </span>
+            <HardRefreshButton />
             <ThemeToggle />
           </div>
         </div>
@@ -279,6 +327,7 @@ export function AppShell() {
         id="main-content"
         className="w-full px-4 pt-5 pb-[calc(7rem+env(safe-area-inset-bottom))] sm:px-6 lg:px-8 lg:py-8 lg:pb-8"
       >
+        <AppUpdateNotice />
         {visibleNotice && (
           <div
             role="status"
@@ -340,7 +389,7 @@ export function AppShell() {
         </button>
       </nav>
 
-      <MoreSheet
+      <MoreMenu
         open={moreOpen}
         onClose={() => setMoreOpen(false)}
         triggerRef={moreTriggerRef}

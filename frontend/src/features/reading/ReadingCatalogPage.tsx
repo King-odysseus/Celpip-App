@@ -3,9 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { useAuth } from '../auth/AuthProvider'
-import { ApiError, api } from '../../lib/api'
+import { ApiError, api, fetchAllPages } from '../../lib/api'
 import type {
-  Paginated,
   ReadingCatalogItem,
   ReadingSession,
   ReadingTaskType,
@@ -35,12 +34,12 @@ export function ReadingCatalogPage({
     let active = true
     Promise.all([
       api.get<ReadingTaskType[]>(`/content/task-types/?skill=${skill}`),
-      api.get<Paginated<ReadingCatalogItem>>(`/content/${skill}/`),
+      fetchAllPages<ReadingCatalogItem>(`/content/${skill}/`),
     ])
       .then(([types, catalog]) => {
         if (!active) return
         setTaskTypes(types)
-        setItems(catalog.results)
+        setItems(catalog)
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : 'Could not load Reading practice.')

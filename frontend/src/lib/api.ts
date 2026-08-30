@@ -81,6 +81,13 @@ type RequestOptions = {
   _retry?: boolean
 }
 
+type Paginated<T> = {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = (options.method ?? 'GET').toUpperCase()
   const headers: Record<string, string> = { ...options.headers }
@@ -171,6 +178,34 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   return data as T
+}
+
+/**
+ * Load a paginated DRF endpoint completely, following ``next`` links until the
+ * backend has no further pages. Catalog pages use this so a bank larger than
+ * the server page size does not silently drop later items.
+ */
+export async function fetchAllPages<T>(path: string): Promise<T[]> {
+  let current: string | null = path
+  const items: T[] = []
+
+  while (current) {
+    const page: Paginated<T> = await request<Paginated<T>>(current)
+    items.push(...page.results)
+    current = page.next ? normalizeNextPage(page.next) : null
+  }
+
+  return items
+}
+
+function normalizeNextPage(next: string): string {
+  const marker = '/api/v1'
+  const url = new URL(next, window.location.origin)
+  let pathname = url.pathname
+  if (pathname.startsWith(marker)) {
+    pathname = pathname.slice(marker.length) || '/'
+  }
+  return pathname + url.search
 }
 
 export const api = {

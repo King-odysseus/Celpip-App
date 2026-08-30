@@ -221,7 +221,7 @@ describe('mobile More overflow', () => {
     const user = userEvent.setup()
     renderApp()
     await user.click(screen.getByRole('button', { name: 'More' }))
-    const dialog = screen.getByRole('dialog', { name: /more destinations/i })
+    const dialog = screen.getByRole('dialog', { name: 'Menu' })
     expect(within(dialog).getByRole('link', { name: 'Learn' })).toBeInTheDocument()
     expect(
       within(dialog).getByRole('link', { name: 'Mistake Bank' }),
@@ -236,7 +236,7 @@ describe('mobile More overflow', () => {
     renderApp()
     await user.click(screen.getByRole('button', { name: 'More' }))
 
-    const dialog = screen.getByRole('dialog', { name: /more destinations/i })
+    const dialog = screen.getByRole('dialog', { name: 'Menu' })
     const signIn = within(dialog).getByRole('link', { name: 'Sign in' })
     const signUp = within(dialog).getByRole('link', { name: 'Sign up' })
     expect(signIn).toBeInTheDocument()
@@ -261,7 +261,7 @@ describe('mobile More overflow', () => {
     await screen.findByRole('link', { name: 'Account' })
     await user.click(screen.getByRole('button', { name: 'More' }))
 
-    const dialog = screen.getByRole('dialog', { name: /more destinations/i })
+    const dialog = screen.getByRole('dialog', { name: 'Menu' })
     expect(
       within(dialog).getByRole('link', { name: 'Account' }),
     ).toBeInTheDocument()

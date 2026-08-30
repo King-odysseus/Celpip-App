@@ -3,9 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { useAuth } from '../auth/AuthProvider'
-import { ApiError, api } from '../../lib/api'
+import { ApiError, api, fetchAllPages } from '../../lib/api'
 import type {
-  Paginated,
   SessionMode,
   StartedWritingSession,
   WritingCatalogItem,
@@ -40,12 +39,12 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
     let active = true
     Promise.all([
       api.get<WritingTaskType[]>('/content/task-types/?skill=writing'),
-      api.get<Paginated<WritingCatalogItem>>('/content/writing/'),
+      fetchAllPages<WritingCatalogItem>('/content/writing/'),
     ])
       .then(([types, catalog]) => {
         if (!active) return
         setTaskTypes(types)
-        setItems(catalog.results)
+        setItems(catalog)
       })
       .catch((reason: unknown) =>
         active && setError(reason instanceof Error ? reason.message : 'Could not load Writing practice.'),

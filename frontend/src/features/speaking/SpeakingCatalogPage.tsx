@@ -2,10 +2,9 @@ import { Clock3, GraduationCap, Mic2, Play } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
-import { ApiError, api } from '../../lib/api'
+import { ApiError, api, fetchAllPages } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import type {
-  Paginated,
   SessionMode,
   SpeakingCatalogItem,
   SpeakingTaskType,
@@ -38,12 +37,12 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
     let active = true
     Promise.all([
       api.get<SpeakingTaskType[]>('/content/task-types/?skill=speaking'),
-      api.get<Paginated<SpeakingCatalogItem>>('/content/speaking/'),
+      fetchAllPages<SpeakingCatalogItem>('/content/speaking/'),
     ])
       .then(([types, catalog]) => {
         if (active) {
           setTaskTypes(types)
-          setItems(catalog.results)
+          setItems(catalog)
         }
       })
       .catch((reason: unknown) => {
