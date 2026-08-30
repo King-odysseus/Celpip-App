@@ -11,6 +11,7 @@ Examples::
     python manage.py regenerate_listening_audio --dry-run
     python manage.py regenerate_listening_audio --slug apartment-heating-plan --force
     python manage.py regenerate_listening_audio --force
+    python manage.py regenerate_listening_audio --only-local
 """
 from __future__ import annotations
 
@@ -61,11 +62,22 @@ class Command(BaseCommand):
                 "(e.g. 'azure,openai,local')."
             ),
         )
+        parser.add_argument(
+            "--only-local",
+            action="store_true",
+            help=(
+                "Regenerate only assets whose current audio is locally/OS-synthesized "
+                "development audio; remote (OpenAI/Azure) recordings are left untouched. "
+                "Implies --force for matching assets, so a valid local recording is "
+                "replaced rather than skipped. Safe to run on every deploy."
+            ),
+        )
 
     def handle(self, *args, **options):
         slug = options["slug"]
         force = options["force"]
         dry_run = options["dry_run"]
+        only_local = options["only_local"]
         order = (
             [name.strip() for name in options["provider_order"].split(",") if name.strip()]
             if options["provider_order"]
@@ -86,7 +98,16 @@ class Command(BaseCommand):
         if slug:
             assets = assets.filter(content_version__item__slug=slug)
         assets = list(assets)
+        if only_local:
+            assets = [asset for asset in assets if self._is_local_audio(asset)]
         if not assets:
+            if only_local:
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        "No local-synthesized listening audio to regenerate."
+                    )
+                )
+                return
             raise CommandError(
                 f"No Listening audio found{f' for slug {slug!r}' if slug else ''}."
             )
@@ -98,13 +119,18 @@ class Command(BaseCommand):
             item_slug = asset.content_version.item.slug
             existing_bytes, existing_valid = self._load_existing(asset)
 
-            if not force and existing_valid and asset.status == MediaStatus.READY:
+            if (
+                not force
+                and not only_local
+                and existing_valid
+                and asset.status == MediaStatus.READY
+            ):
                 skipped += 1
                 self.stdout.write(f"  {item_slug}: already valid — skipped.")
                 continue
 
             if dry_run:
-                action = "regenerate" if force else "repair"
+                action = "regenerate" if (force or only_local) else "repair"
                 providers = build_default_providers(
                     order,
                     existing_bytes=existing_bytes if existing_valid else None,
@@ -187,6 +213,22 @@ class Command(BaseCommand):
             raise CommandError(f"{failed} asset(s) could not be regenerated.")
 
     # ── helpers ──────────────────────────────────────────────────────────────
+    @staticmethod
+    def _is_local_audio(asset: MediaAsset) -> bool:
+        """True when the stored audio came from OS/local speech, not a remote provider.
+
+        The seed records the locally synthesized development voice, and the
+        terminal ``local`` provider's provenance marks retained recordings the
+        same way. OpenAI/Azure provenance never contains these markers.
+        """
+        label = (asset.voice_label or "").lower()
+        provenance = (asset.provenance or "").lower()
+        return (
+            "development voice" in label
+            or "locally synthesized" in provenance
+            or "local system-speech" in provenance
+        )
+
     def _load_existing(self, asset: MediaAsset) -> tuple[bytes | None, bool]:
         try:
             path = private_media_path(asset.storage_key)

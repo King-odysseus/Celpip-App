@@ -413,6 +413,47 @@ def test_command_default_skips_valid_and_is_scoped_and_idempotent(
     assert first.checksum_sha256 == first_checksum  # idempotent
 
 
+def test_command_only_local_regenerates_local_and_leaves_remote_untouched(
+    isolated_listening, settings, monkeypatch
+):
+    settings.OPENAI_API_KEY = FAKE_KEY
+    speech = FakeSpeech(make_wav(3500))
+    client = SimpleNamespace(audio=SimpleNamespace(speech=speech))
+    _patch_builder(monkeypatch, openai=OpenAIVoiceProvider(client=client, voices=["alloy", "onyx"]))
+
+    # Mark one asset as already-remote (Azure) so --only-local must skip it.
+    MediaAsset.objects.filter(content_version__item__slug="apartment-heating-plan").update(
+        voice_label="en-CA-ClaraNeural",
+        provenance="Generated with Azure Speech neural TTS.",
+    )
+
+    regen("--only-local")
+
+    remote = MediaAsset.objects.get(content_version__item__slug="apartment-heating-plan")
+    assert remote.voice_label == "en-CA-ClaraNeural"  # untouched
+
+    local = MediaAsset.objects.get(content_version__item__slug="pottery-class-change")
+    assert local.voice_label == "alloy, onyx"  # regenerated via OpenAI
+
+
+def test_command_only_local_is_noop_when_all_audio_remote(
+    isolated_listening, settings, monkeypatch
+):
+    settings.OPENAI_API_KEY = FAKE_KEY
+    speech = FakeSpeech(make_wav(3500))
+    client = SimpleNamespace(audio=SimpleNamespace(speech=speech))
+    _patch_builder(monkeypatch, openai=OpenAIVoiceProvider(client=client, voices=["alloy", "onyx"]))
+
+    MediaAsset.objects.update(
+        voice_label="alloy, onyx",
+        provenance="Generated with OpenAI natural TTS.",
+    )
+
+    regen("--only-local")  # must not raise, and must not call any provider
+
+    assert speech.calls == []
+
+
 def test_azure_provider_never_places_key_in_request_url(settings):
     settings.AZURE_SPEECH_KEY = FAKE_KEY
     settings.AZURE_SPEECH_REGION = "canadacentral"

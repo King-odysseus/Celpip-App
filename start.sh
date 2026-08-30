@@ -90,6 +90,17 @@ if [ "$bootstrap_content" = "true" ]; then
     echo "Practice-content bootstrap complete."
 fi
 
+# Natural-voice audio. Seeded Listening audio is locally/OS-synthesized
+# development audio; replace it with the configured remote provider (OpenAI by
+# default) using LISTENING_TTS_PROVIDER_ORDER / LISTENING_OPENAI_VOICES /
+# OPENAI_TTS_MODEL. `--only-local` targets just those assets and leaves any
+# remote recordings alone, so this is a no-op once audio is natural. It is
+# non-fatal: a transient provider outage must not take the whole app down, so
+# failures are logged and the app starts with the existing (working) audio.
+echo "Regenerating local-synthesized listening audio (if any)..."
+python manage.py regenerate_listening_audio --only-local \
+    || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+
 PORT="${PORT:-8000}"
 WEB_CONCURRENCY="${WEB_CONCURRENCY:-2}"
 GUNICORN_TIMEOUT="${GUNICORN_TIMEOUT:-60}"
