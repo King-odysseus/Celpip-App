@@ -64,7 +64,10 @@ describe('learning loop', () => {
   })
 
   it('shows why a study task was chosen and records completion', async () => {
-    let task = {
+    let task: {
+      id: number; scheduled_date: string; order: number; skill: string; task_type: string; title: string; minutes: number;
+      reason: string; destination: string; state: string; completed_at: string | null;
+    } = {
       id: 8, scheduled_date: '2026-08-31', order: 1, skill: 'listening',
       task_type: 'listening_problem_solving', title: 'Listening to Problem Solving', minutes: 30,
       reason: 'Prioritised because this skill has not been practised yet.', destination: '/practice/listening',
