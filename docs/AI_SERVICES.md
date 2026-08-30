@@ -38,6 +38,41 @@ python manage.py run_ai_worker --once
 python manage.py run_ai_worker
 ```
 
+## Listening audio synthesis
+
+Stored Listening audio is generated once and reused. `regenerate_listening_audio`
+turns each reviewed transcript into a validated WAV through an ordered list of
+speech providers, `LISTENING_TTS_PROVIDER_ORDER` (default `openai,azure,local`):
+
+1. **OpenAI natural TTS** — reuses the server-side `OPENAI_API_KEY` and
+   `OPENAI_TTS_MODEL`, requesting WAV output and alternating
+   `LISTENING_OPENAI_VOICES` (two voices) across speakers.
+2. **Azure Speech neural TTS** — server-side `AZURE_SPEECH_KEY` +
+   `AZURE_SPEECH_REGION`, official REST endpoint, RIFF PCM WAV, Canadian voices
+   `LISTENING_AZURE_VOICES` (`en-CA-ClaraNeural`, `en-CA-LiamNeural`).
+3. **local** — terminal fallback that *retains* the existing validated recording
+   (first produced by `scripts/generate-listening-audio.ps1` on Windows).
+
+This order is deliberately **independent of `AI_PROVIDER`**, so evaluation can run
+on the fake provider while audio uses a live vendor. Missing credentials, provider
+errors, and invalid/corrupt/too-short output all fall through to the next provider.
+Every candidate is strictly validated as PCM WAV before use; the file is replaced
+atomically (temp file + `os.replace`) only after validation, and the `MediaAsset`
+row — duration, byte size, checksum, and safe provider/model/voice provenance — is
+updated only after the file is in place. A working recording is **never** destroyed
+when every provider fails. Secrets never enter logs, responses, metadata, or
+provenance. Costs: OpenAI and Azure TTS are paid/metered (Azure has a limited free
+tier); with no credentials the pipeline stays on `local` at no cost. Generated
+audio is synthetic and unofficial; old stored WAVs remain until regenerated.
+
+```powershell
+# Preview only; calls no provider and writes nothing
+python manage.py regenerate_listening_audio --dry-run
+# Regenerate one set, or omit --slug for all; --force resynthesizes valid audio
+python manage.py regenerate_listening_audio --slug apartment-heating-plan --force
+python manage.py regenerate_listening_audio --force
+```
+
 Writing and Speaking submissions enqueue feedback automatically. The frontend
 polls the owner/guest-authorized feedback endpoint and clearly labels the result
 as an AI-assisted practice range. The Speaking Attempt 1 vs Attempt 2 comparison

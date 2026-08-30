@@ -2,7 +2,20 @@ import { useRef, useState, type FormEvent } from 'react'
 import { Button, Field } from '../../components/ui'
 import { ApiError } from '../../lib/api'
 import { useAuth } from './AuthProvider'
-import { SKILLS, type LearnerProfile, type ProfileUpdate } from './types'
+import {
+  NARRATION_VOICES,
+  SKILLS,
+  type LearnerProfile,
+  type PracticeNarrationVoice,
+  type ProfileUpdate,
+} from './types'
+
+/** Human labels for the generated-narration voice preference options. */
+const NARRATION_VOICE_LABELS: Record<PracticeNarrationVoice, string> = {
+  automatic: 'Automatic (let the app choose)',
+  voice_1: 'Voice 1',
+  voice_2: 'Voice 2',
+}
 
 const WEEKDAYS: Array<{ iso: number; label: string; short: string }> = [
   { iso: 1, label: 'Monday', short: 'Mon' },
@@ -39,6 +52,7 @@ const FIELD_LABELS: Record<string, string> = {
   target_writing: 'Writing target',
   target_speaking: 'Speaking target',
   preferred_weekdays: 'Preferred study days',
+  practice_narration_voice: 'Practice narration voice',
 }
 
 /** Controls we can move focus to when the matching field is invalid. */
@@ -205,6 +219,7 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
       daily_minutes: minutes,
       preferred_weekdays: form.preferred_weekdays,
       timezone: form.timezone,
+      practice_narration_voice: form.practice_narration_voice ?? 'automatic',
     }
     try {
       await updateProfile(changes)
@@ -413,6 +428,43 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
         </div>
         <span id="timezone-hint" className="mt-1.5 block text-xs text-muted">
           IANA name, e.g. America/Toronto.
+        </span>
+      </div>
+
+      <div className="block">
+        <label
+          htmlFor="practice_narration_voice"
+          className="mb-1.5 block text-sm font-medium text-ink"
+        >
+          Practice narration voice
+        </label>
+        <select
+          id="practice_narration_voice"
+          name="practice_narration_voice"
+          value={form.practice_narration_voice ?? 'automatic'}
+          onChange={(e) =>
+            set(
+              'practice_narration_voice',
+              e.target.value as PracticeNarrationVoice,
+            )
+          }
+          aria-describedby="practice_narration_voice-hint"
+          className="min-h-11 w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-ink focus-visible:border-brand focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand"
+        >
+          {NARRATION_VOICES.map((voice) => (
+            <option key={voice} value={voice}>
+              {NARRATION_VOICE_LABELS[voice]}
+            </option>
+          ))}
+        </select>
+        <span
+          id="practice_narration_voice-hint"
+          className="mt-1.5 block text-xs text-muted"
+        >
+          Your preferred narrator for future generated single-narrator practice
+          narration. Automatic lets the app choose. This is a preference only —
+          it never selects an audio provider. Authored CELPIP Listening
+          dialogues keep their scored multi-speaker voices and are unchanged.
         </span>
       </div>
 

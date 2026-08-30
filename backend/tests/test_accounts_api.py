@@ -301,6 +301,30 @@ def test_profile_get_and_patch_scoped_to_owner(api_client):
     assert body["preferred_weekdays"] == [1, 3, 5]
 
 
+def test_profile_defaults_narration_voice_to_automatic(api_client):
+    _auth(api_client)
+    body = api_client.get(PROFILE_URL).json()
+    assert body["practice_narration_voice"] == "automatic"
+
+
+def test_profile_accepts_valid_narration_voice(api_client):
+    _auth(api_client)
+    resp = api_client.patch(
+        PROFILE_URL, {"practice_narration_voice": "voice_2"}, format="json"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["practice_narration_voice"] == "voice_2"
+
+
+def test_profile_rejects_unknown_narration_voice(api_client):
+    _auth(api_client)
+    resp = api_client.patch(
+        PROFILE_URL, {"practice_narration_voice": "provider:openai"}, format="json"
+    )
+    assert resp.status_code == 400
+    assert "practice_narration_voice" in resp.json()["fields"]
+
+
 def test_profile_rejects_out_of_range_target(api_client):
     _auth(api_client)
     resp = api_client.patch(PROFILE_URL, {"target_level": 99}, format="json")

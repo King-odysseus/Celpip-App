@@ -217,10 +217,20 @@ python manage.py migrate
 python manage.py seed_reading_content
 python manage.py validate_content --published-only
 
-# Listening audio is committed for the starter bank. On Windows it can be
-# regenerated from the reviewed scripts using installed OS voices:
+# Listening audio is committed for the starter bank and generated ONCE, then
+# reused. On Windows the first local recording comes from the reviewed scripts
+# using installed OS voices (this is the final "local" fallback):
 # powershell -File ..\scripts\generate-listening-audio.ps1
 python manage.py seed_listening_content
+
+# To upgrade to natural voices, regenerate through the provider order
+# (openai → azure → local; see LISTENING_TTS_PROVIDER_ORDER in .env.example).
+# This is independent of AI_PROVIDER, only replaces a file after strict WAV
+# validation, and never destroys a working recording if every provider fails.
+# Old stored WAVs stay in use until you run this:
+python manage.py regenerate_listening_audio --dry-run          # preview only
+python manage.py regenerate_listening_audio --slug apartment-heating-plan --force
+python manage.py regenerate_listening_audio --force            # all sets
 
 # Writing and Speaking banks seed the same way; all seed commands are safe to
 # repeat and never overwrite an existing authored item.

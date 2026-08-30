@@ -294,3 +294,26 @@ OPENAI_TTS_MODEL = os.environ.get("OPENAI_TTS_MODEL", "gpt-4o-mini-tts").strip()
 OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2").strip()
 AI_MAX_ATTEMPTS = int(os.environ.get("AI_MAX_ATTEMPTS", "3"))
 AI_JOB_POLL_SECONDS = float(os.environ.get("AI_JOB_POLL_SECONDS", "2"))
+
+# ── Listening audio synthesis (text-to-speech) ──────────────────────────────
+# Stored Listening audio is generated once and reused. Regeneration tries these
+# providers in order until one returns a valid WAV. This order is deliberately
+# independent of AI_PROVIDER: general AI evaluation can run on the fake provider
+# while listening audio is still produced by a live speech vendor. "local" is
+# the terminal fallback that retains the existing validated recording so a
+# working file is never destroyed when every upstream provider fails.
+LISTENING_TTS_PROVIDER_ORDER = env_list(
+    "LISTENING_TTS_PROVIDER_ORDER", default="openai,azure,local"
+)
+# Two distinct OpenAI voices give dialogue scripts two clean speakers. Server
+# side OPENAI_API_KEY and OPENAI_TTS_MODEL (above) are reused; keys never leave
+# the server or appear in provenance/metadata.
+LISTENING_OPENAI_VOICES = env_list(
+    "LISTENING_OPENAI_VOICES", default="alloy,onyx"
+)
+# Azure Speech neural TTS. Canadian English voices by default.
+AZURE_SPEECH_KEY = os.environ.get("AZURE_SPEECH_KEY", "").strip()
+AZURE_SPEECH_REGION = os.environ.get("AZURE_SPEECH_REGION", "").strip()
+LISTENING_AZURE_VOICES = env_list(
+    "LISTENING_AZURE_VOICES", default="en-CA-ClaraNeural,en-CA-LiamNeural"
+)

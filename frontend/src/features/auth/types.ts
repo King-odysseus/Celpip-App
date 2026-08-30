@@ -7,6 +7,10 @@ export type AuthUser = {
   date_joined: string
 }
 
+/** Presentation preference for generated single-narrator practice narration. */
+export const NARRATION_VOICES = ['automatic', 'voice_1', 'voice_2'] as const
+export type PracticeNarrationVoice = (typeof NARRATION_VOICES)[number]
+
 export type LearnerProfile = {
   identifier: string
   exam_date: string | null
@@ -18,6 +22,7 @@ export type LearnerProfile = {
   daily_minutes: number
   preferred_weekdays: number[]
   timezone: string
+  practice_narration_voice: PracticeNarrationVoice
   updated_at: string
 }
 

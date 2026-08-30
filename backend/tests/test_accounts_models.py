@@ -75,6 +75,8 @@ def test_profile_defaults():
     assert profile.daily_minutes == 30
     assert profile.preferred_weekdays == [1, 2, 3, 4, 5]
     assert profile.timezone == "America/Toronto"
+    # The generated-narration preference defaults to Automatic (app decides).
+    assert profile.practice_narration_voice == "automatic"
 
 
 def test_recovery_code_hashes_and_matches():

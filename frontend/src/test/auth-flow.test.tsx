@@ -15,6 +15,7 @@ const PROFILE = {
   daily_minutes: 30,
   preferred_weekdays: [1, 2, 3, 4, 5],
   timezone: 'America/Toronto',
+  practice_narration_voice: 'automatic',
   updated_at: '2026-08-29T00:00:00Z',
 }
 

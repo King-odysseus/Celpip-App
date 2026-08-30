@@ -1,19 +1,26 @@
 import { Link } from 'react-router-dom'
-import { LogIn, UserRound } from 'lucide-react'
+import { LogIn, UserPlus, UserRound } from 'lucide-react'
 import { useAuth } from '../features/auth/AuthProvider'
 
-const linkClass =
-  'flex min-h-11 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium ' +
-  'whitespace-nowrap text-muted transition-colors hover:text-ink ' +
+/** Shared pill geometry; display utility is applied per-use so visibility can
+ * differ by breakpoint (the account link is desktop-only, the anonymous
+ * sign-in/up actions stay visible on every size). */
+const pillBase =
+  'min-h-11 items-center gap-2 rounded-full px-3 py-2.5 text-sm font-medium ' +
+  'whitespace-nowrap transition-colors sm:px-3.5 ' +
   'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
 
-/** Prominent sign-in CTA for anonymous visitors; matches the header pill sizing. */
-const signInClass =
-  'flex min-h-11 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium ' +
-  'whitespace-nowrap text-white bg-brand transition-colors hover:opacity-90 ' +
-  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand'
+const accountClass = `hidden lg:flex ${pillBase} text-muted hover:text-ink`
+/** Secondary action for anonymous visitors. */
+const signInClass = `flex ${pillBase} text-ink hover:text-brand`
+/** Prominent primary CTA for anonymous visitors. */
+const signUpClass = `flex ${pillBase} bg-brand text-white hover:opacity-90`
 
-/** Header control: Account when signed in, otherwise a Sign in link. */
+/**
+ * Header account control. Signed in → an Account link (desktop; mobile reaches
+ * the account via the bottom nav). Signed out → both Sign in and Sign up, kept
+ * visible on desktop and mobile so a logged-out visitor always sees both.
+ */
 export function AccountControl() {
   const { status, user } = useAuth()
 
@@ -23,7 +30,7 @@ export function AccountControl() {
 
   if (status === 'authenticated') {
     return (
-      <Link to="/account" className={linkClass} aria-label="Account">
+      <Link to="/account" className={accountClass} aria-label="Account">
         <UserRound size={18} strokeWidth={1.9} />
         <span className="hidden max-w-32 truncate sm:inline">
           {user?.identifier ?? 'Account'}
@@ -33,9 +40,15 @@ export function AccountControl() {
   }
 
   return (
-    <Link to="/signin" className={signInClass}>
-      <LogIn size={18} strokeWidth={1.9} />
-      <span>Sign in</span>
-    </Link>
+    <div className="flex items-center gap-1">
+      <Link to="/signin" className={signInClass}>
+        <LogIn size={18} strokeWidth={1.9} className="hidden sm:block" />
+        <span>Sign in</span>
+      </Link>
+      <Link to="/register" className={signUpClass}>
+        <UserPlus size={18} strokeWidth={1.9} className="hidden sm:block" />
+        <span>Sign up</span>
+      </Link>
+    </div>
   )
 }

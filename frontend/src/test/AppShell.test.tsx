@@ -17,6 +17,7 @@ const PROFILE = {
   daily_minutes: 30,
   preferred_weekdays: [1, 2, 3, 4, 5],
   timezone: 'America/Toronto',
+  practice_narration_voice: 'automatic',
   updated_at: '2026-08-29T00:00:00Z',
 }
 
@@ -54,15 +55,19 @@ describe('AppShell', () => {
     expect(within(mobileNav).getByRole('button', { name: 'More' })).toBeInTheDocument()
   })
 
-  it('shows a prominent Sign in link in the header for anonymous visitors', async () => {
+  it('shows both Sign in and Sign up in the header, with Sign up as the primary CTA', async () => {
     renderApp()
     // Exact-case "Sign in" matches the header CTA; the dashboard's inline link
     // is lowercase "sign in".
     const signIn = await screen.findByRole('link', { name: 'Sign in' })
-    expect(signIn).toHaveClass('bg-brand')
+    const signUp = screen.getByRole('link', { name: 'Sign up' })
+    expect(signIn).toBeInTheDocument()
+    // Sign up is the prominent primary action; Sign in stays a secondary link.
+    expect(signUp).toHaveClass('bg-brand')
+    expect(signIn).not.toHaveClass('bg-brand')
   })
 
-  it('replaces the Sign in link with the account control once signed in', async () => {
+  it('replaces the anonymous sign-in/up links with the account control once signed in', async () => {
     installRouteFetch({
       'GET /auth/csrf/': () => jsonResponse({ detail: 'ok' }),
       'POST /auth/refresh/': () => jsonResponse({ access: 'access-token' }),
@@ -75,6 +80,9 @@ describe('AppShell', () => {
     ).toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: 'Sign in' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Sign up' }),
     ).not.toBeInTheDocument()
   })
 })
@@ -103,6 +111,67 @@ describe('routing', () => {
     renderApp('/does-not-exist')
     expect(
       screen.getByRole('heading', { level: 1, name: /page not found/i }),
+    ).toBeInTheDocument()
+  })
+})
+
+describe('back button', () => {
+  it('is hidden on the dashboard and auth pages', () => {
+    for (const path of ['/', '/signin', '/register', '/recovery']) {
+      const { unmount } = renderApp(path)
+      expect(
+        screen.queryByRole('button', { name: 'Go back' }),
+      ).not.toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('is visible on interior pages', () => {
+    renderApp('/learn')
+    const back = screen.getByRole('button', { name: 'Go back' })
+    expect(back).toBeInTheDocument()
+    expect(screen.getByText('Back')).toBeInTheDocument()
+  })
+
+  it('is hidden on session and mock workspace pages', () => {
+    const { unmount } = renderApp('/reading/session/abc')
+    expect(
+      screen.queryByRole('button', { name: 'Go back' }),
+    ).not.toBeInTheDocument()
+    unmount()
+
+    renderApp('/mock/abc')
+    expect(
+      screen.queryByRole('button', { name: 'Go back' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('falls back to the dashboard on a direct entry', async () => {
+    const user = userEvent.setup()
+    renderApp('/learn')
+
+    await user.click(screen.getByRole('button', { name: 'Go back' }))
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Dashboard' }),
+    ).toBeInTheDocument()
+  })
+
+  it('returns to the previous page after in-app navigation', async () => {
+    const user = userEvent.setup()
+    const { router } = renderApp('/')
+
+    await act(async () => {
+      await router.navigate('/learn')
+    })
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Reading Learn' }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Go back' }))
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Dashboard' }),
     ).toBeInTheDocument()
   })
 })
@@ -160,6 +229,51 @@ describe('mobile More overflow', () => {
     expect(
       within(dialog).getByRole('link', { name: 'Study Plan' }),
     ).toBeInTheDocument()
+  })
+
+  it('offers both Sign in and Sign up to anonymous visitors and closes on click', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await user.click(screen.getByRole('button', { name: 'More' }))
+
+    const dialog = screen.getByRole('dialog', { name: /more destinations/i })
+    const signIn = within(dialog).getByRole('link', { name: 'Sign in' })
+    const signUp = within(dialog).getByRole('link', { name: 'Sign up' })
+    expect(signIn).toBeInTheDocument()
+    expect(signUp).toHaveClass('bg-brand')
+
+    await user.click(signUp)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 1, name: /create your account/i }),
+    ).toBeInTheDocument()
+  })
+
+  it('shows Account and Sign out (not Sign in/up) when signed in', async () => {
+    installRouteFetch({
+      'GET /auth/csrf/': () => jsonResponse({ detail: 'ok' }),
+      'POST /auth/refresh/': () => jsonResponse({ access: 'access-token' }),
+      'GET /me/': () => jsonResponse(USER),
+      'GET /me/profile/': () => jsonResponse(PROFILE),
+    })
+    const user = userEvent.setup()
+    renderApp()
+    await screen.findByRole('link', { name: 'Account' })
+    await user.click(screen.getByRole('button', { name: 'More' }))
+
+    const dialog = screen.getByRole('dialog', { name: /more destinations/i })
+    expect(
+      within(dialog).getByRole('link', { name: 'Account' }),
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).getByRole('button', { name: 'Sign out' }),
+    ).toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('link', { name: 'Sign in' }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(dialog).queryByRole('link', { name: 'Sign up' }),
+    ).not.toBeInTheDocument()
   })
 
   it('closes the overflow dialog with Escape', async () => {

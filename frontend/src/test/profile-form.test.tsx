@@ -18,6 +18,7 @@ const PROFILE = {
   daily_minutes: 30,
   preferred_weekdays: [1, 2, 3, 4, 5],
   timezone: 'America/Toronto',
+  practice_narration_voice: 'automatic',
   updated_at: '2026-08-29T00:00:00Z',
 }
 
@@ -158,6 +159,50 @@ describe('ProfileForm browser timezone', () => {
     ).toBeInTheDocument()
 
     vi.restoreAllMocks()
+  })
+})
+
+describe('ProfileForm practice narration voice', () => {
+  it('defaults to Automatic and never exposes a provider choice', async () => {
+    installRouteFetch(authedBootstrap)
+    await renderAccount()
+
+    const select = screen.getByLabelText(
+      'Practice narration voice',
+    ) as HTMLSelectElement
+    expect(select.value).toBe('automatic')
+    // Only safe presentation options — no OpenAI/Azure/provider wording.
+    const optionText = within(select)
+      .getAllByRole('option')
+      .map((o) => o.textContent ?? '')
+      .join(' ')
+    expect(optionText).not.toMatch(/openai|azure|provider|api key/i)
+
+    // The hint states the safe boundary: authored dialogues are unchanged.
+    expect(
+      screen.getByText(/authored celpip listening dialogues keep their/i),
+    ).toBeInTheDocument()
+  })
+
+  it('sends the chosen narration voice on save', async () => {
+    const spy = installRouteFetch({
+      ...authedBootstrap,
+      'PATCH /me/profile/': () =>
+        jsonResponse({ ...PROFILE, practice_narration_voice: 'voice_2' }),
+    })
+    const user = await renderAccount()
+
+    await user.selectOptions(
+      screen.getByLabelText('Practice narration voice'),
+      'voice_2',
+    )
+    await user.click(screen.getByRole('button', { name: /save profile/i }))
+
+    expect(await screen.findByText('Profile saved.')).toBeInTheDocument()
+    const calls = patchCalls(spy)
+    expect(calls).toHaveLength(1)
+    const body = JSON.parse(calls[0][1]!.body as string)
+    expect(body.practice_narration_voice).toBe('voice_2')
   })
 })
 

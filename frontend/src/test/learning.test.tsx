@@ -9,7 +9,8 @@ const PROFILE = {
   identifier: 'learner', exam_date: null, target_level: 9,
   target_listening: null, target_reading: null, target_writing: null,
   target_speaking: null, daily_minutes: 30, preferred_weekdays: [1, 2, 3, 4, 5],
-  timezone: 'America/Toronto', updated_at: '2026-08-29T00:00:00Z',
+  timezone: 'America/Toronto', practice_narration_voice: 'automatic',
+  updated_at: '2026-08-29T00:00:00Z',
 }
 
 const authenticatedBootstrap = {

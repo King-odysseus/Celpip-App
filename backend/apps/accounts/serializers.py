@@ -120,6 +120,7 @@ class LearnerProfileSerializer(serializers.ModelSerializer):
             "daily_minutes",
             "preferred_weekdays",
             "timezone",
+            "practice_narration_voice",
             "updated_at",
         ]
         read_only_fields = ["identifier", "updated_at"]

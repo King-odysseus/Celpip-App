@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { GraduationCap, LogIn, MoreHorizontal, UserRound, X } from 'lucide-react'
+import { ArrowLeft, GraduationCap, LogIn, MoreHorizontal, UserPlus, UserRound, X } from 'lucide-react'
 import {
   mobileOverflowNav,
   mobilePrimaryNav,
@@ -9,6 +9,23 @@ import {
 import { ThemeToggle } from '../components/ThemeToggle'
 import { AccountControl } from '../components/AccountControl'
 import { useAuth } from '../features/auth/AuthProvider'
+
+// Destinations that manage their own navigation chrome (splash/auth pages, and
+// session/workspace screens that already render an Exit control) omit the
+// shared Back button. Everything else is an interior page that gets one.
+const BACK_HIDDEN_PATHS = new Set(['/', '/signin', '/register', '/recovery'])
+const BACK_HIDDEN_PREFIXES = [
+  '/reading/session/',
+  '/writing/session/',
+  '/speaking/session/',
+]
+
+function showBackButton(pathname: string): boolean {
+  if (BACK_HIDDEN_PATHS.has(pathname)) return false
+  if (BACK_HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return false
+  if (/^\/mock\/[^/]+/.test(pathname)) return false
+  return true
+}
 
 function MoreSheet({
   open,
@@ -118,14 +135,24 @@ function MoreSheet({
               <span>Account</span>
             </NavLink>
           ) : (
-            <NavLink
-              to="/signin"
-              onClick={onClose}
-              className="col-span-2 flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-secondary hover:text-ink"
-            >
-              <LogIn size={22} strokeWidth={1.9} />
-              <span>Sign in</span>
-            </NavLink>
+            <>
+              <NavLink
+                to="/signin"
+                onClick={onClose}
+                className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-secondary hover:text-ink"
+              >
+                <LogIn size={22} strokeWidth={1.9} />
+                <span>Sign in</span>
+              </NavLink>
+              <NavLink
+                to="/register"
+                onClick={onClose}
+                className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-2xl px-2 text-sm font-semibold text-white transition-colors hover:opacity-90 bg-brand"
+              >
+                <UserPlus size={22} strokeWidth={1.9} />
+                <span>Sign up</span>
+              </NavLink>
+            </>
           )}
           <div className="col-span-2 flex items-center justify-between rounded-2xl border border-line-light px-3 py-2">
             <span className="text-sm font-medium text-ink">Theme</span>
@@ -163,6 +190,18 @@ export function AppShell() {
   const moreActive = mobileOverflowNav.some(
     (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`),
   )
+
+  const showBack = showBackButton(location.pathname)
+  const handleBack = () => {
+    // In-app entries carry a router-generated key; direct/refreshed entries use
+    // the sentinel 'default' key, so there is no previous in-app page to return
+    // to and the button falls back to the dashboard instead.
+    if (location.key !== 'default') {
+      navigate(-1)
+    } else {
+      navigate('/', { replace: true })
+    }
+  }
 
   // One-shot confirmation notices (e.g. after account deletion) are carried in
   // the route state so a public destination can announce them for assistive
@@ -246,6 +285,19 @@ export function AppShell() {
             className="mx-auto mb-5 max-w-5xl rounded-xl border border-good/40 bg-good-soft px-4 py-3 text-sm text-good"
           >
             {visibleNotice}
+          </div>
+        )}
+        {showBack && (
+          <div className="mx-auto mb-4 max-w-5xl">
+            <button
+              type="button"
+              onClick={handleBack}
+              aria-label="Go back"
+              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>Back</span>
+            </button>
           </div>
         )}
         <div key={location.pathname} className="mx-auto max-w-5xl animate-fade-up">

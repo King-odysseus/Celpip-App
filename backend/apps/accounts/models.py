@@ -130,6 +130,22 @@ class Skill(models.TextChoices):
     SPEAKING = "speaking", "Speaking"
 
 
+class PracticeNarrationVoice(models.TextChoices):
+    """A learner's preferred narrator for *generated single-narrator* practice.
+
+    This is a presentation preference, not a provider selection: it never names
+    or configures a speech vendor, API key, or provider order (those stay
+    entirely server-side). "Automatic" lets the app pick. It applies only to
+    future generated single-narrator practice narration and deliberately does
+    **not** affect authored/scored CELPIP Listening dialogues, which keep their
+    reviewed multi-speaker voice mix.
+    """
+
+    AUTOMATIC = "automatic", "Automatic"
+    VOICE_1 = "voice_1", "Voice 1"
+    VOICE_2 = "voice_2", "Voice 2"
+
+
 def default_preferred_weekdays() -> list[int]:
     """Weekdays a learner plans to study, as ISO integers (Mon=1 … Sun=7)."""
     return [1, 2, 3, 4, 5]
@@ -186,6 +202,18 @@ class LearnerProfile(models.Model):
         max_length=64,
         default="America/Toronto",
         help_text="IANA timezone used for countdowns and daily plan boundaries.",
+    )
+
+    practice_narration_voice = models.CharField(
+        max_length=16,
+        choices=PracticeNarrationVoice.choices,
+        default=PracticeNarrationVoice.AUTOMATIC,
+        help_text=(
+            "Preferred narrator for future generated single-narrator practice "
+            "narration. A presentation preference only — never a speech "
+            "provider, key, or provider order. Does not change authored/scored "
+            "Listening dialogues, which keep their reviewed multi-speaker mix."
+        ),
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
