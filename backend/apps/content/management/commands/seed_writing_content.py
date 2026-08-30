@@ -13,7 +13,12 @@ from apps.content.models import (
 )
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
 from apps.content.services import publish, submit_for_review
-from apps.content.writing_seed_data import WRITING_SETS, WRITING_TASK_TYPES
+from apps.content.writing_seed_data import WRITING_SETS as WRITING_SETS_BASE
+from apps.content.writing_seed_data import WRITING_TASK_TYPES
+from apps.content.writing_seed_data_v2 import WRITING_SETS as WRITING_SETS_V2
+
+
+WRITING_SETS = WRITING_SETS_BASE + WRITING_SETS_V2
 
 
 class Command(BaseCommand):

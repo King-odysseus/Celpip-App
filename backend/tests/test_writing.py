@@ -68,15 +68,15 @@ def test_seed_is_idempotent_with_reviewed_original_prompts():
     call_command("seed_writing_content", stdout=first)
     call_command("seed_writing_content", stdout=second)
 
-    assert "created 6" in first.getvalue()
+    assert "created 32" in first.getvalue()
     assert "created 0" in second.getvalue()
     assert TaskType.objects.filter(skill=Skill.WRITING).count() == 2
-    assert ContentItem.objects.filter(task_type__skill=Skill.WRITING).count() == 6
+    assert ContentItem.objects.filter(task_type__skill=Skill.WRITING).count() == 32
     assert (
         ContentVersion.objects.filter(
             item__task_type__skill=Skill.WRITING, status="published"
         ).count()
-        == 6
+        == 32
     )
     # Writing prompts carry no objective questions.
     assert Question.objects.filter(
@@ -90,12 +90,12 @@ def test_seed_is_idempotent_with_reviewed_original_prompts():
 def test_public_writing_catalog_and_detail(api_client, seeded_writing):
     catalog = api_client.get("/api/v1/content/writing/")
     assert catalog.status_code == 200
-    assert catalog.json()["count"] == 6
+    assert catalog.json()["count"] == 32
 
     filtered = api_client.get(
         "/api/v1/content/writing/", {"task_type": "writing_survey"}
     )
-    assert len(filtered.json()["results"]) == 3
+    assert len(filtered.json()["results"]) == 16
 
     detail = api_client.get(f"/api/v1/content/writing/{SURVEY_SLUG}/")
     assert detail.status_code == 200

@@ -216,7 +216,7 @@ def test_deadline_blocks_save_but_allows_idempotent_submit(api_client, seeded_co
     replay = api_client.post(submit_url, **guest_headers(started))
     assert first.status_code == replay.status_code == 200
     assert first.json()["raw_correct"] == 0
-    assert first.json()["raw_possible"] == 3
+    assert first.json()["raw_possible"] == 4
     assert replay.json()["replayed"] is True
 
 
@@ -240,7 +240,7 @@ def test_submit_scores_server_side_and_releases_explanations(api_client, seeded_
         **guest_headers(started),
     )
     assert submitted.status_code == 200
-    assert submitted.json()["raw_correct"] == submitted.json()["raw_possible"] == 3
+    assert submitted.json()["raw_correct"] == submitted.json()["raw_possible"] == 4
     assert submitted.json()["accuracy_percent"] == 100
     assert submitted.json()["score_label"] == "Practice accuracy"
     assert "not an official CELPIP score" in submitted.json()["disclaimer"]

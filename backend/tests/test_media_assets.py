@@ -38,22 +38,22 @@ def test_listening_seed_is_idempotent_complete_and_integrity_checked():
     call_command("seed_listening_content", stdout=first)
     call_command("seed_listening_content", stdout=second)
 
-    assert "created 6" in first.getvalue()
+    assert "created 36" in first.getvalue()
     assert "created 0" in second.getvalue()
     assert TaskType.objects.filter(skill="listening").count() == 6
-    assert ContentItem.objects.filter(task_type__skill="listening").count() == 6
-    assert ContentVersion.objects.filter(item__task_type__skill="listening").count() == 6
+    assert ContentItem.objects.filter(task_type__skill="listening").count() == 36
+    assert ContentVersion.objects.filter(item__task_type__skill="listening").count() == 36
     listening_questions = Question.objects.filter(
         content_version__item__task_type__skill="listening"
     )
     listening_choices = Choice.objects.filter(
         question__content_version__item__task_type__skill="listening"
     )
-    assert listening_questions.count() == 18
-    assert listening_choices.count() == 72
-    assert MediaAsset.objects.count() == 6
+    assert listening_questions.count() == 144
+    assert listening_choices.count() == 576
+    assert MediaAsset.objects.count() == 36
     for asset in MediaAsset.objects.all():
-        assert asset.duration_ms >= 60_000
+        assert asset.duration_ms >= 45_000
         assert validate_audio_asset(asset) == []
 
 
@@ -66,7 +66,7 @@ def test_listening_catalog_and_session_never_leak_transcript(api_client, listeni
     assert task_types.status_code == 200
     assert len(task_types.json()) == 6
     assert catalog.status_code == 200
-    assert catalog.json()["count"] == 6
+    assert catalog.json()["count"] == 36
     assert detail.status_code == 200
     assert started.status_code == 201
     assert started.json()["content"]["skill"] == "listening"

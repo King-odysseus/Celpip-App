@@ -16,7 +16,8 @@ from django.core import signing
 from django.core.management import call_command
 
 from apps.accounts.models import LearnerProfile, PreferredAudioProvider, User
-from apps.content.listening_seed_data import LISTENING_SETS
+from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BASE
+from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
 from apps.media_assets.models import (
     AudioRendition,
     MediaAsset,
@@ -39,6 +40,7 @@ pytestmark = pytest.mark.django_db
 
 SESSIONS_URL = "/api/v1/sessions/"
 APT_SLUG = "apartment-heating-plan"
+LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2
 
 
 def make_wav(ms: int, *, frame_rate: int = 16000, sample: bytes = b"\x01\x00") -> bytes:

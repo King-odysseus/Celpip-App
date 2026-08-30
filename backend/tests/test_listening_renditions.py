@@ -9,7 +9,8 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.content.listening_seed_data import LISTENING_SETS
+from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BASE
+from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
 from apps.media_assets.audio_synthesis import (
     AzureVoiceProvider,
     OpenAIVoiceProvider,
@@ -18,6 +19,8 @@ from apps.media_assets.management.commands.generate_listening_renditions import 
     Command as RenditionCommand,
 )
 from apps.media_assets.models import AudioRendition, MediaAsset, MediaStatus
+
+LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2
 from apps.media_assets.services import file_checksum, private_media_path
 
 pytestmark = pytest.mark.django_db

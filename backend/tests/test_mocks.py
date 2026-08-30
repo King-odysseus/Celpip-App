@@ -208,7 +208,7 @@ def test_objective_submit_and_stale_advance_are_idempotent(attempt, user):
     first = submit_session(task.session)
     replay = submit_session(task.session)
     assert replay.pk == first.pk
-    assert first.raw_possible == 3
+    assert first.raw_possible == 4
 
     advance_attempt(attempt.id, user, expected_order=1)
     _, replayed = advance_attempt(attempt.id, user, expected_order=1)
@@ -271,8 +271,8 @@ def test_full_mock_completes_and_releases_results(attempt, user):
     assert list(components) == COMPONENT_ORDER
 
     assert components[Skill.LISTENING]["measure"] == "practice_accuracy"
-    assert components[Skill.LISTENING]["raw_possible"] == 18
-    assert components[Skill.READING]["raw_possible"] == 12
+    assert components[Skill.LISTENING]["raw_possible"] == 24
+    assert components[Skill.READING]["raw_possible"] == 16
     assert components[Skill.WRITING]["measure"] == "ai_assisted_practice_estimate"
     assert components[Skill.WRITING]["tasks_total"] == 2
     assert components[Skill.SPEAKING]["tasks_total"] == 8
@@ -316,7 +316,7 @@ def test_session_results_release_after_completion(api_client, attempt, user):
     results = api_client.get(f"{SESSIONS_URL}{session.id}/results/")
     assert results.status_code == 200
     assert "outcomes" in results.json()
-    assert results.json()["raw_possible"] == 3
+    assert results.json()["raw_possible"] == 4
 
 
 def test_mock_results_endpoint_is_embargoed(api_client, attempt, user):

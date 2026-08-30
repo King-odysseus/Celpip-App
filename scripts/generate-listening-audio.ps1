@@ -12,7 +12,7 @@ New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
 Push-Location $backendPath
 try {
     $pythonPath = (Resolve-Path $PythonExe).Path
-    $manifest = & $pythonPath -c "import json; from apps.content.listening_seed_data import LISTENING_SETS; print(json.dumps([{'slug': x['slug'], 'transcript': x['transcript']} for x in LISTENING_SETS]))"
+    $manifest = & $pythonPath -c "import json; from apps.content.listening_seed_data import LISTENING_SETS as base; from apps.content.listening_seed_data_v2 import LISTENING_SETS as extra; sets = base + extra; print(json.dumps([{'slug': x['slug'], 'transcript': x['transcript']} for x in sets]))"
     if ($LASTEXITCODE -ne 0) { throw "Could not load the Listening manifest." }
 } finally {
     Pop-Location
@@ -24,6 +24,10 @@ $entries = $manifest | ConvertFrom-Json
 
 foreach ($entry in $entries) {
     $target = Join-Path $outputPath "$($entry.slug).wav"
+    if (Test-Path -LiteralPath $target) {
+        Write-Host "Skipping existing $target"
+        continue
+    }
     $lines = $entry.transcript -split "`n"
     $ssmlParts = [System.Collections.Generic.List[string]]::new()
     $ssmlParts.Add('<?xml version="1.0" encoding="utf-8"?>')

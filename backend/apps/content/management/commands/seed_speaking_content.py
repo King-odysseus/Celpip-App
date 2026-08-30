@@ -13,7 +13,12 @@ from apps.content.models import (
 )
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
 from apps.content.services import publish, submit_for_review
-from apps.content.speaking_seed_data import SPEAKING_SETS, SPEAKING_TASK_TYPES
+from apps.content.speaking_seed_data import SPEAKING_SETS as SPEAKING_SETS_BASE
+from apps.content.speaking_seed_data import SPEAKING_TASK_TYPES
+from apps.content.speaking_seed_data_v2 import SPEAKING_SETS as SPEAKING_SETS_V2
+
+
+SPEAKING_SETS = SPEAKING_SETS_BASE + SPEAKING_SETS_V2
 
 
 class Command(BaseCommand):

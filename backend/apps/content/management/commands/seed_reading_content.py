@@ -14,8 +14,13 @@ from apps.content.models import (
     TestFormatVersion,
 )
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
-from apps.content.seed_data import READING_SETS, TASK_TYPES
+from apps.content.reading_seed_data_v2 import READING_SETS as READING_SETS_V2
+from apps.content.seed_data import READING_SETS as READING_SETS_BASE
+from apps.content.seed_data import TASK_TYPES
 from apps.content.services import publish, submit_for_review
+
+
+READING_SETS = READING_SETS_BASE + READING_SETS_V2
 
 
 class Command(BaseCommand):

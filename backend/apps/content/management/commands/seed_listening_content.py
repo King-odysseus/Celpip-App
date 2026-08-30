@@ -7,7 +7,9 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.accounts.models import User
-from apps.content.listening_seed_data import LISTENING_SETS, LISTENING_TASK_TYPES
+from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BASE
+from apps.content.listening_seed_data import LISTENING_TASK_TYPES
+from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
 from apps.content.models import (
     Choice,
     ContentItem,
@@ -21,6 +23,9 @@ from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
 from apps.content.services import publish, submit_for_review
 from apps.media_assets.models import MediaAsset, MediaStatus
 from apps.media_assets.services import file_checksum
+
+
+LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2
 
 
 class Command(BaseCommand):
