@@ -6,7 +6,7 @@ export function Card({
   ...props
 }: HTMLAttributes<HTMLDivElement> & { children: ReactNode }) {
   return (
-    <div className={`card p-4 sm:p-5 ${className}`} {...props}>
+    <div className={`card p-4 !py-6 sm:p-5 sm:!py-7 ${className}`} {...props}>
       {children}
     </div>
   )
