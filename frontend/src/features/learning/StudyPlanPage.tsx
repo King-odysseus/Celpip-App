@@ -225,7 +225,7 @@ export function StudyPlanPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 animate-fade-up">
+    <div className="mx-auto w-full max-w-[1600px] space-y-6 animate-fade-up">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="eyebrow">Explainable daily actions</p>

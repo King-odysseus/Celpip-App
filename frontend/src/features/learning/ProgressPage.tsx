@@ -20,7 +20,7 @@ export function ProgressPage() {
   if (status === 'loading') return <p role="status" className="py-16 text-center text-muted">Loading progress…</p>
   if (status !== 'authenticated') return <AccountRequired title="Progress" />
   return (
-    <div className="mx-auto max-w-6xl space-y-7 animate-fade-up">
+    <div className="mx-auto w-full max-w-[1600px] space-y-7 animate-fade-up">
       <header><p className="eyebrow">Evidence, not guesswork</p><h1 className="mt-1 text-3xl font-bold text-ink">Progress</h1><p className="mt-2 max-w-3xl text-muted">Objective accuracy and AI-assisted Writing/Speaking ranges stay separate so you can see what each measure actually means.</p></header>
       {error && <p role="alert" className="rounded-input bg-bad-soft p-3 text-bad">{error}</p>}
       {!progress ? <p role="status" className="py-10 text-center text-muted">Building your progress view…</p> : <>

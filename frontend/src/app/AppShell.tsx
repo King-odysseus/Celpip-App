@@ -331,13 +331,13 @@ export function AppShell() {
         {visibleNotice && (
           <div
             role="status"
-            className="mx-auto mb-5 max-w-5xl rounded-xl border border-good/40 bg-good-soft px-4 py-3 text-sm text-good"
+            className="mx-auto mb-5 w-full rounded-xl border border-good/40 bg-good-soft px-4 py-3 text-sm text-good"
           >
             {visibleNotice}
           </div>
         )}
         {showBack && (
-          <div className="mx-auto mb-4 max-w-5xl">
+          <div className="mx-auto mb-4 w-full">
             <button
               type="button"
               onClick={handleBack}
@@ -349,7 +349,7 @@ export function AppShell() {
             </button>
           </div>
         )}
-        <div key={location.pathname} className="mx-auto max-w-5xl animate-fade-up">
+        <div key={location.pathname} className="mx-auto w-full animate-fade-up">
           <Outlet />
         </div>
       </main>

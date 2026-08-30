@@ -9,7 +9,7 @@ const reviewLinks = [
 
 export function ReviewHubPage() {
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-8 animate-fade-up">
+    <div className="mx-auto w-full max-w-[1600px] space-y-8 animate-fade-up">
       <header>
         <p className="eyebrow">Learn from every attempt</p>
         <h1 className="mt-1 text-3xl font-bold tracking-tight text-ink sm:text-4xl">Review</h1>

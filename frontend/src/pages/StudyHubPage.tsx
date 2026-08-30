@@ -12,7 +12,7 @@ const studyLinks = [
 
 export function StudyHubPage() {
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8 animate-fade-up">
+    <div className="mx-auto w-full max-w-[1600px] space-y-8 animate-fade-up">
       <header className="rounded-card bg-brand px-5 py-8 text-white shadow-elevated sm:px-8">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent-soft">Build confidence first</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Study</h1>
