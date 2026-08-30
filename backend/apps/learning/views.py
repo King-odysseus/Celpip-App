@@ -12,6 +12,7 @@ from .services import (
     progress_payload,
     regenerate_plan,
     set_task_state,
+    study_plan_consistency,
 )
 
 
@@ -82,15 +83,47 @@ class MistakeDetailView(APIView):
 class StudyPlanView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    class InputSerializer(serializers.Serializer):
+        name = serializers.CharField(max_length=120, allow_blank=True, required=False)
+
+    def _active_plan(self, request):
         plan = StudyPlan.objects.filter(user=request.user, is_active=True).first()
         if plan is None:
             plan = regenerate_plan(request.user)
-        return Response(plan_payload(plan))
+        return plan
+
+    def get(self, request):
+        plan = self._active_plan(request)
+        return Response(
+            {
+                **plan_payload(plan),
+                "consistency": study_plan_consistency(request.user),
+            }
+        )
 
     def post(self, request):
         plan = regenerate_plan(request.user)
-        return Response(plan_payload(plan), status=status.HTTP_201_CREATED)
+        return Response(
+            {
+                **plan_payload(plan),
+                "consistency": study_plan_consistency(request.user),
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def patch(self, request):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        plan = self._active_plan(request)
+        if "name" in serializer.validated_data:
+            plan.name = serializer.validated_data["name"]
+            plan.save(update_fields=["name"])
+        return Response(
+            {
+                **plan_payload(plan),
+                "consistency": study_plan_consistency(request.user),
+            }
+        )
 
 
 class StudyTaskView(APIView):

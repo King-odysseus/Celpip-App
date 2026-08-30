@@ -264,12 +264,24 @@ def regenerate_plan(user) -> StudyPlan:
         .first()
         or 0
     ) + 1
+    # Manual completions must survive auto-regeneration (which runs after every
+    # practice submission and feedback completion). Key by (date, skill) because
+    # the rotation schedules at most one task per skill per day, so the same
+    # evidence maps cleanly onto the regenerated schedule. Skipped tasks are
+    # carried too: a learner who skipped once shouldn't be silently re-asked.
+    carry = {}
+    if previous:
+        carry = {
+            (task.scheduled_date, task.skill): (task.state, task.completed_at)
+            for task in previous.tasks.exclude(state=StudyTaskState.PENDING)
+        }
     if previous:
         previous.is_active = False
         previous.save(update_fields=["is_active"])
     plan = StudyPlan.objects.create(
         user=user,
         version=version,
+        name=(previous.name if previous else ""),
         reason_summary={
             "priorities": priorities,
             "rule": "Unpractised and weaker skills come first; every skill remains in rotation.",
@@ -330,6 +342,7 @@ def regenerate_plan(user) -> StudyPlan:
                 Skill.WRITING: "/practice/writing",
                 Skill.SPEAKING: "/practice/speaking",
             }[skill]
+            carried = carry.get((scheduled_date, skill))
             StudyTask.objects.create(
                 plan=plan,
                 scheduled_date=scheduled_date,
@@ -340,6 +353,8 @@ def regenerate_plan(user) -> StudyPlan:
                 minutes=minutes,
                 reason=reason,
                 destination=destination,
+                state=(carried[0] if carried else StudyTaskState.PENDING),
+                completed_at=(carried[1] if carried else None),
             )
     return plan
 
@@ -365,8 +380,52 @@ def plan_payload(plan: StudyPlan) -> dict:
         "id": plan.pk,
         "version": plan.version,
         "generated_at": plan.generated_at,
+        "name": plan.name,
         "reason_summary": plan.reason_summary,
         "tasks": [_task_payload(task) for task in plan.tasks.select_related("task_type")],
+    }
+
+
+def study_plan_consistency(user, days: int = 14) -> dict:
+    """Per-day completion evidence for the Study Plan page's streak bar.
+
+    Buckets completed Study tasks by calendar date in the learner's timezone and
+    records which skills were completed that day. The streak is computed purely
+    from study-task completions (not general activity, unlike the dashboard's
+    streak) so the bar answers "have I kept up with my plan".
+    """
+    profile = _profile_for(user)
+    try:
+        zone = ZoneInfo(profile.timezone)
+    except Exception:
+        zone = ZoneInfo("UTC")
+    today = timezone.now().astimezone(zone).date()
+    completed = StudyTask.objects.filter(
+        plan__user=user, state=StudyTaskState.COMPLETED, completed_at__isnull=False
+    )
+    completions: dict = {}
+    for task in completed:
+        day = task.completed_at.astimezone(zone).date()
+        completions.setdefault(day, set()).add(task.skill)
+
+    streak = study_streak({day for day, _ in completions.items()}, today)
+
+    start = today - timedelta(days=days - 1)
+    days_payload = []
+    for offset in range(days):
+        day = start + timedelta(days=offset)
+        day_skills = completions.get(day, set())
+        days_payload.append(
+            {
+                "date": day.isoformat(),
+                "skills": {skill: skill in day_skills for skill in SKILLS},
+                "completed": bool(day_skills),
+            }
+        )
+    return {
+        "streak": streak,
+        "days": days_payload,
+        "window_days": days,
     }
 
 

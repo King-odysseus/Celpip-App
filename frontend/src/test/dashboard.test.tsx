@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderApp } from './renderApp'
 import { errorResponse, installRouteFetch, jsonResponse } from './mockFetch'
 import type { Dashboard } from '../features/learning/types'
@@ -25,6 +26,33 @@ const authenticatedBootstrap = {
   'POST /auth/refresh/': () => jsonResponse({ access: 'access-token' }),
   'GET /me/': () => jsonResponse(USER),
   'GET /me/profile/': () => jsonResponse(PROFILE),
+  'GET /me/ai-feedback/history/': () => jsonResponse({ results: [] }),
+}
+
+const feedbackHistoryEntry = {
+  created_at: '2026-08-28T12:00:00Z',
+  kind: 'writing_feedback',
+  skill: 'writing',
+  task_type: 'writing_email',
+  title: 'Email a landlord about noise',
+  estimated_level_low: 6,
+  estimated_level_high: 8,
+  transcript: '',
+  assessment: {
+    overall_summary: 'Clear request, but tighten structure.',
+    dimensions: [
+      { key: 'content_coherence', rating: 3, evidence: 'The request is clear.', next_step: 'Add a closing.' },
+      { key: 'vocabulary', rating: 2, evidence: 'Simple word choices.', next_step: 'Use formal verbs.' },
+      { key: 'delivery', rating: 3, evidence: 'Easy to read.', next_step: 'Shorten sentences.' },
+      { key: 'task_fulfillment', rating: 4, evidence: 'All parts answered.', next_step: 'Keep it up.' },
+    ],
+    strengths: ['Polite tone'],
+    priorities: ['Expand vocabulary'],
+    estimated_level_low: 6,
+    estimated_level_high: 8,
+    confidence: 'high',
+    disclaimer: 'AI-assisted practice estimate — not an official CELPIP score.',
+  },
 }
 
 const baseSkills: Dashboard['skills'] = [
@@ -220,5 +248,32 @@ describe('dashboard', () => {
     renderApp('/')
     expect(await screen.findByText('Nothing scheduled today.')).toBeInTheDocument()
     expect(screen.getByText(/next up: reading correspondence/i)).toBeInTheDocument()
+  })
+
+  it('renders AI feedback history and expands an entry to revisit insights', async () => {
+    const user = userEvent.setup()
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/dashboard/': () => jsonResponse(makeDashboard()),
+      'GET /me/ai-feedback/history/': () =>
+        jsonResponse({ results: [feedbackHistoryEntry] }),
+    })
+    renderApp('/')
+
+    expect(await screen.findByText('Feedback history')).toBeInTheDocument()
+    // The card title is static; the entries load async, so wait for them.
+    expect(await screen.findByText('Email a landlord about noise')).toBeInTheDocument()
+    expect(screen.getAllByText('6–8').length).toBeGreaterThan(0)
+    // Analysis is hidden until the entry is expanded (closed <details> keeps
+    // its content in the DOM but out of view).
+    expect(screen.getByText(/clear request, but tighten structure/i)).not.toBeVisible()
+
+    await user.click(screen.getByText('Email a landlord about noise'))
+
+    expect(
+      await waitFor(() => screen.getByText(/clear request, but tighten structure/i)),
+    ).toBeVisible()
+    expect(screen.getByText('Content/Coherence')).toBeInTheDocument()
+    expect(screen.getByText('Expand vocabulary')).toBeInTheDocument()
   })
 })

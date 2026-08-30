@@ -12,6 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.assessments.models import SpeakingSubmission, WritingSubmission
+from apps.assessments.storage import private_recording_storage
 from apps.content.models import (
     Choice,
     ContentItem,
@@ -30,6 +31,27 @@ from .providers import get_provider
 from .schemas import validate_content_draft, validate_feedback
 
 logger = logging.getLogger(__name__)
+
+# How long authenticated learners can revisit an AI feedback artifact (the
+# transcript + analysis + score). After this, the retention command purges it.
+# The audio recording is dropped much earlier — immediately once feedback lands.
+FEEDBACK_RETENTION_DAYS = 50
+
+
+def discard_speaking_audio(submission) -> None:
+    """Remove the private recording for an analyzed Speaking attempt.
+
+    Feedback needs the audio once, at evaluation time. After that the recording
+    is personal data the learner no longer needs (the transcript is kept in
+    AIFeedback), so it is deleted the moment analysis succeeds.
+    """
+    if not submission.audio.name:
+        return
+    try:
+        private_recording_storage.delete(submission.audio.name)
+    except FileNotFoundError:
+        logger.warning("Speaking audio already missing: %s", submission.audio.name)
+    SpeakingSubmission.objects.filter(pk=submission.pk).update(audio="")
 
 
 def _model_for(kind: str) -> str:
@@ -203,6 +225,10 @@ def run_job(job: AIJob, *, provider=None) -> AIJob:
                 from apps.learning.services import regenerate_plan
 
                 transaction.on_commit(lambda: regenerate_plan(locked.user), robust=True)
+            if locked.kind == AIJobKind.SPEAKING_FEEDBACK:
+                transaction.on_commit(
+                    lambda: discard_speaking_audio(submission), robust=True
+                )
     return locked
 
 
@@ -315,3 +341,39 @@ def feedback_payload(session_item) -> dict:
             "created_at": feedback.created_at,
         },
     }
+
+
+def feedback_history(user) -> list[dict]:
+    """Feedback artifacts a learner can still revisit, newest first.
+
+    Only artifacts inside the retention window are returned, so once the
+    retention command purges an artifact it also disappears from history. The
+    audio is never returned (it is discarded on analysis); the transcript stays
+    for Speaking so the learner can review what was said.
+    """
+    cutoff = timezone.now() - timedelta(days=FEEDBACK_RETENTION_DAYS)
+    artifacts = (
+        AIFeedback.objects.filter(
+            session_item__session__user=user, created_at__gte=cutoff
+        )
+        .select_related("session_item")
+        .order_by("-created_at")
+    )
+    results = []
+    for artifact in artifacts:
+        snapshot = artifact.session_item.snapshot
+        assessment = artifact.assessment
+        results.append(
+            {
+                "created_at": artifact.created_at,
+                "kind": artifact.kind,
+                "skill": snapshot.get("skill"),
+                "task_type": snapshot.get("task_type"),
+                "title": snapshot.get("title", snapshot.get("task_type", "")),
+                "estimated_level_low": assessment.get("estimated_level_low"),
+                "estimated_level_high": assessment.get("estimated_level_high"),
+                "transcript": artifact.transcript,
+                "assessment": assessment,
+            }
+        )
+    return results

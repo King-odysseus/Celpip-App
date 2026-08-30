@@ -2,6 +2,7 @@ import { Bot, Loader2, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Card } from '../../components/ui'
 import { api } from '../../lib/api'
+import { DIMENSION_LABELS } from './dimensionLabels'
 
 type Dimension = { key: string; rating: number; evidence: string; next_step: string }
 type FeedbackState = {
@@ -19,11 +20,6 @@ type FeedbackState = {
     disclaimer: string
   }
   audit?: { provider: string; model: string; prompt_version: string; created_at: string }
-}
-
-const labels: Record<string, string> = {
-  content_coherence: 'Content/Coherence', vocabulary: 'Vocabulary',
-  delivery: 'Readability / Listenability', task_fulfillment: 'Task Fulfillment',
 }
 
 function tokenHeaders(sessionId: string): Record<string, string> {
@@ -77,7 +73,7 @@ export function AIFeedbackPanel({ sessionId }: { sessionId: string }) {
       <div className="grid gap-4 md:grid-cols-2">
         {assessment.dimensions.map((dimension) => (
           <Card key={dimension.key} className="p-5">
-            <div className="flex items-center justify-between gap-3"><h3 className="font-bold text-ink">{labels[dimension.key] ?? dimension.key}</h3><span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">{dimension.rating}/4</span></div>
+            <div className="flex items-center justify-between gap-3"><h3 className="font-bold text-ink">{DIMENSION_LABELS[dimension.key] ?? dimension.key}</h3><span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">{dimension.rating}/4</span></div>
             <p className="mt-3 text-sm leading-6 text-muted"><strong className="text-ink">Evidence:</strong> {dimension.evidence}</p>
             <p className="mt-2 text-sm leading-6 text-muted"><strong className="text-ink">Next step:</strong> {dimension.next_step}</p>
           </Card>

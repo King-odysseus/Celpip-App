@@ -203,6 +203,59 @@ def test_execute_preserves_successful_running_and_fresh_jobs():
     assert AssessmentSession.objects.filter(pk=session.pk).exists()
 
 
+def _expired_authenticated_feedback(*, age_days):
+    user = User.objects.create_user(identifier="retained-feedback-user", password="secret1")
+    version = _version(slug="retention-feedback-item")
+    session = AssessmentSession.objects.create(user=user, mode="practice")
+    item = SessionItem.objects.create(
+        session=session, content_version=version, order=1, snapshot={"skill": "writing"},
+    )
+    job = AIJob.objects.create(
+        kind=AIJobKind.WRITING_FEEDBACK, status=AIJobStatus.SUCCEEDED,
+        session_item=item, provider="fake", model="m", prompt_version="v",
+        run_after=timezone.now(), completed_at=timezone.now(),
+    )
+    feedback = AIFeedback.objects.create(
+        session_item=item, job=job, kind=AIJobKind.WRITING_FEEDBACK,
+        provider="fake", model="m", prompt_version="v",
+        assessment={"estimated_level_low": 5, "estimated_level_high": 7},
+    )
+    # auto_now_add overrides the value on create, so backdate via queryset.
+    AIFeedback.objects.filter(pk=feedback.pk).update(
+        created_at=timezone.now() - timedelta(days=age_days)
+    )
+    return user, session, job, feedback
+
+
+def test_dry_run_reports_expired_authenticated_feedback():
+    _expired_authenticated_feedback(age_days=60)
+    out = StringIO()
+    call_command("retention", stdout=out)
+    assert "[dry-run]" in out.getvalue()
+    assert "expired AI feedback" in out.getvalue()
+
+
+def test_execute_deletes_expired_authenticated_feedback_and_its_job():
+    user, session, job, feedback = _expired_authenticated_feedback(age_days=60)
+    call_command("retention", "--execute", stdout=StringIO())
+
+    assert not AIFeedback.objects.filter(pk=feedback.pk).exists()
+    assert not AIJob.objects.filter(pk=job.pk).exists()
+    # The authenticated session and its frozen item survive; only the AI
+    # feedback artifact (transcript + analysis + score) ages out.
+    assert AssessmentSession.objects.filter(pk=session.pk).exists()
+    assert SessionItem.objects.filter(session_id=session.pk).exists()
+    assert User.objects.filter(pk=user.pk).exists()
+
+
+def test_execute_keeps_feedback_within_the_retention_window():
+    _, _, job, feedback = _expired_authenticated_feedback(age_days=10)
+    call_command("retention", "--execute", stdout=StringIO())
+
+    assert AIFeedback.objects.filter(pk=feedback.pk).exists()
+    assert AIJob.objects.filter(pk=job.pk).exists()
+
+
 def test_fresh_guest_sessions_and_jobs_are_untouched():
     version = _version()
     session = AssessmentSession.objects.create(
@@ -234,3 +287,7 @@ def test_age_arguments_are_bounded():
         call_command("retention", "--ai-failed-after-days", "0")
     with pytest.raises(CommandError):
         call_command("retention", "--ai-failed-after-days", "99999")
+    with pytest.raises(CommandError):
+        call_command("retention", "--feedback-after-days", "0")
+    with pytest.raises(CommandError):
+        call_command("retention", "--feedback-after-days", "99999")

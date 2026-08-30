@@ -64,7 +64,7 @@ describe('learning loop', () => {
   })
 
   it('shows why a study task was chosen and records completion', async () => {
-    const task = {
+    let task = {
       id: 8, scheduled_date: '2026-08-31', order: 1, skill: 'listening',
       task_type: 'listening_problem_solving', title: 'Listening to Problem Solving', minutes: 30,
       reason: 'Prioritised because this skill has not been practised yet.', destination: '/practice/listening',
@@ -73,11 +73,21 @@ describe('learning loop', () => {
     installRouteFetch({
       ...authenticatedBootstrap,
       'GET /me/study-plan/': () => jsonResponse({
-        id: 3, version: 2, generated_at: '2026-08-29T12:00:00Z',
+        id: 3, version: 2, generated_at: '2026-08-29T12:00:00Z', name: '',
         reason_summary: { priorities: { listening: 100, reading: 30, writing: 40, speaking: 100 }, rule: 'Weaker or unpractised skills come first.', source_attempts: 3 },
         tasks: [task],
+        consistency: {
+          streak: { days: 0, active_today: false, anchor: null },
+          window_days: 14,
+          days: [],
+        },
       }),
-      'PATCH /me/study-plan/tasks/8/': () => jsonResponse({ state: 'completed', completed_at: '2026-08-29T12:00:00Z' }),
+      // The page refetches the plan after the PATCH so the streak refreshes;
+      // reflect the completed state so the "Undo" button survives that refetch.
+      'PATCH /me/study-plan/tasks/8/': () => {
+        task = { ...task, state: 'completed', completed_at: '2026-08-29T12:00:00Z' }
+        return jsonResponse({ state: 'completed', completed_at: '2026-08-29T12:00:00Z' })
+      },
     })
     const user = userEvent.setup()
     renderApp('/study-plan')

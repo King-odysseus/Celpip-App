@@ -57,12 +57,28 @@ export type StudyTask = {
   completed_at: string | null
 }
 
+export type StudyConsistency = {
+  streak: {
+    days: number
+    active_today: boolean
+    anchor: 'today' | 'yesterday' | null
+  }
+  window_days: number
+  days: Array<{
+    date: string
+    skills: Record<Skill, boolean>
+    completed: boolean
+  }>
+}
+
 export type StudyPlan = {
   id: number
   version: number
   generated_at: string
+  name: string
   reason_summary: { priorities: Record<Skill, number>; rule: string; source_attempts: number }
   tasks: StudyTask[]
+  consistency: StudyConsistency
 }
 
 export type SkillSignal = {

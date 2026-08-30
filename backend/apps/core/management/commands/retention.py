@@ -12,6 +12,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from apps.ai_services.models import AIFeedback, AIJob, AIJobStatus
+from apps.ai_services.services import FEEDBACK_RETENTION_DAYS
 from apps.assessments.models import AssessmentSession
 
 # Bounds (inclusive) for the age arguments, chosen to be generous but safe.
@@ -19,6 +20,8 @@ MIN_GUEST_EXPIRED_HOURS = 1
 MAX_GUEST_EXPIRED_HOURS = 720
 MIN_AI_FAILED_DAYS = 1
 MAX_AI_FAILED_DAYS = 3650
+MIN_FEEDBACK_AFTER_DAYS = 1
+MAX_FEEDBACK_AFTER_DAYS = 3650
 MIN_BATCH_SIZE = 1
 MAX_BATCH_SIZE = 10_000
 
@@ -72,8 +75,38 @@ def _purge_failed_jobs(jobs, batch_size: int) -> tuple[int, int]:
     return total_jobs, total_feedback
 
 
+def _purge_expired_feedback(feedback, batch_size: int) -> tuple[int, int]:
+    """Delete authenticated AI feedback older than the retention window.
+
+    Only feedback for authenticated sessions ages out (guest feedback already
+    cascades away with its session). ``AIFeedback.delete()`` is deliberately
+    immutable, so rows are removed via the queryset instead. Each artifact's
+    ``AIJob`` is PROTECTed and still holds the assessment in ``output``, so the
+    now-orphaned jobs are deleted right after their feedback. The learner's own
+    writing text and objective results are untouched.
+
+    Returns ``(feedback_deleted, jobs_deleted)`` as true row counts.
+    """
+    total_feedback = 0
+    total_jobs = 0
+    while True:
+        rows = list(
+            feedback.values_list("pk", "job_id")[:batch_size]
+        )
+        if not rows:
+            break
+        pks = [pk for pk, _ in rows]
+        job_ids = [job_id for _, job_id in rows if job_id is not None]
+        total_feedback += AIFeedback.objects.filter(pk__in=pks).delete()[0]
+        total_jobs += AIJob.objects.filter(pk__in=job_ids).delete()[0]
+    return total_feedback, total_jobs
+
+
 class Command(BaseCommand):
-    help = "Purge expired guest sessions/recordings and stale failed AI jobs."
+    help = (
+        "Purge expired guest sessions/recordings, stale failed AI jobs, and "
+        "AI feedback artifacts older than the retention window."
+    )
 
     def add_arguments(self, parser) -> None:  # noqa: ANN001
         parser.add_argument(
@@ -100,6 +133,17 @@ class Command(BaseCommand):
             ),
         )
         parser.add_argument(
+            "--feedback-after-days",
+            type=int,
+            default=FEEDBACK_RETENTION_DAYS,
+            help=(
+                "Remove authenticated AI feedback artifacts (and their AI jobs) "
+                "created at least this many days ago "
+                f"({MIN_FEEDBACK_AFTER_DAYS}-{MAX_FEEDBACK_AFTER_DAYS}; default "
+                f"{FEEDBACK_RETENTION_DAYS})."
+            ),
+        )
+        parser.add_argument(
             "--batch-size",
             type=int,
             default=1000,
@@ -111,6 +155,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:  # noqa: ANN001
         guest_hours = options["guest_expired_after_hours"]
         ai_days = options["ai_failed_after_days"]
+        feedback_days = options["feedback_after_days"]
         batch_size = options["batch_size"]
 
         if not MIN_GUEST_EXPIRED_HOURS <= guest_hours <= MAX_GUEST_EXPIRED_HOURS:
@@ -123,6 +168,11 @@ class Command(BaseCommand):
                 f"--ai-failed-after-days must be between "
                 f"{MIN_AI_FAILED_DAYS} and {MAX_AI_FAILED_DAYS}."
             )
+        if not MIN_FEEDBACK_AFTER_DAYS <= feedback_days <= MAX_FEEDBACK_AFTER_DAYS:
+            raise CommandError(
+                f"--feedback-after-days must be between "
+                f"{MIN_FEEDBACK_AFTER_DAYS} and {MAX_FEEDBACK_AFTER_DAYS}."
+            )
         if not MIN_BATCH_SIZE <= batch_size <= MAX_BATCH_SIZE:
             raise CommandError(
                 f"--batch-size must be between {MIN_BATCH_SIZE} and {MAX_BATCH_SIZE}."
@@ -131,6 +181,7 @@ class Command(BaseCommand):
         now = timezone.now()
         guest_cutoff = now - timedelta(hours=guest_hours)
         ai_cutoff = now - timedelta(days=ai_days)
+        feedback_cutoff = now - timedelta(days=feedback_days)
 
         guest_sessions = AssessmentSession.objects.filter(
             user__isnull=True, guest_expires_at__lt=guest_cutoff
@@ -138,9 +189,14 @@ class Command(BaseCommand):
         failed_jobs = AIJob.objects.filter(
             status=AIJobStatus.FAILED, completed_at__lt=ai_cutoff
         )
+        expired_feedback = AIFeedback.objects.filter(
+            created_at__lt=feedback_cutoff,
+            session_item__session__user__isnull=False,
+        )
 
         guest_count = guest_sessions.count()
         job_count = failed_jobs.count()
+        feedback_count = expired_feedback.count()
 
         if not options["execute"]:
             self.stdout.write("[dry-run] Nothing was deleted. Matched:")
@@ -149,6 +205,10 @@ class Command(BaseCommand):
                 "(their private recordings cascade with them)"
             )
             self.stdout.write(f"  {job_count} stale failed AI job(s)")
+            self.stdout.write(
+                f"  {feedback_count} expired AI feedback artifact(s) "
+                "for authenticated users (their AI jobs cascade)"
+            )
             self.stdout.write("Re-run with --execute to delete these rows.")
             return
 
@@ -158,12 +218,17 @@ class Command(BaseCommand):
         jobs_deleted, job_feedback_deleted = _purge_failed_jobs(
             failed_jobs, batch_size
         )
+        feedback_deleted, job_artifacts_deleted = _purge_expired_feedback(
+            expired_feedback, batch_size
+        )
 
         self.stdout.write(
             self.style.SUCCESS(
                 f"Deleted {sessions_deleted} guest session(s), "
                 f"{guest_feedback_deleted} linked AI feedback row(s), "
-                f"{jobs_deleted} stale failed AI job(s), and "
-                f"{job_feedback_deleted} linked AI feedback row(s)."
+                f"{jobs_deleted} stale failed AI job(s), "
+                f"{job_feedback_deleted} linked AI feedback row(s), "
+                f"{feedback_deleted} expired AI feedback artifact(s), and "
+                f"{job_artifacts_deleted} linked AI job(s)."
             )
         )

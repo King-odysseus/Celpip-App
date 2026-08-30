@@ -13,6 +13,7 @@ import { SkillEstimates } from './SkillEstimates'
 import { SkillSignals } from './SkillSignals'
 import { RecentResults } from './RecentResults'
 import { ReadinessIndicator } from './ReadinessIndicator'
+import { FeedbackHistory } from './FeedbackHistory'
 
 function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
   const days = profile ? daysUntilExam(profile.exam_date, profile.timezone) : null
@@ -168,6 +169,7 @@ export function DashboardPage() {
             <SkillEstimates skills={dashboard.skills} />
             <SkillSignals signals={dashboard.signals} />
             <RecentResults results={dashboard.recent_results} />
+            <FeedbackHistory />
             <ReadinessIndicator readiness={dashboard.readiness} />
           </>
         ))}

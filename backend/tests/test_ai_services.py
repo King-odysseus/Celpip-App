@@ -1,5 +1,7 @@
 """Provider contracts, audited jobs, feedback privacy, and draft review gates."""
 
+from datetime import timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -7,19 +9,29 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
+from django.utils import timezone
 
 from apps.ai_services.contracts import ProviderError, ProviderResult
 from apps.ai_services.models import AIFeedback, AIJob, AIJobKind, AIJobStatus
 from apps.ai_services.providers import FakeProvider, OpenAIProvider
 from apps.ai_services.services import (
+    FEEDBACK_RETENTION_DAYS,
     claim_next_job,
     enqueue_content_draft,
+    feedback_history,
     materialize_content_draft,
     run_job,
 )
-from apps.assessments.models import SpeakingSubmission
+from apps.accounts.models import User
+from apps.assessments.models import AssessmentSession, SessionItem, SpeakingSubmission
 from apps.assessments.storage import private_recording_storage
-from apps.content.models import ContentItem, PublicationStatus, SourceType, TaskType
+from apps.content.models import (
+    ContentItem,
+    ContentVersion,
+    PublicationStatus,
+    SourceType,
+    TaskType,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -223,3 +235,112 @@ def test_feedback_model_cannot_be_deleted_after_creation(
     run_job(claim_next_job(), provider=FakeProvider())
     with pytest.raises(ValidationError, match="immutable"):
         AIFeedback.objects.get().delete()
+
+
+def test_speaking_recording_is_discarded_after_feedback(
+    api_client, django_capture_on_commit_callbacks
+):
+    call_command("seed_speaking_content", verbosity=0)
+    started = _start(api_client, "advice-first-canadian-winter")
+    session_id = started.json()["id"]
+    saved = api_client.put(
+        f"/api/v1/sessions/{session_id}/speaking/",
+        {
+            "audio": SimpleUploadedFile(
+                "response.webm", b"\x1aE\xdf\xa3practice-audio", content_type="audio/webm"
+            ),
+            "duration_ms": 1200,
+            "expected_revision": 0,
+        },
+        format="multipart",
+        HTTP_IDEMPOTENCY_KEY=str(uuid4()),
+        **_guest_headers(started),
+    )
+    assert saved.status_code == 200
+    with django_capture_on_commit_callbacks(execute=True):
+        submitted = api_client.post(
+            f"/api/v1/sessions/{session_id}/speaking/submit/",
+            **_guest_headers(started),
+        )
+    assert submitted.status_code == 200
+
+    submission = SpeakingSubmission.objects.get()
+    recording = Path(private_recording_storage.path(submission.audio.name))
+    assert recording.exists()
+
+    with django_capture_on_commit_callbacks(execute=True):
+        finished = run_job(claim_next_job(), provider=FakeProvider())
+    assert finished.status == AIJobStatus.SUCCEEDED
+
+    # The recording is gone from disk and cleared from the DB; the transcript
+    # and analysis survive in the immutable AIFeedback artifact.
+    assert not recording.exists()
+    submission.refresh_from_db()
+    assert submission.audio.name == ""
+    feedback = AIFeedback.objects.get(kind=AIJobKind.SPEAKING_FEEDBACK)
+    assert feedback.transcript.startswith("Development transcript")
+
+
+def _minimal_version(*, code="history_writing", slug="history-item", part_number=1):
+    task_type = TaskType.objects.create(
+        code=code, skill="writing", title="t", part_number=part_number,
+        description="", strategy=[], common_mistakes=[],
+    )
+    item = ContentItem.objects.create(
+        slug=slug, task_type=task_type, title="t", topic="t",
+        difficulty=1, estimated_level=5, provenance="t",
+    )
+    return ContentVersion.objects.create(
+        item=item, version=1, status=PublicationStatus.PUBLISHED,
+        instructions="", stimulus={},
+    )
+
+
+def _authenticated_feedback(user, *, version, age_days, kind=AIJobKind.WRITING_FEEDBACK):
+    session = AssessmentSession.objects.create(user=user, mode="practice")
+    item = SessionItem.objects.create(
+        session=session, content_version=version, order=1,
+        snapshot={"skill": "writing", "task_type": "writing_email", "title": "Draft an email"},
+    )
+    job = AIJob.objects.create(
+        kind=kind, status=AIJobStatus.SUCCEEDED, session_item=item, provider="fake",
+        model="m", prompt_version="v",
+        run_after=timezone.now(), completed_at=timezone.now(),
+    )
+    feedback = AIFeedback.objects.create(
+        session_item=item, job=job, kind=kind, provider="fake", model="m",
+        prompt_version="v",
+        assessment={"estimated_level_low": 7, "estimated_level_high": 9},
+        transcript="Development transcript",
+    )
+    # auto_now_add overrides the value on create, so backdate via queryset.
+    AIFeedback.objects.filter(pk=feedback.pk).update(
+        created_at=timezone.now() - timedelta(days=age_days)
+    )
+    return feedback
+
+
+def test_feedback_history_only_returns_artifacts_inside_retention_window():
+    user = User.objects.create_user(identifier="history-learner", password="secret1")
+    version = _minimal_version()
+    _authenticated_feedback(user, version=version, age_days=1)
+    _authenticated_feedback(user, version=version, age_days=FEEDBACK_RETENTION_DAYS + 1)
+
+    results = feedback_history(user)
+
+    assert len(results) == 1
+    assert results[0]["skill"] == "writing"
+    assert results[0]["title"] == "Draft an email"
+    assert results[0]["estimated_level_low"] == 7
+    assert results[0]["estimated_level_high"] == 9
+    assert results[0]["transcript"] == "Development transcript"
+
+
+def test_feedback_history_is_owner_scoped():
+    owner = User.objects.create_user(identifier="history-owner", password="secret1")
+    stranger = User.objects.create_user(identifier="history-stranger", password="secret1")
+    version = _minimal_version()
+    _authenticated_feedback(owner, version=version, age_days=1)
+
+    assert len(feedback_history(stranger)) == 0
+    assert len(feedback_history(owner)) == 1

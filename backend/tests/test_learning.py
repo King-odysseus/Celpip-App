@@ -6,10 +6,11 @@ from uuid import uuid4
 import pytest
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
+from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.content.models import ContentVersion
-from apps.learning.models import MistakeRecord, MistakeState, StudyPlan
+from apps.learning.models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
 from apps.learning.services import regenerate_plan
 
 pytestmark = pytest.mark.django_db
@@ -140,6 +141,74 @@ def test_plan_task_completion_is_owned_and_generated_details_are_immutable(api_c
         ).status_code
         == 404
     )
+
+
+def _all_skill_task_types() -> None:
+    """Minimal task types so the rotation spans all four skills (no audio)."""
+    from apps.content.models import Skill, TaskType
+
+    for index, skill in enumerate(Skill.values):
+        TaskType.objects.create(
+            code=f"tt_{skill}", skill=skill, title=skill.capitalize(),
+            part_number=index + 1, description="", strategy=[], common_mistakes=[],
+        )
+
+
+def test_plan_completions_survive_auto_regeneration(learner):
+    _all_skill_task_types()
+    first = regenerate_plan(learner)
+    target = first.tasks.first()
+    target.state = StudyTaskState.COMPLETED
+    target.completed_at = timezone.now()
+    target.save(update_fields=["state", "completed_at"])
+
+    # Auto-regeneration runs after every practice submission; the manual
+    # completion must map onto the regenerated schedule, keyed by date+skill.
+    second = regenerate_plan(learner)
+    carried = second.tasks.get(scheduled_date=target.scheduled_date, skill=target.skill)
+    assert carried.state == StudyTaskState.COMPLETED
+    assert carried.completed_at is not None
+
+    # A fresh (never-before-scheduled) task stays pending.
+    assert second.tasks.exclude(pk=carried.pk).filter(state=StudyTaskState.COMPLETED).count() == 0
+
+
+def test_plan_name_persists_across_regeneration(learner):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    first = regenerate_plan(learner)
+    first.name = "Countdown push"
+    first.save(update_fields=["name"])
+
+    second = regenerate_plan(learner)
+    assert second.name == "Countdown push"
+    assert StudyPlan.objects.filter(user=learner, is_active=True).get().name == "Countdown push"
+
+
+def test_plan_name_patch_and_consistency_payload(api_client, learner):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    plan = regenerate_plan(learner)
+    target = plan.tasks.first()
+    target.state = StudyTaskState.COMPLETED
+    target.completed_at = timezone.now()
+    target.save(update_fields=["state", "completed_at"])
+
+    renamed = api_client.patch("/api/v1/me/study-plan/", {"name": "My Plan"}, format="json")
+    assert renamed.status_code == 200
+    payload = renamed.json()
+    assert payload["name"] == "My Plan"
+    assert "id" in payload and "version" in payload
+
+    consistency = payload["consistency"]
+    assert consistency["streak"]["days"] >= 1
+    assert len(consistency["days"]) == consistency["window_days"]
+    completed_day = next(day for day in consistency["days"] if day["completed"])
+    assert completed_day["skills"][target.skill] is True
+
+    # The renamed plan is what the next GET returns, and regeneration keeps it.
+    listing = api_client.get("/api/v1/me/study-plan/")
+    assert listing.status_code == 200
+    assert listing.json()["name"] == "My Plan"
+    assert regenerate_plan(learner).name == "My Plan"
 
 
 def test_manual_mistake_resolution_is_owner_scoped(

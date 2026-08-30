@@ -55,6 +55,8 @@ class StudyPlan(models.Model):
     is_active = models.BooleanField(default=True)
     reason_summary = models.JSONField(default=dict)
     generated_at = models.DateTimeField(auto_now_add=True)
+    # Learner-chosen plan name; carried across regenerations so it never resets.
+    name = models.CharField(max_length=120, blank=True, default="")
 
     class Meta:
         ordering = ["-version"]
