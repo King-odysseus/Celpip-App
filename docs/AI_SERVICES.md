@@ -46,7 +46,10 @@ speech providers, `LISTENING_TTS_PROVIDER_ORDER` (default `openai,azure,local`):
 
 1. **OpenAI natural TTS** — reuses the server-side `OPENAI_API_KEY` and
    `OPENAI_TTS_MODEL`, requesting WAV output and alternating
-   `LISTENING_OPENAI_VOICES` (two voices) across speakers.
+   `LISTENING_OPENAI_VOICES` (female voice first, male second) across speakers.
+   When `MediaAsset.speaker_genders` maps a speaker label to `female`/`male`,
+   that speaker is assigned the matching voice instead of by order of first
+   appearance, so a male-first dialogue is not gender-reversed.
 2. **Azure Speech neural TTS** — server-side `AZURE_SPEECH_KEY` +
    `AZURE_SPEECH_REGION`, official REST endpoint, RIFF PCM WAV, Canadian voices
    `LISTENING_AZURE_VOICES` (`en-CA-ClaraNeural`, `en-CA-LiamNeural`).

@@ -38,6 +38,12 @@ class MediaAsset(models.Model):
     )
     checksum_sha256 = models.CharField(max_length=64)
     transcript = models.TextField()
+    # Maps a transcript speaker label (e.g. "Leila") to that speaker's gender
+    # ("female" | "male"). Regeneration assigns the female voice to "female"
+    # speakers and the male voice to "male" speakers (see LISTENING_OPENAI_VOICES
+    # ordering) instead of by order of first appearance, so a dialogue whose male
+    # speaker talks first is not gender-reversed.
+    speaker_genders = models.JSONField(null=True, blank=True, default=None)
     voice_label = models.CharField(max_length=120, blank=True)
     provenance = models.TextField()
     status = models.CharField(

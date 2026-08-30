@@ -90,6 +90,7 @@ class Command(BaseCommand):
                     "duration_ms": duration_ms,
                     "checksum_sha256": file_checksum(audio_path),
                     "transcript": spec["transcript"],
+                    "speaker_genders": spec.get("speaker_genders"),
                     "voice_label": "Synthetic Canadian-English development voice",
                     "provenance": (
                         "Original repository script, architect-reviewed on 2026-08-29; "

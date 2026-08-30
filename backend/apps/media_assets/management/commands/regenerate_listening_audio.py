@@ -151,7 +151,9 @@ class Command(BaseCommand):
                 existing_bytes=existing_bytes if existing_valid else None,
                 existing_voice_label=asset.voice_label,
             )
-            run = synthesize_listening_audio(asset.transcript, providers)
+            run = synthesize_listening_audio(
+                asset.transcript, providers, speaker_genders=asset.speaker_genders
+            )
             for attempt in run.attempts:
                 self.stdout.write(f"    [{item_slug}] {attempt.name}: {attempt.outcome}"
                                   + (f" ({attempt.detail})" if attempt.detail else ""))

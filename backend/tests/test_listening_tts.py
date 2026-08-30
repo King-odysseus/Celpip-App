@@ -93,6 +93,18 @@ def test_parse_dialogue_alternates_two_voices_and_merges_monologue():
     assert chunks[0] == ("alloy", "First sentence. Second continues. Third continues.")
 
 
+def test_parse_dialogue_assigns_voices_by_gender_when_mapped():
+    # Male speaks first: without gender mapping he'd take the female voice_a.
+    transcript = "Evan: Hello.\nLeila: Hi Evan.\nEvan: Are you coming?"
+    genders = {"Evan": "male", "Leila": "female"}
+    chunks = parse_dialogue(transcript, "coral", "ash", speaker_genders=genders)
+    assert [voice for voice, _ in chunks] == ["ash", "coral", "ash"]
+
+    # Unknown speakers still fall back to order of first appearance.
+    chunks = parse_dialogue(transcript, "coral", "ash")
+    assert [voice for voice, _ in chunks] == ["coral", "ash", "coral"]
+
+
 def test_parse_dialogue_splits_long_utterance_and_preserves_words():
     text = "The first point. " * 60  # many sentences, far over MAX_CHUNK_CHARS
     chunks = parse_dialogue(text, "alloy", "onyx")

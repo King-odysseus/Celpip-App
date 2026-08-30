@@ -97,9 +97,21 @@ fi
 # remote recordings alone, so this is a no-op once audio is natural. It is
 # non-fatal: a transient provider outage must not take the whole app down, so
 # failures are logged and the app starts with the existing (working) audio.
-echo "Regenerating local-synthesized listening audio (if any)..."
-python manage.py regenerate_listening_audio --only-local \
-    || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+#
+# A voice/model change never applies to audio that is already natural unless
+# forced: set FORCE_REGENERATE_LISTENING_AUDIO=true for exactly one deploy to
+# re-synthesize every Listening asset with the current voices/model (e.g. after
+# switching the voice pair), then unset it so ordinary restarts stay fast and
+# don't re-spend on each restart.
+if [ "${FORCE_REGENERATE_LISTENING_AUDIO:-false}" = "true" ]; then
+    echo "Force-regenerating listening audio (FORCE_REGENERATE_LISTENING_AUDIO=true)..."
+    python manage.py regenerate_listening_audio --force \
+        || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+else
+    echo "Regenerating local-synthesized listening audio (if any)..."
+    python manage.py regenerate_listening_audio --only-local \
+        || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+fi
 
 PORT="${PORT:-8000}"
 WEB_CONCURRENCY="${WEB_CONCURRENCY:-2}"

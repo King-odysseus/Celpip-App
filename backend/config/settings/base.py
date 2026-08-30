@@ -338,11 +338,12 @@ AI_JOB_POLL_SECONDS = float(os.environ.get("AI_JOB_POLL_SECONDS", "2"))
 LISTENING_TTS_PROVIDER_ORDER = env_list(
     "LISTENING_TTS_PROVIDER_ORDER", default="openai,azure,local"
 )
-# Two distinct OpenAI voices give dialogue scripts two clean speakers. Server
-# side OPENAI_API_KEY and OPENAI_TTS_MODEL (above) are reused; keys never leave
-# the server or appear in provenance/metadata.
+# Two distinct OpenAI voices give dialogue scripts two clean speakers — a female
+# (coral) and male (ash) voice so conversations sound like natural mixed speech
+# rather than a single gender. Server side OPENAI_API_KEY and OPENAI_TTS_MODEL
+# (above) are reused; keys never leave the server or appear in provenance/metadata.
 LISTENING_OPENAI_VOICES = env_list(
-    "LISTENING_OPENAI_VOICES", default="alloy,onyx"
+    "LISTENING_OPENAI_VOICES", default="coral,ash"
 )
 # Azure Speech neural TTS. Canadian English voices by default.
 AZURE_SPEECH_KEY = os.environ.get("AZURE_SPEECH_KEY", "").strip()

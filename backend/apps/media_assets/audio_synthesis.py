@@ -98,14 +98,24 @@ class SynthesisRun:
 
 
 # ── Speaker parsing / voice assignment ──────────────────────────────────────
-def parse_dialogue(transcript: str, voice_a: str, voice_b: str) -> list[tuple[str, str]]:
-    """Split a transcript into ``(voice, text)`` chunks alternating two voices.
+def parse_dialogue(
+    transcript: str,
+    voice_a: str,
+    voice_b: str,
+    speaker_genders: dict[str, str] | None = None,
+) -> list[tuple[str, str]]:
+    """Split a transcript into ``(voice, text)`` chunks across two voices.
 
-    Distinct speakers are mapped to the two voices in order of first appearance
-    (a third speaker cycles back to ``voice_a``). Consecutive lines that resolve
-    to the same voice are merged so each chunk is one clean utterance.
+    ``voice_a`` is the female voice and ``voice_b`` the male voice. When
+    ``speaker_genders`` maps a speaker label to ``"female"``/``"male"`` that
+    speaker gets the matching voice regardless of order of first appearance.
+    Speakers without an entry fall back to order of first appearance (a third
+    speaker cycles back to ``voice_a``). Consecutive lines that resolve to the
+    same voice are merged so each chunk is one clean utterance.
     """
     voices = (voice_a, voice_b)
+    gender_voice = {"female": voice_a, "male": voice_b}
+    genders = speaker_genders or {}
     speaker_voice: dict[str, str] = {}
     current_voice = voice_a
     chunks: list[list[str]] = []
@@ -119,7 +129,12 @@ def parse_dialogue(transcript: str, voice_a: str, voice_b: str) -> list[tuple[st
             speaker = match.group(1).strip()
             text = line[match.end() :].strip()
             if speaker not in speaker_voice:
-                speaker_voice[speaker] = voices[len(speaker_voice) % 2]
+                gender = genders.get(speaker)
+                speaker_voice[speaker] = (
+                    gender_voice[gender]
+                    if gender in gender_voice
+                    else voices[len(speaker_voice) % 2]
+                )
             current_voice = speaker_voice[speaker]
         else:
             text = line
@@ -265,7 +280,7 @@ class VoiceProvider(Protocol):
 
     def available(self) -> bool: ...
 
-    def synthesize(self, transcript: str) -> bytes: ...
+    def synthesize(self, transcript: str, *, speaker_genders=None) -> bytes: ...
 
     def describe(self) -> tuple[str, tuple[str, ...]]:
         """Return ``(model, voices)`` for safe provenance. No secrets."""
@@ -309,8 +324,13 @@ class OpenAIVoiceProvider:
             raise SynthesisError("OpenAI could not be initialized.") from exc
         return self._client
 
-    def synthesize(self, transcript: str) -> bytes:
-        chunks = parse_dialogue(transcript, self._voices[0], self._voices[1])
+    def synthesize(self, transcript: str, *, speaker_genders=None) -> bytes:
+        chunks = parse_dialogue(
+            transcript,
+            self._voices[0],
+            self._voices[1],
+            speaker_genders=speaker_genders,
+        )
         if not chunks:
             raise SynthesisError("Transcript produced no speakable text.")
         client = self._get_client()
@@ -400,8 +420,13 @@ class AzureVoiceProvider:
             # through to the next provider like any other provider failure.
             raise SynthesisError("Azure Speech request failed.") from exc
 
-    def synthesize(self, transcript: str) -> bytes:
-        chunks = parse_dialogue(transcript, self._voices[0], self._voices[1])
+    def synthesize(self, transcript: str, *, speaker_genders=None) -> bytes:
+        chunks = parse_dialogue(
+            transcript,
+            self._voices[0],
+            self._voices[1],
+            speaker_genders=speaker_genders,
+        )
         if not chunks:
             raise SynthesisError("Transcript produced no speakable text.")
         clips: list[bytes] = []
@@ -436,8 +461,8 @@ class LocalRetainProvider:
     def available(self) -> bool:
         return self._existing is not None
 
-    def synthesize(self, transcript: str) -> bytes:
-        del transcript
+    def synthesize(self, transcript: str, *, speaker_genders=None) -> bytes:
+        del transcript, speaker_genders
         if self._existing is None:
             raise SynthesisError("No existing local recording to retain.")
         return self._existing
@@ -466,7 +491,10 @@ def _provenance(provider: str, model: str, voices: tuple[str, ...]) -> str:
 
 
 def synthesize_listening_audio(
-    transcript: str, providers: list[VoiceProvider]
+    transcript: str,
+    providers: list[VoiceProvider],
+    *,
+    speaker_genders: dict[str, str] | None = None,
 ) -> SynthesisRun:
     """Try each provider in order; return the first strictly valid WAV.
 
@@ -482,7 +510,7 @@ def synthesize_listening_audio(
             )
             continue
         try:
-            wav_bytes = provider.synthesize(transcript)
+            wav_bytes = provider.synthesize(transcript, speaker_genders=speaker_genders)
         except SynthesisError as exc:
             attempts.append(ProviderAttempt(provider.name, "error", str(exc)))
             continue
