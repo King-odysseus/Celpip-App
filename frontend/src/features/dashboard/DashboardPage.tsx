@@ -118,7 +118,7 @@ export function DashboardPage() {
         </h1>
         <p className="max-w-2xl text-sm text-muted sm:text-base">
           {isAuthed
-            ? 'Your countdown, targets, streak, today\u2019s work, recent results, and a transparent practice planning indicator.'
+          ? 'See how prepared your practice data suggests you are, where you are strongest, and what to work on next.'
             : 'Preview of your study overview. Create an account to save an exam date, targets, and progress.'}
         </p>
       </header>
@@ -156,6 +156,7 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
+            <ReadinessIndicator readiness={dashboard.readiness} />
             <DashboardStats
               streakDays={dashboard.streak.days}
               totalQuestions={dashboard.totals.objective_questions_completed}
@@ -170,7 +171,6 @@ export function DashboardPage() {
             <SkillSignals signals={dashboard.signals} />
             <RecentResults results={dashboard.recent_results} />
             <FeedbackHistory />
-            <ReadinessIndicator readiness={dashboard.readiness} />
           </>
         ))}
     </section>

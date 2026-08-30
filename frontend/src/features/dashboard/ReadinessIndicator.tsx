@@ -1,4 +1,5 @@
-import { ShieldCheck } from 'lucide-react'
+import { ArrowRight, ShieldCheck } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Card, CardTitle, Meter } from '../../components/ui'
 import type { Readiness } from '../learning/types'
 
@@ -11,11 +12,11 @@ export function ReadinessIndicator({ readiness }: { readiness: Readiness }) {
   const insufficient = readiness.state === 'insufficient_evidence'
 
   return (
-    <Card>
+    <Card className="border-brand/25 bg-gradient-to-br from-brand-soft/40 to-surface">
       <div className="flex items-start gap-3">
         <ShieldCheck size={22} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0 flex-1">
-          <CardTitle className="mb-1">{readiness.label}</CardTitle>
+          <CardTitle className="mb-1">Your CELPIP preparedness <span className="sr-only">Practice planning indicator</span></CardTitle>
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-warn">
             Unofficial · not a CELPIP score
           </p>
@@ -62,6 +63,9 @@ export function ReadinessIndicator({ readiness }: { readiness: Readiness }) {
           </dl>
 
           <p className="mt-3 text-xs leading-5 text-muted">{readiness.disclaimer}</p>
+          <Link to="/progress" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline">
+            See full skill progress <ArrowRight size={16} aria-hidden="true" />
+          </Link>
         </div>
       </div>
     </Card>
