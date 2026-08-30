@@ -103,15 +103,17 @@ fi
 # re-synthesize every Listening asset with the current voices/model (e.g. after
 # switching the voice pair), then unset it so ordinary restarts stay fast and
 # don't re-spend on each restart.
-if [ "${FORCE_REGENERATE_LISTENING_AUDIO:-false}" = "true" ]; then
-    echo "Force-regenerating listening audio (FORCE_REGENERATE_LISTENING_AUDIO=true)..."
-    python manage.py regenerate_listening_audio --force \
-        || echo "WARNING: listening audio regeneration had failures; serving existing audio."
-else
-    echo "Regenerating local-synthesized listening audio (if any)..."
-    python manage.py regenerate_listening_audio --only-local \
-        || echo "WARNING: listening audio regeneration had failures; serving existing audio."
-fi
+(
+    if [ "${FORCE_REGENERATE_LISTENING_AUDIO:-false}" = "true" ]; then
+        echo "Force-regenerating listening audio (FORCE_REGENERATE_LISTENING_AUDIO=true)..."
+        python manage.py regenerate_listening_audio --force \
+            || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+    else
+        echo "Regenerating local-synthesized listening audio (if any)..."
+        python manage.py regenerate_listening_audio --only-local \
+            || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+    fi
+) &
 
 # AI feedback worker. Speaking and Writing submissions enqueue an AIJob in the
 # database; this supervised loop claims and runs them, so learner feedback
