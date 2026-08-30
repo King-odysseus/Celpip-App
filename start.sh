@@ -9,6 +9,26 @@ set -eu
 
 cd /app/backend
 
+# Railway (and any other platform mounting a persistent volume) replaces /data
+# at runtime with a fresh root-owned filesystem, which shadows the directory and
+# ownership baked into the image. The container therefore starts as root purely
+# so this block can hand the mount to the unprivileged runtime user, then
+# re-execs itself as that user with gosu — everything below runs unprivileged.
+# When the container is already started as a non-root user this is skipped and
+# the script behaves exactly as before.
+APP_USER=appuser
+
+if [ "$(id -u)" = "0" ]; then
+    private_media_root="${PRIVATE_MEDIA_ROOT:-/app/backend/private_media}"
+    # Only the mount point itself is chowned, not its contents: it is empty on a
+    # first deploy, and later files (speaking recordings, generated renditions)
+    # are written by the runtime user already. A recursive chown here would grow
+    # slower with every deploy for no benefit.
+    mkdir -p "$private_media_root"
+    chown "$APP_USER:$APP_USER" "$private_media_root"
+    exec gosu "$APP_USER" "$0" "$@"
+fi
+
 echo "Running database migrations..."
 python manage.py migrate --noinput
 

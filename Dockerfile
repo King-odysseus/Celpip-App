@@ -43,6 +43,14 @@ WORKDIR /app/backend
 COPY backend/pyproject.toml backend/README.md ./
 RUN pip install .
 
+# gosu drops from root to the runtime user in the entrypoint without leaving
+# an intermediate process between the init system and Gunicorn, so signals
+# and exit codes still propagate correctly.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && gosu nobody true
+
 # Application source.
 COPY backend/ ./
 
@@ -62,12 +70,14 @@ RUN SECRET_KEY=build-time-placeholder-key-not-used-at-runtime \
     DATABASE_URL=postgres://build:build@localhost:5432/build \
     python manage.py collectstatic --noinput
 
-# Non-root runtime user. The writable private-media volume is created and
-# owned here so a mounted volume path is usable without running as root.
+# Non-root runtime user. The ownership set here covers the image's own files
+# only: at runtime a mounted volume replaces /data with a root-owned
+# filesystem, so this chown of /data does not survive. start.sh fixes the
+# mount's ownership as root and then drops to this user with gosu, which is
+# why no USER directive follows.
 RUN useradd --create-home --uid 10001 appuser \
     && mkdir -p /data/private_media \
     && chown -R appuser:appuser /app /data
-USER appuser
 
 EXPOSE 8000
 
