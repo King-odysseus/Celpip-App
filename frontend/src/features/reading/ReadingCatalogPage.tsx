@@ -1,4 +1,4 @@
-import { BookOpenCheck, Clock3, GraduationCap, Play, Target } from 'lucide-react'
+import { BookOpenCheck, Clock3, GraduationCap, Play, Search, Target } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
@@ -26,6 +26,7 @@ export function ReadingCatalogPage({
   const [items, setItems] = useState<ReadingCatalogItem[]>([])
   const [taskFilter, setTaskFilter] = useState('all')
   const [difficulty, setDifficulty] = useState('all')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -55,9 +56,10 @@ export function ReadingCatalogPage({
       items.filter(
         (item) =>
           (taskFilter === 'all' || item.task_type === taskFilter) &&
-          (difficulty === 'all' || item.difficulty === Number(difficulty)),
+          (difficulty === 'all' || item.difficulty === Number(difficulty)) &&
+          `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase()),
       ),
-    [items, taskFilter, difficulty],
+    [items, taskFilter, difficulty, search],
   )
 
   async function begin(item: ReadingCatalogItem) {
@@ -116,6 +118,10 @@ export function ReadingCatalogPage({
             </h2>
           </div>
           <div className="grid grid-cols-2 gap-2">
+            <label className="col-span-2 text-xs font-semibold text-muted">
+              Search sets
+              <span className="relative mt-1 block"><Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-3 text-muted" /><input aria-label="Search sets" className="min-h-11 w-full rounded-input border border-line bg-surface pl-9 pr-3 text-sm text-ink" placeholder="Title or topic" value={search} onChange={(event) => setSearch(event.target.value)} /></span>
+            </label>
             <label className="text-xs font-semibold text-muted">
               Task type
               <select

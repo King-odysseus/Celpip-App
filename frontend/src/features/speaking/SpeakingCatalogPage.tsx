@@ -1,4 +1,4 @@
-import { Clock3, GraduationCap, Mic2, Play } from 'lucide-react'
+import { Clock3, GraduationCap, Mic2, Play, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
@@ -29,6 +29,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   const [taskTypes, setTaskTypes] = useState<SpeakingTaskType[]>([])
   const [items, setItems] = useState<SpeakingCatalogItem[]>([])
   const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -55,8 +56,8 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   }, [])
 
   const filtered = useMemo(
-    () => items.filter((item) => filter === 'all' || item.task_type === filter),
-    [filter, items],
+    () => items.filter((item) => (filter === 'all' || item.task_type === filter) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
+    [filter, items, search],
   )
   const isLearn = mode === 'learn'
 
@@ -114,6 +115,11 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
               Choose a Speaking prompt
             </h2>
           </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <label className="text-xs font-semibold text-muted">
+            Search prompts
+            <span className="relative mt-1 block"><Search aria-hidden="true" size={16} className="pointer-events-none absolute left-3 top-3 text-muted" /><input aria-label="Search prompts" className="min-h-11 w-full rounded-input border border-line bg-surface pl-9 pr-3 text-sm text-ink sm:w-56" placeholder="Title or topic" value={search} onChange={(event) => setSearch(event.target.value)} /></span>
+          </label>
           <label className="text-xs font-semibold text-muted">
             Task type
             <select
@@ -127,6 +133,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
               ))}
             </select>
           </label>
+          </div>
         </div>
         {error && <p role="alert" className="rounded-input bg-bad-soft p-3 text-sm text-bad">{error}</p>}
         {loading ? (
