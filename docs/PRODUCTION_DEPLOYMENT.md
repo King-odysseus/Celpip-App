@@ -38,6 +38,7 @@ so a misconfiguration fails fast rather than serving insecurely.
 | `SECURE_SSL_REDIRECT` | recommended | `true` (default) unless TLS is fully handled at the proxy. |
 | `SECURE_HSTS_SECONDS` | recommended | e.g. `31536000`; start lower, then raise. |
 | `LOG_FORMAT` | recommended | `json` for structured logs. |
+| `BOOTSTRAP_CONTENT_ON_START` | first deploy only | `true` seeds practice content on start; see below. Defaults to `false`. |
 
 ## TLS / proxy setup
 
@@ -58,6 +59,38 @@ so a misconfiguration fails fast rather than serving insecurely.
 
 - Use PostgreSQL (`DATABASE_URL`). Run `python manage.py migrate` on deploy.
 - Keep `private_media` on persistent storage, referenced by storage key.
+
+### Seeding practice content on a fresh database (Railway)
+
+A brand-new Railway PostgreSQL database has no practice content. The entrypoint
+(`start.sh`) can seed it once, controlled by `BOOTSTRAP_CONTENT_ON_START`:
+
+- **Default (`false` / unset):** only migrations run, then Gunicorn starts.
+- **`true`:** after migrations, the entrypoint stages the Listening audio bundled
+  in the image into `PRIVATE_MEDIA_ROOT/listening/` (never overwriting existing
+  files), then runs `seed_reading_content`, `seed_listening_content`,
+  `seed_writing_content`, and `seed_speaking_content`. All four are idempotent —
+  they skip content that already exists — and any failure aborts startup so a
+  half-seeded database is never served.
+
+Railway procedure for the first deploy:
+
+1. In the service **Variables**, set `BOOTSTRAP_CONTENT_ON_START=true`.
+2. Deploy (or redeploy). Watch the logs for `Practice-content bootstrap
+   complete.` before the Gunicorn line.
+3. Verify content is present, e.g. `curl -fsS
+   https://<app>/api/v1/content/` returns the seeded catalog.
+4. Set `BOOTSTRAP_CONTENT_ON_START=false` (or remove it) and redeploy so later
+   restarts skip the seed step. Because the seeds are idempotent, leaving it on
+   is safe but wastes a few seconds per start.
+
+Notes:
+
+- The Listening WAVs live on the persistent `PRIVATE_MEDIA_ROOT` volume after the
+  first bootstrap and are reused on every restart; the app also streams them from
+  there at runtime.
+- To re-run seeding manually instead of via the flag, use the same commands in a
+  one-off shell: `python manage.py seed_reading_content` (and the other three).
 
 ## Deployment checks
 
