@@ -34,7 +34,7 @@ python manage.py queue_ai_content_draft reading_correspondence "Tenant recycling
 # Run one job for a deployment smoke test
 python manage.py run_ai_worker --once
 
-# Run the worker continuously in a separate supervised process
+# Run the worker continuously (start.sh does this automatically in production)
 python manage.py run_ai_worker
 ```
 

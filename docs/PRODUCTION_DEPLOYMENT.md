@@ -134,7 +134,9 @@ audio contents.
 
 ## Runtime operations
 
-- **AI worker**: run `python manage.py run_ai_worker` in a supervised process.
+- **AI worker**: `python manage.py run_ai_worker` claims and runs queued AI
+  feedback jobs. In this single-service deployment it is started automatically
+  by `start.sh` (backgrounded, with a crash-restart loop) alongside Gunicorn.
 - **Retention**: schedule `python manage.py retention` daily (dry-run) and
   `python manage.py retention --execute` on a separate schedule.
 - **Owner account**: `python manage.py bootstrap_owner --identifier owner` once.

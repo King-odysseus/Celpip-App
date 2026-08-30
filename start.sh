@@ -113,6 +113,20 @@ else
         || echo "WARNING: listening audio regeneration had failures; serving existing audio."
 fi
 
+# AI feedback worker. Speaking and Writing submissions enqueue an AIJob in the
+# database; this supervised loop claims and runs them, so learner feedback
+# actually lands instead of sitting "queued" forever. It runs in the same
+# container as the web process because this deployment is a single service. The
+# loop restarts the worker if it ever crashes (e.g. a transient database error)
+# and is backgrounded so Gunicorn below can take over as PID 1 via `exec`.
+echo "Starting AI feedback worker..."
+(
+    while true; do
+        python manage.py run_ai_worker || true
+        sleep 5
+    done
+) &
+
 PORT="${PORT:-8000}"
 WEB_CONCURRENCY="${WEB_CONCURRENCY:-2}"
 GUNICORN_TIMEOUT="${GUNICORN_TIMEOUT:-60}"
