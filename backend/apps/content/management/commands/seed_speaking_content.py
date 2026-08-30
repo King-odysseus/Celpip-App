@@ -16,9 +16,10 @@ from apps.content.services import publish, submit_for_review
 from apps.content.speaking_seed_data import SPEAKING_SETS as SPEAKING_SETS_BASE
 from apps.content.speaking_seed_data import SPEAKING_TASK_TYPES
 from apps.content.speaking_seed_data_v2 import SPEAKING_SETS as SPEAKING_SETS_V2
+from apps.content.speaking_seed_data_v3 import SPEAKING_SETS as SPEAKING_SETS_V3
 
 
-SPEAKING_SETS = SPEAKING_SETS_BASE + SPEAKING_SETS_V2
+SPEAKING_SETS = SPEAKING_SETS_BASE + SPEAKING_SETS_V2 + SPEAKING_SETS_V3
 
 
 class Command(BaseCommand):

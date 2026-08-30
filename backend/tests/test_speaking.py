@@ -77,13 +77,13 @@ def test_seed_is_idempotent_complete_and_original():
     call_command("seed_speaking_content", stdout=first)
     call_command("seed_speaking_content", stdout=second)
 
-    assert "created 48" in first.getvalue()
+    assert "created 56" in first.getvalue()
     assert "created 0" in second.getvalue()
     assert TaskType.objects.filter(skill=Skill.SPEAKING).count() == 8
-    assert ContentItem.objects.filter(task_type__skill=Skill.SPEAKING).count() == 48
+    assert ContentItem.objects.filter(task_type__skill=Skill.SPEAKING).count() == 56
     assert ContentVersion.objects.filter(
         item__task_type__skill=Skill.SPEAKING, status="published"
-    ).count() == 48
+    ).count() == 56
     assert Question.objects.filter(
         content_version__item__task_type__skill=Skill.SPEAKING
     ).count() == 0
@@ -99,7 +99,7 @@ def test_all_task_timings_and_structures_match_official_format(speaking_bank):
     versions = ContentVersion.objects.filter(
         item__task_type__skill=Skill.SPEAKING, status="published"
     ).select_related("item__task_type")
-    assert versions.count() == 48
+    assert versions.count() == 56
     for version in versions:
         kind, prep, response = SPEAKING_TASK_SPECS[version.item.task_type_id]
         stimulus = version.stimulus
@@ -121,8 +121,8 @@ def test_catalog_filter_detail_and_practice_guidance_hiding(api_client, speaking
         "/api/v1/content/speaking/", {"task_type": "speaking_unusual"}
     )
     detail = api_client.get(f"/api/v1/content/speaking/{SCENE_SLUG}/")
-    assert catalog.status_code == 200 and catalog.json()["count"] == 48
-    assert len(filtered.json()["results"]) == 6
+    assert catalog.status_code == 200 and catalog.json()["count"] == 56
+    assert len(filtered.json()["results"]) == 7
     assert detail.status_code == 200
     assert detail.json()["stimulus"]["image_url"].startswith("/speaking/")
 

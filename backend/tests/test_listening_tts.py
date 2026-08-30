@@ -11,6 +11,7 @@ from django.core.management.base import CommandError
 
 from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BASE
 from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
+from apps.content.listening_seed_data_v3 import LISTENING_SETS as LISTENING_SETS_V3
 from apps.media_assets.audio_synthesis import (
     MAX_CHUNK_CHARS,
     AzureVoiceProvider,
@@ -28,7 +29,7 @@ from apps.media_assets.management.commands.regenerate_listening_audio import (
 )
 from apps.media_assets.models import MediaAsset, MediaStatus
 
-LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2
+LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2 + LISTENING_SETS_V3
 from apps.media_assets.services import file_checksum, private_media_path
 
 pytestmark = pytest.mark.django_db

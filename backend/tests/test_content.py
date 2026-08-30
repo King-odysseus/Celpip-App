@@ -139,13 +139,13 @@ def test_seed_is_idempotent_and_has_reviewed_original_bank():
     call_command("seed_reading_content", stdout=first)
     call_command("seed_reading_content", stdout=second)
 
-    assert "created 32" in first.getvalue()
+    assert "created 40" in first.getvalue()
     assert "created 0" in second.getvalue()
     assert TaskType.objects.filter(skill="reading").count() == 4
-    assert ContentItem.objects.count() == 32
-    assert ContentVersion.objects.filter(status="published").count() == 32
-    assert Question.objects.count() == 128
-    assert Choice.objects.count() == 512
+    assert ContentItem.objects.count() == 40
+    assert ContentVersion.objects.filter(status="published").count() == 40
+    assert Question.objects.count() == 160
+    assert Choice.objects.count() == 640
     assert not ContentItem.objects.exclude(source_type=SourceType.AI_GENERATED).exists()
     assert not ContentVersion.objects.filter(reviewer_id=None).exists()
     author_ids = ContentItem.objects.values_list("author_id", flat=True)
@@ -157,7 +157,7 @@ def test_public_catalog_and_detail_do_not_leak_answers(api_client):
 
     catalog = api_client.get("/api/v1/content/reading/")
     assert catalog.status_code == 200
-    assert catalog.json()["count"] == 32
+    assert catalog.json()["count"] == 40
 
     filtered = api_client.get(
         "/api/v1/content/reading/",
