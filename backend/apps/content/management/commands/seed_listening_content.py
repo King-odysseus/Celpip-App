@@ -85,24 +85,24 @@ class Command(BaseCommand):
                 item = self._create_item(spec, task_types, author, reviewer)
                 created_count += 1
             version = item.versions.get(version=1)
+            if MediaAsset.objects.filter(content_version=version).exists():
+                continue
             duration_ms = self._wav_duration_ms(audio_path)
-            MediaAsset.objects.update_or_create(
+            MediaAsset.objects.create(
                 content_version=version,
-                defaults={
-                    "storage_key": f"listening/{spec['slug']}.wav",
-                    "mime_type": "audio/wav",
-                    "byte_size": audio_path.stat().st_size,
-                    "duration_ms": duration_ms,
-                    "checksum_sha256": file_checksum(audio_path),
-                    "transcript": spec["transcript"],
-                    "speaker_genders": spec.get("speaker_genders"),
-                    "voice_label": "Synthetic Canadian-English development voice",
-                    "provenance": (
-                        "Original repository script, architect-reviewed on 2026-08-29; "
-                        "locally synthesized with installed operating-system voices."
-                    ),
-                    "status": MediaStatus.READY,
-                },
+                storage_key=f"listening/{spec['slug']}.wav",
+                mime_type="audio/wav",
+                byte_size=audio_path.stat().st_size,
+                duration_ms=duration_ms,
+                checksum_sha256=file_checksum(audio_path),
+                transcript=spec["transcript"],
+                speaker_genders=spec.get("speaker_genders"),
+                voice_label="Synthetic Canadian-English development voice",
+                provenance=(
+                    "Original repository script, architect-reviewed on 2026-08-29; "
+                    "locally synthesized with installed operating-system voices."
+                ),
+                status=MediaStatus.READY,
             )
 
         self.stdout.write(

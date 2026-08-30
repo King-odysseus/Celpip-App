@@ -46,7 +46,7 @@ python manage.py migrate --noinput
 #
 # `set -e` makes any seed failure abort startup so a half-seeded database is
 # never served.
-bootstrap_content="${BOOTSTRAP_CONTENT_ON_START:-auto}"
+bootstrap_content="${BOOTSTRAP_CONTENT_ON_START:-true}"
 
 if [ "$bootstrap_content" = "auto" ]; then
     # A failure here (e.g. an unreachable database) aborts startup via `set -e`
