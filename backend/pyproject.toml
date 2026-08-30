@@ -21,6 +21,10 @@ dependencies = [
     # PostgreSQL driver — configured for later phases; SQLite needs no driver.
     "psycopg[binary]>=3.1,<4.0",
     "openai>=2.0,<3.0",
+    # Production WSGI server and static file serving. Both are safe to install
+    # everywhere; they only change behaviour when the prod settings enable them.
+    "gunicorn>=22.0,<24.0",
+    "whitenoise>=6.6,<7.0",
 ]
 
 [project.optional-dependencies]

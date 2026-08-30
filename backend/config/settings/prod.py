@@ -59,12 +59,30 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool(
 )
 SECURE_HSTS_PRELOAD = env_bool("SECURE_HSTS_PRELOAD", default=True)
 
+# The platform health probe hits the service over the internal HTTP network,
+# where SECURE_SSL_REDIRECT would answer the check with a 301 and mark the
+# deploy unhealthy. Exempt only the health endpoint from the HTTP→HTTPS
+# redirect; every other route still redirects. This is a targeted allowance,
+# not a wildcard: the health view exposes no sensitive data.
+SECURE_REDIRECT_EXEMPT = [r"^api/v1/health/$"]
+
 # ── Cookies ──────────────────────────────────────────────────────────────────
 # All cookies must travel over HTTPS in production; the refresh cookie is
 # already HttpOnly + SameSite from the base settings.
 AUTH_COOKIE_SECURE = True  # noqa: F405
 CSRF_COOKIE_SECURE = True
 SESSION_COOKIE_SECURE = True
+
+# ── Static files ─────────────────────────────────────────────────────────────
+# WhiteNoise serves the collected ``/static/`` assets with far-future caching,
+# gzip/brotli compression, and a hashed manifest. ``collectstatic`` runs in the
+# image build, so the manifest always exists before the server starts.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    },
+}
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 LOG_FORMAT = "json"

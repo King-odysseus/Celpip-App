@@ -1,0 +1,56 @@
+# Keep the build context small and free of secrets, local state, and artifacts
+# that the image rebuilds itself. Source, manifests, and lockfiles are kept.
+
+# ── Version control / CI ──────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+.github
+
+# ── Secrets / environment ─────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+.eggs/
+**/.venv/
+**/venv/
+**/env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# ── Local database / collected assets / media (rebuilt or runtime-only) ────
+**/db.sqlite3
+**/db.sqlite3-journal
+backend/staticfiles/
+backend/media/
+backend/private_media/
+backend/spa/
+
+# ── Node / frontend build output (the image rebuilds these) ───────────────
+**/node_modules/
+frontend/dist/
+frontend/coverage/
+**/.vite/
+**/*.tsbuildinfo
+
+# ── Local runtime / logs / editors / OS ───────────────────────────────────
+.runtime/
+*.log
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ── Docs / tooling not needed in the image ────────────────────────────────
+docs/
+scripts/

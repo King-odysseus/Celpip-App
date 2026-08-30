@@ -1,5 +1,6 @@
 """Model-level tests: identifier normalisation, ownership, recovery codes."""
 import pytest
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 
 from apps.accounts.models import LearnerProfile, RecoveryCode, User
@@ -77,6 +78,18 @@ def test_profile_defaults():
     assert profile.timezone == "America/Toronto"
     # The generated-narration preference defaults to Automatic (app decides).
     assert profile.practice_narration_voice == "automatic"
+    # The audio-provider preference defaults to Automatic as well.
+    assert profile.preferred_audio_provider == "automatic"
+
+
+def test_profile_audio_provider_choices_validated():
+    user = User.objects.create_user(identifier="learner", password="secret1")
+    profile = LearnerProfile.objects.create(user=user, preferred_audio_provider="azure")
+    assert profile.preferred_audio_provider == "azure"
+
+    profile.preferred_audio_provider = "provider:openai"
+    with pytest.raises(ValidationError):
+        profile.full_clean()
 
 
 def test_recovery_code_hashes_and_matches():

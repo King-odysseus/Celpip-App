@@ -325,6 +325,30 @@ def test_profile_rejects_unknown_narration_voice(api_client):
     assert "practice_narration_voice" in resp.json()["fields"]
 
 
+def test_profile_defaults_audio_provider_to_automatic(api_client):
+    _auth(api_client)
+    body = api_client.get(PROFILE_URL).json()
+    assert body["preferred_audio_provider"] == "automatic"
+
+
+def test_profile_accepts_valid_audio_provider(api_client):
+    _auth(api_client)
+    resp = api_client.patch(
+        PROFILE_URL, {"preferred_audio_provider": "openai"}, format="json"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["preferred_audio_provider"] == "openai"
+
+
+def test_profile_rejects_unknown_audio_provider(api_client):
+    _auth(api_client)
+    resp = api_client.patch(
+        PROFILE_URL, {"preferred_audio_provider": "voice:openai"}, format="json"
+    )
+    assert resp.status_code == 400
+    assert "preferred_audio_provider" in resp.json()["fields"]
+
+
 def test_profile_rejects_out_of_range_target(api_client):
     _auth(api_client)
     resp = api_client.patch(PROFILE_URL, {"target_level": 99}, format="json")

@@ -73,6 +73,29 @@ python manage.py regenerate_listening_audio --slug apartment-heating-plan --forc
 python manage.py regenerate_listening_audio --force
 ```
 
+## Separate per-provider renditions
+
+`generate_listening_renditions` produces an alternative `AudioRendition` for a
+specific remote provider (`openai` and/or `azure`) without touching the
+canonical `MediaAsset` WAV. It never falls back to another vendor and never uses
+the `local` provider. Each rendition is written to its own deterministic private
+path — `listening_renditions/{provider}/{canonical-id}.wav` — atomically (temp
+file + `os.replace`) only after strict WAV validation, then recorded as a
+checksummed row. A database failure rolls the file back; synthesis is idempotent
+(an identical checksum on an existing READY rendition is left untouched);
+missing credentials mutate nothing; and per-asset failures are isolated from the
+rest of the batch. Secrets never enter logs, metadata, or provenance.
+
+```powershell
+# Preview only; reports availability without calling any provider
+python manage.py generate_listening_renditions --provider openai --dry-run
+# Both providers (repeatable or comma-separated), all sets
+python manage.py generate_listening_renditions --provider openai --provider azure --force
+python manage.py generate_listening_renditions --provider openai,azure --force
+# One set, one provider, without forcing already-valid renditions
+python manage.py generate_listening_renditions --provider openai --slug apartment-heating-plan
+```
+
 Writing and Speaking submissions enqueue feedback automatically. The frontend
 polls the owner/guest-authorized feedback endpoint and clearly labels the result
 as an AI-assisted practice range. The Speaking Attempt 1 vs Attempt 2 comparison

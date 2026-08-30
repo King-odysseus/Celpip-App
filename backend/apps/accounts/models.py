@@ -146,6 +146,23 @@ class PracticeNarrationVoice(models.TextChoices):
     VOICE_2 = "voice_2", "Voice 2"
 
 
+class PreferredAudioProvider(models.TextChoices):
+    """A learner's preferred speech vendor for generated audio renditions.
+
+    This is a presentation preference only — it never carries an API key or
+    provider order, and "local" simply prefers the existing locally produced
+    recording. "Automatic" lets the app decide. Remote providers may still fall
+    back to another vendor at synthesis time when the preferred one is
+    unavailable; this field only records what the learner would like, not what
+    the backend is configured to do.
+    """
+
+    AUTOMATIC = "automatic", "Automatic"
+    OPENAI = "openai", "OpenAI"
+    AZURE = "azure", "Azure"
+    LOCAL = "local", "Local"
+
+
 def default_preferred_weekdays() -> list[int]:
     """Weekdays a learner plans to study, as ISO integers (Mon=1 … Sun=7)."""
     return [1, 2, 3, 4, 5]
@@ -213,6 +230,18 @@ class LearnerProfile(models.Model):
             "narration. A presentation preference only — never a speech "
             "provider, key, or provider order. Does not change authored/scored "
             "Listening dialogues, which keep their reviewed multi-speaker mix."
+        ),
+    )
+
+    preferred_audio_provider = models.CharField(
+        max_length=16,
+        choices=PreferredAudioProvider.choices,
+        default=PreferredAudioProvider.AUTOMATIC,
+        help_text=(
+            "Preferred speech vendor for generated audio renditions. A "
+            "presentation preference only — never an API key or provider "
+            "order. 'local' prefers the existing locally produced recording; "
+            "'automatic' lets the app decide."
         ),
     )
 

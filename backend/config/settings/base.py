@@ -72,6 +72,12 @@ AUTH_USER_MODEL = "accounts.User"
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    # WhiteNoise serves Django's collected /static/ assets and (when a built SPA
+    # is present) the SPA's hashed files at the site root. It must sit directly
+    # after SecurityMiddleware and before everything else so it can short-circuit
+    # static requests without running the rest of the stack. It is harmless in
+    # development: with nothing collected it simply passes requests through.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.core.middleware.RequestCorrelationMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -276,6 +282,33 @@ PRIVATE_MEDIA_ROOT = Path(
     os.environ.get("PRIVATE_MEDIA_ROOT") or BASE_DIR / "private_media"
 )
 
+# ── Single-service SPA hosting ───────────────────────────────────────────────
+# In the container build, the compiled Vite bundle is copied to ``SPA_ROOT``.
+# When an ``index.html`` is present there, WhiteNoise serves the SPA's hashed
+# files (``/assets/…``, ``/favicon.svg`` …) at the site root and the catch-all
+# view (see ``config.urls``) returns ``index.html`` for client-side deep links.
+# When it is absent — local development, tests, the API-only dev server — none
+# of this activates and the SPA is served by the Vite dev server as before.
+SPA_ROOT = Path(os.environ.get("SPA_ROOT") or BASE_DIR / "spa")
+SPA_INDEX_FILE = SPA_ROOT / "index.html"
+
+# WhiteNoise serves the SPA files at the root only when the build exists, so a
+# missing bundle never turns every request into a WhiteNoise 404.
+if SPA_INDEX_FILE.is_file():
+    WHITENOISE_ROOT = str(SPA_ROOT)
+# Serve ``index.html`` for directory requests (i.e. ``GET /``) from WHITENOISE_ROOT.
+WHITENOISE_INDEX_FILE = True
+
+# Default static storage. Production swaps this for WhiteNoise's compressed,
+# hash-manifest storage (see ``config.settings.prod``); development keeps the
+# plain filesystem backend so ``runserver`` works without a collectstatic pass.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+    },
+}
+
 # Application metadata surfaced by the health endpoint.
 SERVICE_NAME = "celpip-backend"
 SERVICE_VERSION = "0.1.0"
@@ -317,3 +350,9 @@ AZURE_SPEECH_REGION = os.environ.get("AZURE_SPEECH_REGION", "").strip()
 LISTENING_AZURE_VOICES = env_list(
     "LISTENING_AZURE_VOICES", default="en-CA-ClaraNeural,en-CA-LiamNeural"
 )
+
+# Per-provider audio renditions (generate_listening_renditions) reuse the same
+# server-side keys/models/voices above, but store each output at a separate
+# private path (listening_renditions/{provider}/{canonical-id}.wav) so the
+# canonical MediaAsset WAV is never replaced. Renditions support openai/azure
+# only and never fall back to the local provider.

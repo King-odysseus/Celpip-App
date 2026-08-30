@@ -232,6 +232,12 @@ python manage.py regenerate_listening_audio --dry-run          # preview only
 python manage.py regenerate_listening_audio --slug apartment-heating-plan --force
 python manage.py regenerate_listening_audio --force            # all sets
 
+# Separate per-provider renditions never touch the canonical WAV above; each is
+# written to its own private path (listening_renditions/{provider}/{id}.wav).
+python manage.py generate_listening_renditions --provider openai --dry-run
+python manage.py generate_listening_renditions --provider openai,azure --force
+python manage.py generate_listening_renditions --provider openai --slug apartment-heating-plan
+
 # Writing and Speaking banks seed the same way; all seed commands are safe to
 # repeat and never overwrite an existing authored item.
 python manage.py seed_writing_content
