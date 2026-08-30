@@ -287,6 +287,48 @@ def task_kind(task: MockTask) -> str:
     return task.section
 
 
+def exam_rules(attempt: MockAttempt) -> dict:
+    """Explicit mock exam-mode contract for a client timer and submit flow.
+
+    Timing reflects the live section only while the attempt is active; before
+    start and after completion there is no running clock. Everything is derived
+    from stored state, never guessed client-side, so a resume mid-section shows
+    the authoritative remaining time.
+    """
+    now = timezone.now()
+    timing: dict = {
+        "running": attempt.state == MockState.ACTIVE,
+        "auto_submits_on_expiry": True,
+    }
+    if attempt.state == MockState.ACTIVE:
+        seconds = attempt.format_snapshot["component_timings"][attempt.current_section][
+            "mock_seconds"
+        ]
+        remaining_seconds = None
+        if attempt.section_deadline_at:
+            remaining_seconds = max(0, int((attempt.section_deadline_at - now).total_seconds()))
+        timing |= {
+            "per_section_seconds": seconds,
+            "section": attempt.current_section,
+            "section_started_at": attempt.section_started_at,
+            "section_deadline_at": attempt.section_deadline_at,
+            "remaining_seconds": remaining_seconds,
+            "expired": remaining_seconds == 0 if remaining_seconds is not None else None,
+        }
+    return {
+        "timing": timing,
+        "submission": {
+            "editable_after_submit": False,
+            "results_embargoed_until_complete": True,
+        },
+        "replay": {
+            "objective_answers_replayable": False,
+            "speaking_retry_allowed": False,
+            "audio_playback": "one_play",
+        },
+    }
+
+
 def attempt_payload(attempt: MockAttempt, *, include_tasks: bool = True) -> dict:
     current = None
     if attempt.state == MockState.ACTIVE:
@@ -319,6 +361,7 @@ def attempt_payload(attempt: MockAttempt, *, include_tasks: bool = True) -> dict
             ).count(),
             "total": 20,
         },
+        "rules": exam_rules(attempt),
         "format": attempt.format_snapshot,
         "disclaimer": LIMITATION,
     }

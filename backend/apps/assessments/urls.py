@@ -3,9 +3,11 @@ from django.urls import path
 from .views import (
     ResponseSaveView,
     SessionDetailView,
+    SessionListView,
     SessionListCreateView,
     SessionResultView,
     SessionSubmitView,
+    SessionTouchView,
     SpeakingAudioView,
     SpeakingComparisonView,
     SpeakingDetailView,
@@ -19,6 +21,12 @@ app_name = "assessments"
 
 urlpatterns = [
     path("sessions/", SessionListCreateView.as_view(), name="session-create"),
+    path("me/sessions/", SessionListView.as_view(), name="session-list"),
+    path(
+        "sessions/<uuid:session_id>/touch/",
+        SessionTouchView.as_view(),
+        name="session-touch",
+    ),
     path("sessions/<uuid:session_id>/", SessionDetailView.as_view(), name="session-detail"),
     path(
         "sessions/<uuid:session_id>/responses/<int:question_id>/",

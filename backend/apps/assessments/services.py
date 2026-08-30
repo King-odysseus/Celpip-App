@@ -8,10 +8,12 @@ from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID, uuid4
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import IntegrityError, transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.utils import timezone
 
-from apps.content.models import Choice, ContentVersion, PublicationStatus, Question
+from apps.content.models import Choice, ContentVersion, PublicationStatus, Question, Skill
 
 from .models import (
     AssessmentSession,
@@ -188,6 +190,16 @@ def _token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def _enforce_mock_submit_deadline(locked: AssessmentSession) -> None:
+    """Exam mode: a mock section cannot be submitted once its section time ends.
+
+    Practice mode intentionally still allows late submit so a learner can finish
+    and see results after the soft time limit; only mock sections are hard-cut.
+    """
+    if locked.mode == SessionMode.MOCK and locked.deadline_at and locked.deadline_at <= timezone.now():
+        raise SessionDeadlinePassed("The mock section time has ended.")
+
+
 def _snapshot(version: ContentVersion) -> dict:
     return {
         "slug": version.item.slug,
@@ -341,6 +353,7 @@ def submit_session(session: AssessmentSession) -> ObjectiveResult:
     locked = AssessmentSession.objects.select_for_update().get(pk=session.pk)
     if locked.state == SessionState.SUBMITTED:
         return locked.objective_result
+    _enforce_mock_submit_deadline(locked)
 
     item = locked.items.get()
     if item.snapshot.get("skill") in {"writing", "speaking"}:
@@ -494,6 +507,7 @@ def submit_writing(
             raise EmptyResponse("No writing response was recorded for this session.")
         transaction.on_commit(lambda: _queue_ai_feedback(item.pk), robust=True)
         return submission
+    _enforce_mock_submit_deadline(locked)
 
     if final_text is not None:
         if len(final_text) > MAX_WRITING_CHARS:
@@ -702,6 +716,7 @@ def submit_speaking(session: AssessmentSession) -> SpeakingSubmission:
             raise MissingRecording("No speaking recording was saved for this session.")
         transaction.on_commit(lambda: _queue_ai_feedback(item.pk), robust=True)
         return submission
+    _enforce_mock_submit_deadline(locked)
     if submission is None or not submission.audio.name or not submission.byte_size:
         raise MissingRecording("Record and save a response before submitting.")
 
@@ -1013,6 +1028,112 @@ def _dedup_preserving_order(values: list) -> list:
 def _normalize_text(value) -> str:
     """Case- and whitespace-insensitive key for deduplication."""
     return " ".join(str(value).split()).casefold()
+
+
+# --- Session recovery / heartbeat ----------------------------------------
+
+# Frontend session page routes. Listening and reading share the objective
+# session page; writing/speaking have their own. Mock child sessions point back
+# at the MockAttempt instead.
+SESSION_LAUNCH_URLS = {
+    Skill.LISTENING: "/reading/session/",
+    Skill.READING: "/reading/session/",
+    Skill.WRITING: "/writing/session/",
+    Skill.SPEAKING: "/speaking/session/",
+}
+
+
+def _related_or_none(instance, field_name: str):
+    try:
+        return getattr(instance, field_name)
+    except ObjectDoesNotExist:
+        return None
+
+
+def _objective_progress(item: SessionItem) -> dict:
+    questions = item.snapshot.get("questions") or []
+    return {"answered": len(item.responses.all()), "total": len(questions)}
+
+
+def session_recovery(
+    user, *, state: str | None = None, mode: str | None = None, skill: str | None = None
+) -> dict:
+    """Return the learner's sessions as a resume list, active first.
+
+    Every row carries what a resume screen needs: title, skill, progress, launch
+    URL, and timestamps. Mock child sessions point back at their MockAttempt.
+    Filters are validated by the caller; ``state``/``mode`` are matched on the
+    DB while ``skill`` is matched against each item snapshot (a DB filter would
+    need a JSON lookup that misses writing/speaking rows built without one).
+    """
+    queryset = (
+        AssessmentSession.objects.filter(user=user)
+        .prefetch_related(
+            "items__responses",
+            "items__writing_submission",
+            "items__speaking_submission",
+            "mock_task",
+        )
+    )
+    if state is not None:
+        queryset = queryset.filter(state=state)
+    if mode is not None:
+        queryset = queryset.filter(mode=mode)
+    active_first = Case(
+        When(state=SessionState.ACTIVE, then=Value(0)),
+        default=Value(1),
+        output_field=IntegerField(),
+    )
+    queryset = queryset.order_by(active_first, "-last_activity_at")[:200]
+
+    results = []
+    for session in queryset:
+        item = session.items.first()
+        snapshot = item.snapshot if item else {}
+        session_skill = snapshot.get("skill")
+        if skill is not None and session_skill != skill:
+            continue
+        entry: dict = {
+            "id": str(session.id),
+            "mode": session.mode,
+            "state": session.state,
+            "skill": session_skill,
+            "task_type": snapshot.get("task_type"),
+            "title": snapshot.get("title", snapshot.get("task_type", "")),
+            "started_at": session.started_at,
+            "deadline_at": session.deadline_at,
+            "submitted_at": session.submitted_at,
+            "last_activity_at": session.last_activity_at,
+        }
+        if session_skill in {Skill.LISTENING, Skill.READING}:
+            entry["progress"] = _objective_progress(item)
+        else:
+            field = "writing_submission" if session_skill == Skill.WRITING else "speaking_submission"
+            submission = _related_or_none(item, field)
+            entry["progress"] = {
+                "saved": submission is not None,
+                "submitted": session.state == SessionState.SUBMITTED,
+            }
+        if session.mode == SessionMode.MOCK:
+            task = _related_or_none(session, "mock_task")
+            if task is not None:
+                entry["mock"] = {
+                    "attempt_id": str(task.attempt_id),
+                    "task_order": task.order,
+                    "section": task.section,
+                }
+                entry["launch_url"] = f"/mock/{task.attempt_id}"
+        if "launch_url" not in entry:
+            route = SESSION_LAUNCH_URLS.get(session_skill, SESSION_LAUNCH_URLS[Skill.READING])
+            entry["launch_url"] = f"{route}{session.id}"
+        results.append(entry)
+    return {"count": len(results), "results": results}
+
+
+def touch_session(session: AssessmentSession) -> AssessmentSession:
+    """Heartbeat: bump ``last_activity_at`` so an open session stays recoverable."""
+    session.save(update_fields=["last_activity_at"])
+    return session
 
 
 def _dedup_improvements(improvements: list[dict]) -> list[dict]:

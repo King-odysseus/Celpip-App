@@ -5,6 +5,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .analytics import (
+    HISTORY_PAGE_SIZE_DEFAULT,
+    analytics_payload,
+    history_payload,
+    recommendation_payload,
+)
 from .models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
 from .services import (
     dashboard_payload,
@@ -14,6 +20,25 @@ from .services import (
     set_task_state,
     study_plan_consistency,
 )
+
+
+def _query_integer(request, key: str, default: int) -> tuple[int, Response | None]:
+    raw = request.query_params.get(key)
+    if raw is None:
+        return default, None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default, Response(
+            {"code": "invalid_query", "message": f"{key} must be a positive integer.", "fields": {key: raw}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    if value < 1:
+        return default, Response(
+            {"code": "invalid_query", "message": f"{key} must be a positive integer.", "fields": {key: raw}},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return value, None
 
 
 def _mistake_payload(mistake: MistakeRecord) -> dict:
@@ -46,6 +71,35 @@ class DashboardView(APIView):
 
     def get(self, request):
         return Response(dashboard_payload(request.user))
+
+
+class AnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(analytics_payload(request.user))
+
+
+class HistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        page, error = _query_integer(request, "page", 1)
+        if error is not None:
+            return error
+        page_size, error = _query_integer(
+            request, "page_size", HISTORY_PAGE_SIZE_DEFAULT
+        )
+        if error is not None:
+            return error
+        return Response(history_payload(request.user, page=page, page_size=page_size))
+
+
+class RecommendationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(recommendation_payload(request.user))
 
 
 class MistakeListView(APIView):

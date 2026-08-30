@@ -10,11 +10,11 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response as ApiResponse
 from rest_framework.views import APIView
 
-from apps.content.models import Choice, Question
+from apps.content.models import Choice, Question, Skill
 from apps.media_assets.models import MediaAsset
 
 from .models import AssessmentSession, SessionMode, SessionState
@@ -44,6 +44,7 @@ from .services import (
     save_response,
     save_speaking,
     save_writing,
+    session_recovery,
     speaking_attempt_metadata,
     speaking_comparison,
     speaking_review_metadata,
@@ -51,6 +52,7 @@ from .services import (
     submit_session,
     submit_speaking,
     submit_writing,
+    touch_session,
     writing_review_metadata,
 )
 
@@ -186,6 +188,67 @@ class SessionDetailView(APIView):
         except AssessmentError as exc:
             return error_response(exc)
         return ApiResponse(_session_payload(session))
+
+
+class SessionListView(APIView):
+    """Recover in-progress sessions: active first, newest activity on top."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        state = request.query_params.get("state")
+        mode = request.query_params.get("mode")
+        skill = request.query_params.get("skill")
+        if state is not None and state not in SessionState.values:
+            return ApiResponse(
+                {
+                    "code": "invalid_query",
+                    "message": f"state must be one of {', '.join(SessionState.values)}.",
+                    "fields": {"state": state},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if mode is not None and mode not in SessionMode.values:
+            return ApiResponse(
+                {
+                    "code": "invalid_query",
+                    "message": f"mode must be one of {', '.join(SessionMode.values)}.",
+                    "fields": {"mode": mode},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if skill is not None and skill not in Skill.values:
+            return ApiResponse(
+                {
+                    "code": "invalid_query",
+                    "message": f"skill must be one of {', '.join(Skill.values)}.",
+                    "fields": {"skill": skill},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return ApiResponse(
+            session_recovery(request.user, state=state, mode=mode, skill=skill)
+        )
+
+
+class SessionTouchView(APIView):
+    """Heartbeat: keep an open session fresh so it stays recoverable."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+        except AssessmentError as exc:
+            return error_response(exc)
+        touch_session(session)
+        return ApiResponse(
+            {
+                "session_id": str(session.id),
+                "server_now": timezone.now(),
+                "last_activity_at": session.last_activity_at,
+            }
+        )
 
 
 class ResponseSaveView(APIView):
