@@ -274,7 +274,11 @@ defaults to `config.settings.dev`.
   `AUTH_COOKIE_SAMESITE`, `AUTH_COOKIE_SECURE` (defaults to on outside DEBUG),
   and `CSRF_TRUSTED_ORIGINS`. Phase 1 assumes same-origin deployment (the Vite
   dev proxy serves the SPA and API from one origin), so `SameSite=Lax` cookies
-  and the double-submit CSRF token are sufficient.
+  and the double-submit CSRF token are sufficient. The dev proxy uses
+  `changeOrigin`, so Django still sees the browser's loopback `Origin`; the dev
+  settings therefore trust `http://localhost:5173` and `http://127.0.0.1:5173`
+  for CSRF origin checking (production trusts only the explicit
+  `CSRF_TRUSTED_ORIGINS` you configure — never a wildcard).
 - **Throttling** — `THROTTLE_AUTH_LOGIN`, `THROTTLE_AUTH_REGISTER`,
   `THROTTLE_AUTH_RECOVERY`, `THROTTLE_ANON`, `THROTTLE_USER`.
 - **`OWNER_PASSWORD`** — used by `bootstrap_owner` when `--password` is omitted.
