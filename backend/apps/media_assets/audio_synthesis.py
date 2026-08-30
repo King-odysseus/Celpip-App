@@ -35,6 +35,12 @@ MAX_BYTE_SIZE = 20 * 1024 * 1024
 # provider returned a truncated or silent clip; treat it as invalid output.
 MIN_GENERATED_DURATION_MS = 3_000
 
+# Long single TTS requests are less reliable, and a single very long clip trips
+# a WAV-header quirk that makes validation misreport its duration. Cap each
+# synthesized utterance here and split longer turns at sentence boundaries, so
+# every provider call stays short and validates cleanly.
+MAX_CHUNK_CHARS = 400
+
 # Valid provider names. "local" is the terminal fallback that retains the
 # existing validated recording rather than resynthesizing.
 PROVIDER_NAMES = frozenset({"openai", "azure", "local"})
@@ -42,6 +48,10 @@ PROVIDER_NAMES = frozenset({"openai", "azure", "local"})
 # Leading "Speaker: " label on a transcript line. Continuation lines (no label)
 # keep the previous speaker's voice.
 _SPEAKER_RE = re.compile(r"^([^:]{1,40}):\s+")
+
+# Sentence enders followed by whitespace or end-of-string, used to split long
+# utterances at natural boundaries rather than mid-word.
+_SENTENCE_END = re.compile(r"[.!?](?=\s|$)")
 
 
 class SynthesisError(Exception):
@@ -119,7 +129,38 @@ def parse_dialogue(transcript: str, voice_a: str, voice_b: str) -> list[tuple[st
             chunks[-1][1] = f"{chunks[-1][1]} {text}"
         else:
             chunks.append([current_voice, text])
-    return [(voice, text) for voice, text in chunks]
+    result: list[tuple[str, str]] = []
+    for voice, text in chunks:
+        result.extend((voice, piece) for piece in _split_long_text(text, MAX_CHUNK_CHARS))
+    return result
+
+
+def _split_long_text(text: str, limit: int) -> list[str]:
+    """Split ``text`` into pieces no longer than ``limit`` characters.
+
+    Prefers sentence boundaries (``.``/``!``/``?``), then word boundaries, and
+    finally a hard cut so a single over-long sentence still fits. Empty input
+    yields an empty list; every returned piece is stripped.
+    """
+    text = text.strip()
+    if not text:
+        return []
+    if len(text) <= limit:
+        return [text]
+    pieces: list[str] = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= limit:
+            pieces.append(remaining)
+            break
+        window = remaining[:limit]
+        sentence_matches = list(_SENTENCE_END.finditer(window))
+        cut = sentence_matches[-1].end() if sentence_matches else window.rfind(" ")
+        if cut <= 0:
+            cut = limit
+        pieces.append(window[:cut].strip())
+        remaining = remaining[cut:].strip()
+    return pieces
 
 
 # ── WAV validation and concatenation (stdlib only) ──────────────────────────
@@ -160,7 +201,9 @@ def validate_wav_bytes(data: bytes) -> WavInfo:
     if duration < max(MIN_DURATION_MS, MIN_GENERATED_DURATION_MS):
         raise SynthesisError("Generated audio is too short to be usable.")
     if duration > MAX_DURATION_MS:
-        raise SynthesisError("Generated audio is too long.")
+        raise SynthesisError(
+            f"Generated audio is too long ({duration} ms exceeds {MAX_DURATION_MS} ms)."
+        )
     return info
 
 

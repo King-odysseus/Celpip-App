@@ -11,10 +11,12 @@ from django.core.management.base import CommandError
 
 from apps.content.listening_seed_data import LISTENING_SETS
 from apps.media_assets.audio_synthesis import (
+    MAX_CHUNK_CHARS,
     AzureVoiceProvider,
     LocalRetainProvider,
     OpenAIVoiceProvider,
     SynthesisError,
+    _split_long_text,
     concatenate_wav,
     parse_dialogue,
     synthesize_listening_audio,
@@ -89,6 +91,22 @@ def test_parse_dialogue_alternates_two_voices_and_merges_monologue():
     chunks = parse_dialogue(monologue, "alloy", "onyx")
     assert len(chunks) == 1
     assert chunks[0] == ("alloy", "First sentence. Second continues. Third continues.")
+
+
+def test_parse_dialogue_splits_long_utterance_and_preserves_words():
+    text = "The first point. " * 60  # many sentences, far over MAX_CHUNK_CHARS
+    chunks = parse_dialogue(text, "alloy", "onyx")
+    assert all(len(t) <= MAX_CHUNK_CHARS for _, t in chunks)
+    assert all(voice == "alloy" for voice, _ in chunks)
+    assert " ".join(t for _, t in chunks).split() == text.split()
+
+
+def test_split_long_text_hard_cuts_when_no_boundary():
+    word = "x" * 1000  # a single over-long token: no sentence or word boundary
+    pieces = _split_long_text(word, MAX_CHUNK_CHARS)
+    assert "".join(pieces) == word
+    assert all(len(p) <= MAX_CHUNK_CHARS for p in pieces)
+    assert len(pieces) > 1
 
 
 def test_validate_wav_rejects_corrupt_and_too_short():
