@@ -18,6 +18,8 @@ import { NotFoundPage } from '../pages/placeholder-pages'
 import { MistakesPage } from '../features/learning/MistakesPage'
 import { ProgressPage } from '../features/learning/ProgressPage'
 import { StudyPlanPage } from '../features/learning/StudyPlanPage'
+import { StudyHubPage } from '../pages/StudyHubPage'
+import { ReviewHubPage } from '../pages/ReviewHubPage'
 
 /**
  * All destinations nested inside the shell. Sample pages (Learn, Practice, …)
@@ -29,6 +31,7 @@ export const routes = [
     element: <AppShell />,
     children: [
       { index: true, element: <DashboardPage /> },
+      { path: 'study', element: <StudyHubPage /> },
       { path: 'learn', element: <ReadingCatalogPage mode="learn" /> },
       { path: 'learn/listening', element: <ReadingCatalogPage mode="learn" skill="listening" /> },
       { path: 'learn/writing', element: <WritingCatalogPage mode="learn" /> },
@@ -45,6 +48,7 @@ export const routes = [
       { path: 'mistakes', element: <MistakesPage /> },
       { path: 'progress', element: <ProgressPage /> },
       { path: 'study-plan', element: <StudyPlanPage /> },
+      { path: 'review', element: <ReviewHubPage /> },
       { path: 'register', element: <RegisterPage /> },
       { path: 'signin', element: <SignInPage /> },
       { path: 'recovery', element: <RecoveryPage /> },

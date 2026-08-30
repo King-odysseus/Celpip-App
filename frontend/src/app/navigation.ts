@@ -1,7 +1,5 @@
 import {
-  BarChart3,
   BookOpen,
-  CalendarRange,
   ClipboardList,
   LayoutDashboard,
   ListChecks,
@@ -24,19 +22,17 @@ export type NavItem = {
  */
 export const primaryNav: NavItem[] = [
   { to: '/', label: 'Dashboard', mobileLabel: 'Home', icon: LayoutDashboard, end: true },
-  { to: '/learn', label: 'Learn', icon: BookOpen },
+  { to: '/study', label: 'Study', icon: BookOpen },
   { to: '/practice', label: 'Practice', icon: ClipboardList },
-  { to: '/mock', label: 'Mock Tests', mobileLabel: 'Mock', icon: Timer },
-  { to: '/mistakes', label: 'Mistake Bank', mobileLabel: 'Mistakes', icon: ListChecks },
-  { to: '/progress', label: 'Progress', icon: BarChart3 },
-  { to: '/study-plan', label: 'Study Plan', mobileLabel: 'Plan', icon: CalendarRange },
+  { to: '/mock', label: 'Mock Test', mobileLabel: 'Mock', icon: Timer },
+  { to: '/review', label: 'Review', icon: ListChecks },
 ]
 
 /**
  * Mobile bottom bar shows four primary items plus a More overflow — never
  * seven crowded tabs. More surfaces the remaining destinations.
  */
-export const mobilePrimaryPaths = ['/', '/practice', '/mock', '/progress']
+export const mobilePrimaryPaths = ['/', '/practice', '/mock', '/review']
 
 export const mobilePrimaryNav: NavItem[] = mobilePrimaryPaths.map(
   (path) => primaryNav.find((item) => item.to === path)!,

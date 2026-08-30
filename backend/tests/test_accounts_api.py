@@ -92,13 +92,14 @@ def test_login_unknown_user_uses_same_error(api_client):
 
 # ── Refresh / logout ─────────────────────────────────────────────────────────
 def test_refresh_rotates_and_returns_new_access(api_client):
-    api_client.post(
+    registered = api_client.post(
         REGISTER_URL, {"identifier": "learner", "password": "secret1"}, format="json"
     )
     first_cookie = api_client.cookies[REFRESH_COOKIE].value
     resp = api_client.post(REFRESH_URL)
     assert resp.status_code == 200
     assert resp.json()["access"]
+    assert resp.json()["user_id"] == registered.json()["user"]["id"]
     rotated = resp.cookies[REFRESH_COOKIE].value
     assert rotated != first_cookie
 

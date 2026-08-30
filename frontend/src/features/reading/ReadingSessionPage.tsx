@@ -208,7 +208,7 @@ export function ReadingSessionPage() {
           )}
         </Card>
 
-        <Card className="self-start p-5 sm:p-7">
+        <Card className="self-start p-5 sm:p-7 lg:sticky lg:top-24">
           <form onSubmit={(event) => { event.preventDefault(); void saveAnswer() }}>
             <fieldset disabled={saving}>
               <legend className="text-lg font-bold leading-7 text-ink">

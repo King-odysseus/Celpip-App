@@ -37,23 +37,68 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 
 type LoginResponse = { access: string; user: AuthUser }
 type RegisterResponse = { access: string; user: AuthUser; recovery_code: string }
-type RefreshResponse = { access: string }
+type RefreshResponse = { access: string; user_id?: number }
+
+const AUTH_ACCOUNT_EVENT_KEY = 'celpip-auth-account-event'
+
+function broadcastAccountChange(userId: number | null): void {
+  try {
+    localStorage.setItem(AUTH_ACCOUNT_EVENT_KEY, JSON.stringify({
+      userId,
+      nonce: `${Date.now()}-${Math.random()}`,
+    }))
+  } catch {
+    // Cross-tab signalling is a convenience; auth still works without storage.
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [user, setUser] = useState<AuthUser | null>(null)
   const [profile, setProfile] = useState<LearnerProfile | null>(null)
+  const activeUserIdRef = useRef<number | null>(null)
+  const refreshInFlightRef = useRef<Promise<boolean> | null>(null)
 
   // Refresh must be callable from the API client's 401 hook without depending
   // on React state, so it lives in a ref-stable callback.
   const refresh = useCallback(async (): Promise<boolean> => {
+    if (refreshInFlightRef.current) return refreshInFlightRef.current
+
+    const pending = (async () => {
+      try {
+        const { access, user_id: refreshedUserId } =
+          await api.post<RefreshResponse>('/auth/refresh/')
+        const expectedUserId = activeUserIdRef.current
+        if (
+          expectedUserId !== null
+          && refreshedUserId !== undefined
+          && refreshedUserId !== expectedUserId
+        ) {
+          // Another tab signed into a different account and replaced the shared
+          // HttpOnly cookie. Never adopt that account's token in this tab.
+          setAccessToken(null)
+          activeUserIdRef.current = null
+          setUser(null)
+          setProfile(null)
+          setStatus('anonymous')
+          return false
+        }
+        setAccessToken(access)
+        return true
+      } catch {
+        setAccessToken(null)
+        activeUserIdRef.current = null
+        setUser(null)
+        setProfile(null)
+        setStatus('anonymous')
+        return false
+      }
+    })()
+    refreshInFlightRef.current = pending
     try {
-      const { access } = await api.post<RefreshResponse>('/auth/refresh/')
-      setAccessToken(access)
-      return true
-    } catch {
-      setAccessToken(null)
-      return false
+      return await pending
+    } finally {
+      refreshInFlightRef.current = null
     }
   }, [])
 
@@ -64,8 +109,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const establishSession = useCallback(async () => {
     const [me] = await Promise.all([api.get<AuthUser>('/me/'), loadProfile()])
+    activeUserIdRef.current = me.id
     setUser(me)
     setStatus('authenticated')
+    broadcastAccountChange(me.id)
   }, [loadProfile])
 
   // Run the refresh-on-load bootstrap exactly once.
@@ -104,9 +151,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       })
       setAccessToken(data.access)
+      activeUserIdRef.current = data.user.id
       setUser(data.user)
       await loadProfile()
       setStatus('authenticated')
+      broadcastAccountChange(data.user.id)
       return { recoveryCode: data.recovery_code }
     },
     [loadProfile],
@@ -119,9 +168,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       })
       setAccessToken(data.access)
+      activeUserIdRef.current = data.user.id
       setUser(data.user)
       await loadProfile()
       setStatus('authenticated')
+      broadcastAccountChange(data.user.id)
     },
     [loadProfile],
   )
@@ -131,17 +182,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.post('/auth/logout/')
     } finally {
       setAccessToken(null)
+      activeUserIdRef.current = null
       setUser(null)
       setProfile(null)
       setStatus('anonymous')
+      broadcastAccountChange(null)
     }
   }, [])
 
   const clearSession = useCallback((): void => {
     setAccessToken(null)
+    activeUserIdRef.current = null
     setUser(null)
     setProfile(null)
     setStatus('anonymous')
+    broadcastAccountChange(null)
+  }, [])
+
+  useEffect(() => {
+    function handleAccountChange(event: StorageEvent) {
+      if (event.key !== AUTH_ACCOUNT_EVENT_KEY || !event.newValue) return
+      try {
+        const changed = JSON.parse(event.newValue) as { userId?: number | null }
+        const currentUserId = activeUserIdRef.current
+        if (currentUserId !== null && changed.userId !== currentUserId) {
+          setAccessToken(null)
+          activeUserIdRef.current = null
+          setUser(null)
+          setProfile(null)
+          setStatus('anonymous')
+        }
+      } catch {
+        // Ignore malformed or unrelated storage values.
+      }
+    }
+
+    window.addEventListener('storage', handleAccountChange)
+    return () => window.removeEventListener('storage', handleAccountChange)
   }, [])
 
   const updateProfile = useCallback(

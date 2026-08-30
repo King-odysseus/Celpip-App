@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from './renderApp'
 import { installRouteFetch, jsonResponse, errorResponse } from './mockFetch'
@@ -104,5 +104,26 @@ describe('authenticated bootstrap', () => {
       expect(screen.getAllByText('learner').length).toBeGreaterThan(0),
     )
     expect(screen.getByText(/exam date:/i)).toBeInTheDocument()
+  })
+
+  it('drops the in-memory account when another tab signs in as a different user', async () => {
+    installRouteFetch({
+      'GET /auth/csrf/': () => jsonResponse({ detail: 'ok' }),
+      'POST /auth/refresh/': () => jsonResponse({ access: 'access-token', user_id: USER.id }),
+      'GET /me/': () => jsonResponse(USER),
+      'GET /me/profile/': () => jsonResponse(PROFILE),
+    })
+
+    renderApp('/account')
+    expect(await screen.findByRole('heading', { name: /account & profile/i })).toBeInTheDocument()
+
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'celpip-auth-account-event',
+        newValue: JSON.stringify({ userId: 999, nonce: 'another-tab' }),
+      }))
+    })
+
+    expect(await screen.findByRole('heading', { name: /sign in/i })).toBeInTheDocument()
   })
 })

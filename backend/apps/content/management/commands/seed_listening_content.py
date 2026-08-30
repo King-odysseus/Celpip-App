@@ -1,3 +1,4 @@
+import shutil
 import wave
 from datetime import date
 from pathlib import Path
@@ -80,9 +81,19 @@ class Command(BaseCommand):
             audio_slug = spec.get("audio_slug", spec["slug"])
             audio_path = self._audio_path(audio_slug)
             if not audio_path.is_file():
-                raise CommandError(
-                    f"Missing {audio_path}. Run scripts/generate-listening-audio.ps1 first."
-                )
+                source_slug = spec.get("source_slug")
+                source_path = self._audio_path(source_slug) if source_slug else None
+                if source_path and source_path.is_file():
+                    # A fresh production volume may be bootstrapped before the
+                    # optional expanded WAV bundle is mounted. Materialize a
+                    # safe fallback so startup remains available; generated
+                    # stage recordings take precedence whenever present.
+                    audio_path.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source_path, audio_path)
+                else:
+                    raise CommandError(
+                        f"Missing {audio_path}. Run scripts/generate-listening-audio.ps1 first."
+                    )
             item = ContentItem.objects.filter(slug=spec["slug"]).first()
             if item is None:
                 item = self._create_item(spec, task_types, author, reviewer)

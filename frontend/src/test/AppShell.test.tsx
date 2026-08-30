@@ -222,13 +222,7 @@ describe('mobile More overflow', () => {
     renderApp()
     await user.click(screen.getByRole('button', { name: 'More' }))
     const dialog = screen.getByRole('dialog', { name: 'Menu' })
-    expect(within(dialog).getByRole('link', { name: 'Learn' })).toBeInTheDocument()
-    expect(
-      within(dialog).getByRole('link', { name: 'Mistake Bank' }),
-    ).toBeInTheDocument()
-    expect(
-      within(dialog).getByRole('link', { name: 'Study Plan' }),
-    ).toBeInTheDocument()
+    expect(within(dialog).getByRole('link', { name: 'Study' })).toBeInTheDocument()
   })
 
   it('offers both Sign in and Sign up to anonymous visitors and closes on click', async () => {

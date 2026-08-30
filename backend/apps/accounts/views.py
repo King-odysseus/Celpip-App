@@ -13,6 +13,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
+from rest_framework_simplejwt.settings import api_settings
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from . import services, tokens
 from .export import build_export
@@ -145,7 +147,13 @@ class RefreshView(APIView):
             tokens.clear_refresh_cookie(response)
             return response
 
-        response = Response({"access": pair.access})
+        rotated = RefreshToken(pair.refresh)
+        response = Response(
+            {
+                "access": pair.access,
+                "user_id": int(rotated[api_settings.USER_ID_CLAIM]),
+            }
+        )
         tokens.set_refresh_cookie(response, pair.refresh)
         return response
 
