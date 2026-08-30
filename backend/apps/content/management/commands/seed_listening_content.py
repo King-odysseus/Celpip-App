@@ -21,12 +21,13 @@ from apps.content.models import (
     TestFormatVersion,
 )
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
+from apps.content.practice_bank_expansion import expand_practice_bank
 from apps.content.services import publish, submit_for_review
 from apps.media_assets.models import MediaAsset, MediaStatus
 from apps.media_assets.services import file_checksum
 
-
-LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2 + LISTENING_SETS_V3
+LISTENING_SOURCE_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2 + LISTENING_SETS_V3
+LISTENING_SETS = expand_practice_bank(LISTENING_SOURCE_SETS, skill="listening")
 
 
 class Command(BaseCommand):
@@ -76,7 +77,8 @@ class Command(BaseCommand):
 
         created_count = 0
         for spec in LISTENING_SETS:
-            audio_path = self._audio_path(spec["slug"])
+            audio_slug = spec.get("audio_slug", spec["slug"])
+            audio_path = self._audio_path(audio_slug)
             if not audio_path.is_file():
                 raise CommandError(
                     f"Missing {audio_path}. Run scripts/generate-listening-audio.ps1 first."
@@ -91,7 +93,7 @@ class Command(BaseCommand):
             duration_ms = self._wav_duration_ms(audio_path)
             MediaAsset.objects.create(
                 content_version=version,
-                storage_key=f"listening/{spec['slug']}.wav",
+                storage_key=f"listening/{audio_slug}.wav",
                 mime_type="audio/wav",
                 byte_size=audio_path.stat().st_size,
                 duration_ms=duration_ms,

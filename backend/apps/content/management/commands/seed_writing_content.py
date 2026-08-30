@@ -12,14 +12,15 @@ from apps.content.models import (
     TestFormatVersion,
 )
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
+from apps.content.practice_bank_expansion import expand_practice_bank
 from apps.content.services import publish, submit_for_review
 from apps.content.writing_seed_data import WRITING_SETS as WRITING_SETS_BASE
 from apps.content.writing_seed_data import WRITING_TASK_TYPES
 from apps.content.writing_seed_data_v2 import WRITING_SETS as WRITING_SETS_V2
 from apps.content.writing_seed_data_v3 import WRITING_SETS as WRITING_SETS_V3
 
-
-WRITING_SETS = WRITING_SETS_BASE + WRITING_SETS_V2 + WRITING_SETS_V3
+WRITING_SOURCE_SETS = WRITING_SETS_BASE + WRITING_SETS_V2 + WRITING_SETS_V3
+WRITING_SETS = expand_practice_bank(WRITING_SOURCE_SETS, skill="writing")
 
 
 class Command(BaseCommand):

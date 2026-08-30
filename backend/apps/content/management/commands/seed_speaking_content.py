@@ -12,14 +12,15 @@ from apps.content.models import (
     TestFormatVersion,
 )
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
+from apps.content.practice_bank_expansion import expand_practice_bank
 from apps.content.services import publish, submit_for_review
 from apps.content.speaking_seed_data import SPEAKING_SETS as SPEAKING_SETS_BASE
 from apps.content.speaking_seed_data import SPEAKING_TASK_TYPES
 from apps.content.speaking_seed_data_v2 import SPEAKING_SETS as SPEAKING_SETS_V2
 from apps.content.speaking_seed_data_v3 import SPEAKING_SETS as SPEAKING_SETS_V3
 
-
-SPEAKING_SETS = SPEAKING_SETS_BASE + SPEAKING_SETS_V2 + SPEAKING_SETS_V3
+SPEAKING_SOURCE_SETS = SPEAKING_SETS_BASE + SPEAKING_SETS_V2 + SPEAKING_SETS_V3
+SPEAKING_SETS = expand_practice_bank(SPEAKING_SOURCE_SETS, skill="speaking")
 
 
 class Command(BaseCommand):

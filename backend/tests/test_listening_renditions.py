@@ -1,4 +1,5 @@
 """Per-provider Listening audio renditions: generation, safety, and isolation."""
+
 from __future__ import annotations
 
 import io
@@ -9,9 +10,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BASE
-from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
-from apps.content.listening_seed_data_v3 import LISTENING_SETS as LISTENING_SETS_V3
+from apps.content.management.commands.seed_listening_content import LISTENING_SETS
 from apps.media_assets.audio_synthesis import (
     AzureVoiceProvider,
     OpenAIVoiceProvider,
@@ -20,8 +19,6 @@ from apps.media_assets.management.commands.generate_listening_renditions import 
     Command as RenditionCommand,
 )
 from apps.media_assets.models import AudioRendition, MediaAsset, MediaStatus
-
-LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2 + LISTENING_SETS_V3
 from apps.media_assets.services import file_checksum, private_media_path
 
 pytestmark = pytest.mark.django_db
@@ -149,28 +146,27 @@ def test_command_accepts_comma_separated_and_repeatable_providers(
     _patch_provider(
         monkeypatch,
         openai=_openai_provider(make_wav(3500)),
-        azure=AzureVoiceProvider(
-            transport=FakeAzureTransport(make_wav(3500)), voices=["a", "b"]
-        ),
+        azure=AzureVoiceProvider(transport=FakeAzureTransport(make_wav(3500)), voices=["a", "b"]),
     )
 
     gen("--provider", "openai,azure", "--slug", "apartment-heating-plan", "--force")
     apt = MediaAsset.objects.get(content_version__item__slug="apartment-heating-plan")
     assert set(
-        AudioRendition.objects.filter(canonical_asset=apt).values_list(
-            "provider", flat=True
-        )
+        AudioRendition.objects.filter(canonical_asset=apt).values_list("provider", flat=True)
     ) == {"openai", "azure"}
 
     gen(
-        "--provider", "openai", "--provider", "azure",
-        "--slug", "pottery-class-change", "--force",
+        "--provider",
+        "openai",
+        "--provider",
+        "azure",
+        "--slug",
+        "pottery-class-change",
+        "--force",
     )
     other = MediaAsset.objects.get(content_version__item__slug="pottery-class-change")
     assert set(
-        AudioRendition.objects.filter(canonical_asset=other).values_list(
-            "provider", flat=True
-        )
+        AudioRendition.objects.filter(canonical_asset=other).values_list("provider", flat=True)
     ) == {"openai", "azure"}
 
 
@@ -227,9 +223,7 @@ def test_command_skips_valid_and_is_idempotent(isolated_listening, settings, mon
     assert rendition.checksum_sha256 == first_checksum
 
 
-def test_command_force_regenerates_when_bytes_change(
-    isolated_listening, settings, monkeypatch
-):
+def test_command_force_regenerates_when_bytes_change(isolated_listening, settings, monkeypatch):
     settings.OPENAI_API_KEY = FAKE_KEY
     clips = iter([make_wav(3500), make_wav(4000)])
     _patch_provider(monkeypatch, openai=lambda: _openai_provider(next(clips)))
@@ -249,9 +243,7 @@ def test_command_force_regenerates_when_bytes_change(
 
 
 # ── Rollback / batch isolation ───────────────────────────────────────────────
-def test_command_isolates_single_asset_write_failure(
-    isolated_listening, settings, monkeypatch
-):
+def test_command_isolates_single_asset_write_failure(isolated_listening, settings, monkeypatch):
     settings.OPENAI_API_KEY = FAKE_KEY
     _patch_provider(monkeypatch, openai=_openai_provider(make_wav(3500)))
 
@@ -275,18 +267,14 @@ def test_command_isolates_single_asset_write_failure(
         gen("--provider", "openai", "--force")
 
     assert not apt_rendition_path.exists()
-    assert not AudioRendition.objects.filter(
-        canonical_asset=apt, provider="openai"
-    ).exists()
+    assert not AudioRendition.objects.filter(canonical_asset=apt, provider="openai").exists()
     other = MediaAsset.objects.get(content_version__item__slug="pottery-class-change")
     assert AudioRendition.objects.filter(
         canonical_asset=other, provider="openai"
     ).exists()  # the rest of the batch still ran
 
 
-def test_command_rolls_back_file_when_db_write_fails(
-    isolated_listening, settings, monkeypatch
-):
+def test_command_rolls_back_file_when_db_write_fails(isolated_listening, settings, monkeypatch):
     settings.OPENAI_API_KEY = FAKE_KEY
     _patch_provider(monkeypatch, openai=_openai_provider(make_wav(3500)))
 

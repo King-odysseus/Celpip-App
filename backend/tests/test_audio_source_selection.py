@@ -6,6 +6,7 @@ or a per-provider rendition) is chosen for a playback, how that choice is bound
 into the signed stream token, and how the stream path re-resolves it with no
 fallback so a tampered or missing source fails closed.
 """
+
 from __future__ import annotations
 
 import io
@@ -16,9 +17,7 @@ from django.core import signing
 from django.core.management import call_command
 
 from apps.accounts.models import LearnerProfile, PreferredAudioProvider, User
-from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BASE
-from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
-from apps.content.listening_seed_data_v3 import LISTENING_SETS as LISTENING_SETS_V3
+from apps.content.management.commands.seed_listening_content import LISTENING_SETS
 from apps.media_assets.models import (
     AudioRendition,
     MediaAsset,
@@ -41,7 +40,6 @@ pytestmark = pytest.mark.django_db
 
 SESSIONS_URL = "/api/v1/sessions/"
 APT_SLUG = "apartment-heating-plan"
-LISTENING_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2 + LISTENING_SETS_V3
 
 
 def make_wav(ms: int, *, frame_rate: int = 16000, sample: bytes = b"\x01\x00") -> bytes:
@@ -204,9 +202,7 @@ def test_all_invalid_falls_back_to_local(isolated_listening, apt):
 def test_non_ready_rendition_is_ignored(isolated_listening, apt):
     make_rendition(apt, "openai", status=MediaStatus.PENDING)
 
-    assert select_audio_source(apt, preferred=PreferredAudioProvider.OPENAI).provider == (
-        "local"
-    )
+    assert select_audio_source(apt, preferred=PreferredAudioProvider.OPENAI).provider == ("local")
 
 
 # ── select_audio_source: guest and authenticated learner ─────────────────────
@@ -338,9 +334,7 @@ def test_verify_fails_when_bound_source_file_tampered(isolated_listening, apt, a
         verify_stream_token(asset_id=apt.id, token=_token(access.url))
 
 
-def test_verify_fails_when_bound_rendition_missing_no_fallback(
-    isolated_listening, apt, api_client
-):
+def test_verify_fails_when_bound_rendition_missing_no_fallback(isolated_listening, apt, api_client):
     make_rendition(apt, "openai")
     started = start_session(api_client)
     access = grant_audio_access(
