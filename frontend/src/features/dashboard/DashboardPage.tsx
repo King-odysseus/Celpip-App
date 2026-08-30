@@ -140,6 +140,10 @@ export function DashboardPage() {
         </Card>
       )}
 
+      {isAuthed && dashboard && (
+        <ReadinessIndicator readiness={dashboard.readiness} />
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <CountdownCard profile={profile} />
         <TargetCard profile={profile} />
@@ -156,7 +160,6 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
-            <ReadinessIndicator readiness={dashboard.readiness} />
             <DashboardStats
               streakDays={dashboard.streak.days}
               totalQuestions={dashboard.totals.objective_questions_completed}
