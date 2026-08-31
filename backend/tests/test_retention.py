@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.ai_services.models import AIFeedback, AIJob, AIJobKind, AIJobStatus
+from apps.ai_services.services import FEEDBACK_RETENTION_DAYS
 from apps.assessments.models import AssessmentSession, SessionItem, SpeakingSubmission
 from apps.assessments.storage import private_recording_storage
 from apps.content.models import (
@@ -228,7 +229,7 @@ def _expired_authenticated_feedback(*, age_days):
 
 
 def test_dry_run_reports_expired_authenticated_feedback():
-    _expired_authenticated_feedback(age_days=60)
+    _expired_authenticated_feedback(age_days=FEEDBACK_RETENTION_DAYS + 10)
     out = StringIO()
     call_command("retention", stdout=out)
     assert "[dry-run]" in out.getvalue()
@@ -236,7 +237,9 @@ def test_dry_run_reports_expired_authenticated_feedback():
 
 
 def test_execute_deletes_expired_authenticated_feedback_and_its_job():
-    user, session, job, feedback = _expired_authenticated_feedback(age_days=60)
+    user, session, job, feedback = _expired_authenticated_feedback(
+        age_days=FEEDBACK_RETENTION_DAYS + 10
+    )
     call_command("retention", "--execute", stdout=StringIO())
 
     assert not AIFeedback.objects.filter(pk=feedback.pk).exists()

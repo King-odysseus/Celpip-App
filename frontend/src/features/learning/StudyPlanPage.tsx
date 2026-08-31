@@ -318,7 +318,7 @@ function DifficultyInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: S
   }
 
   return (
-    <div className="min-w-0 w-full">
+    <div className="min-w-0 w-full sm:col-span-2 lg:col-span-1">
       <label htmlFor="plan-difficulty" className="text-xs font-semibold uppercase tracking-wider text-muted">
         Lesson difficulty
       </label>
@@ -443,24 +443,31 @@ export function StudyPlanPage() {
         </p>
       ) : (
         <>
-          <Card className="p-5">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div className="min-w-0">
-                <h2 className="flex items-center gap-2 text-xl font-bold text-ink">
-                  <CalendarRange size={21} aria-hidden />
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+              <h2 className="flex min-w-0 items-center gap-2 text-xl font-bold text-ink">
+                <CalendarRange size={21} className="shrink-0 text-accent" aria-hidden />
+                <span className="truncate">
                   {plan.name ? plan.name : `Study Plan v${plan.version}`}
-                </h2>
-                <p className="mt-2 text-sm text-muted">{plan.reason_summary.rule}</p>
-                <p className="mt-1 text-xs text-muted">
-                  Based on {plan.reason_summary.source_attempts} completed attempt(s).
-                  Every recommendation displays its reason.
-                </p>
-                <p className="mt-2 text-xs font-semibold text-brand">
-                  Full mock checkpoint every {plan.reason_summary.mock_interval_days ?? 7} days.
-                  Change it below whenever your schedule changes.
-                </p>
-              </div>
-              <div className="grid w-full items-start gap-4 sm:grid-cols-2 xl:w-auto xl:min-w-[48rem] xl:grid-cols-[minmax(12rem,1fr)_minmax(20rem,1.5fr)_minmax(11rem,.8fr)]">
+                </span>
+              </h2>
+              <span className="shrink-0 rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
+                Mock every {plan.reason_summary.mock_interval_days ?? 7} days
+              </span>
+            </div>
+            <p className="mt-2 max-w-prose text-sm leading-6 text-muted">
+              {plan.reason_summary.rule}
+            </p>
+            <p className="mt-1 max-w-prose text-xs leading-5 text-muted">
+              Based on {plan.reason_summary.source_attempts} completed attempt(s).
+              Every recommendation displays its reason.
+            </p>
+
+            {/* The editable controls sit in their own panel so they read as a
+                group of settings rather than trailing off the prose above. */}
+            <div className="mt-5 rounded-card border border-line bg-surface-secondary/50 p-4">
+              <h3 className="eyebrow">Plan settings</h3>
+              <div className="mt-3 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <PlanNameInput plan={plan} onSaved={setPlan} />
                 <DifficultyInput plan={plan} onSaved={setPlan} />
                 <MockIntervalInput plan={plan} onSaved={setPlan} />
