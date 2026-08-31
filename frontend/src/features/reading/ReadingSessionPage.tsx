@@ -17,6 +17,7 @@ import { Button, Card, Meter } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
+import { StudyTaskAction } from '../learning/StudyTaskAction'
 import type {
   LearningFeedback,
   AudioAccess,
@@ -37,6 +38,7 @@ export function ReadingSessionPage() {
   const { sessionId = '' } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
+  const studyTaskId = new URLSearchParams(location.search).get('study_task')
   const initial = (location.state as LocationState | null)?.session
   const [session, setSession] = useState<ReadingSession | null>(initial ?? null)
   const [result, setResult] = useState<SessionResult | null>(null)
@@ -189,6 +191,10 @@ export function ReadingSessionPage() {
         max={session.content.questions.length}
         label={`Question ${index + 1} of ${session.content.questions.length}`}
       />
+
+      <div className="mt-4">
+        <StudyTaskAction taskId={studyTaskId} />
+      </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
         <Card className="max-h-[calc(100vh-12rem)] overflow-y-auto p-5 sm:p-7">

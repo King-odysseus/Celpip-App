@@ -12,12 +12,13 @@ import {
   ScrollText,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
+import { StudyTaskAction } from '../learning/StudyTaskAction'
 import { countWords, targetState } from './wordCount'
 import type {
   WritingReview,
@@ -39,7 +40,9 @@ function tokenHeaders(sessionId: string): Record<string, string> {
 
 export function WritingSessionPage() {
   const { sessionId = '' } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
+  const studyTaskId = new URLSearchParams(location.search).get('study_task')
 
   const [session, setSession] = useState<WritingSession | null>(null)
   const [text, setText] = useState('')
@@ -332,6 +335,10 @@ export function WritingSessionPage() {
         )}
         <SaveIndicator status={status} savedAt={savedAt} />
       </header>
+
+      <div className="mb-4">
+        <StudyTaskAction taskId={studyTaskId} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,1fr)]">
         <Card className="max-h-[calc(100vh-11rem)] overflow-y-auto p-5 sm:p-7">

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { useAuth } from '../auth/AuthProvider'
+import { completedLessonSlugs } from '../learning/completedLessons'
+import type { StudyPlan } from '../learning/types'
 import { ApiError, api, fetchAllPages } from '../../lib/api'
 import type {
   ReadingCatalogItem,
@@ -24,6 +26,7 @@ export function ReadingCatalogPage({
   const { status: authStatus } = useAuth()
   const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
   const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
+  const requestedTaskId = new URLSearchParams(window.location.search).get('study_task')
   const [taskTypes, setTaskTypes] = useState<ReadingTaskType[]>([])
   const [items, setItems] = useState<ReadingCatalogItem[]>([])
   const [taskFilter, setTaskFilter] = useState('all')
@@ -31,7 +34,15 @@ export function ReadingCatalogPage({
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
+  const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return
+    api.get<StudyPlan>('/me/study-plan/')
+      .then((plan) => setCompletedSlugs(completedLessonSlugs(plan)))
+      .catch(() => setCompletedSlugs(new Set()))
+  }, [authStatus])
 
   useEffect(() => {
     let active = true
@@ -80,7 +91,8 @@ export function ReadingCatalogPage({
       if (session.guest_token) {
         sessionStorage.setItem(`celpip-guest-${session.id}`, session.guest_token)
       }
-      navigate(`/reading/session/${session.id}`, { state: { session } })
+      const taskQuery = requestedTaskId ? `?study_task=${encodeURIComponent(requestedTaskId)}` : ''
+      navigate(`/reading/session/${session.id}${taskQuery}`, { state: { session } })
     } catch (reason) {
       setError(
         reason instanceof ApiError ? reason.message : 'The session could not be started. Please try again.',
@@ -164,6 +176,7 @@ export function ReadingCatalogPage({
           <div className="grid gap-4 md:grid-cols-2">
             {filtered.map((item) => {
               const task = taskTypes.find((candidate) => candidate.code === item.task_type)
+              const completed = completedSlugs.has(item.slug)
               return (
                 <Card key={item.slug} className="flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-card-hover">
                   <div className="flex items-start justify-between gap-3">
@@ -172,6 +185,11 @@ export function ReadingCatalogPage({
                     </span>
                     <span className="text-xs font-semibold text-muted">{difficultyLabel[item.difficulty]}</span>
                   </div>
+                  {completed && (
+                    <span className="mt-3 inline-flex w-fit items-center rounded-full bg-good-soft px-2.5 py-1 text-xs font-semibold text-good">
+                      Completed via Study Plan
+                    </span>
+                  )}
                   <h3 className="mt-4 text-xl font-bold text-ink">{item.title}</h3>
                   <p className="mt-1 text-sm text-muted">{task?.title} · {item.topic}</p>
                   <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted">
@@ -185,7 +203,7 @@ export function ReadingCatalogPage({
                     onClick={() => begin(item)}
                   >
                     {isLearn ? <GraduationCap size={18} /> : <Play size={18} />}
-                    {starting === item.slug ? 'Starting…' : isLearn ? 'Learn with this set' : 'Start timed practice'}
+                    {starting === item.slug ? 'Starting…' : completed ? 'Practice again' : isLearn ? 'Learn with this set' : 'Start timed practice'}
                   </Button>
                 </Card>
               )

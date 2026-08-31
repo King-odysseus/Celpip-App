@@ -485,6 +485,8 @@ def _task_destination(task: StudyTask) -> str:
 
 def _task_payload(task: StudyTask) -> dict:
     destination = _task_destination(task)
+    separator = "&" if "?" in destination else "?"
+    destination = f"{destination}{separator}study_task={task.pk}"
     lesson_slug = parse_qs(urlparse(destination).query).get("lesson", [None])[0]
     previously_completed = bool(
         lesson_slug

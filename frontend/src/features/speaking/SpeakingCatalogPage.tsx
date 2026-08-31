@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { ApiError, api, fetchAllPages } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
+import { completedLessonSlugs } from '../learning/completedLessons'
+import type { StudyPlan } from '../learning/types'
 import type {
   SessionMode,
   SpeakingCatalogItem,
@@ -28,6 +30,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   const { status: authStatus } = useAuth()
   const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
   const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
+  const requestedTaskId = new URLSearchParams(window.location.search).get('study_task')
   const [taskTypes, setTaskTypes] = useState<SpeakingTaskType[]>([])
   const [items, setItems] = useState<SpeakingCatalogItem[]>([])
   const [filter, setFilter] = useState('all')
@@ -35,7 +38,15 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
+  const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (authStatus !== 'authenticated') return
+    api.get<StudyPlan>('/me/study-plan/')
+      .then((plan) => setCompletedSlugs(completedLessonSlugs(plan)))
+      .catch(() => setCompletedSlugs(new Set()))
+  }, [authStatus])
 
   useEffect(() => {
     let active = true
@@ -83,7 +94,8 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
       if (session.guest_token) {
         sessionStorage.setItem(`celpip-guest-${session.id}`, session.guest_token)
       }
-      navigate(`/speaking/session/${session.id}`)
+      const taskQuery = requestedTaskId ? `?study_task=${encodeURIComponent(requestedTaskId)}` : ''
+      navigate(`/speaking/session/${session.id}${taskQuery}`)
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'The session could not be started.')
     } finally {
@@ -150,12 +162,18 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
             {filtered.map((item) => {
               const task = taskTypes.find((candidate) => candidate.code === item.task_type)
               const timing = timings[item.task_type]
+              const completed = completedSlugs.has(item.slug)
               return (
                 <Card key={item.slug} className="flex h-full flex-col p-5 transition hover:-translate-y-0.5 hover:shadow-card-hover">
                   <div className="flex items-start justify-between gap-3">
                     <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">Task {task?.part_number}</span>
                     <span className="text-xs font-semibold text-muted">{difficultyLabel[item.difficulty]}</span>
                   </div>
+                  {completed && (
+                    <span className="mt-3 inline-flex w-fit items-center rounded-full bg-good-soft px-2.5 py-1 text-xs font-semibold text-good">
+                      Completed via Study Plan
+                    </span>
+                  )}
                   <h3 className="mt-4 text-xl font-bold text-ink">{item.title}</h3>
                   <p className="mt-1 text-sm text-muted">{task?.title} · {item.topic}</p>
                   <p className="mt-4 flex items-center gap-2 text-xs text-muted">
@@ -168,7 +186,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
                     onClick={() => void begin(item)}
                   >
                     {isLearn ? <GraduationCap size={18} /> : <Play size={18} />}
-                    {starting === item.slug ? 'Opening…' : isLearn ? 'Learn with this prompt' : 'Open microphone practice'}
+                    {starting === item.slug ? 'Opening…' : completed ? 'Practice again' : isLearn ? 'Learn with this prompt' : 'Open microphone practice'}
                   </Button>
                 </Card>
               )

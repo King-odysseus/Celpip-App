@@ -11,12 +11,13 @@ import {
   UploadCloud,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button, ButtonLink, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
+import { StudyTaskAction } from '../learning/StudyTaskAction'
 import { RetryAction } from './RetryAction'
 import { SpeakingComparisonPanel } from './SpeakingComparisonPanel'
 import { tokenHeaders } from './token'
@@ -40,7 +41,9 @@ function preferredMimeType(): string | null {
 
 export function SpeakingSessionPage() {
   const { sessionId = '' } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
+  const studyTaskId = new URLSearchParams(location.search).get('study_task')
   const [session, setSession] = useState<SpeakingSession | null>(null)
   const [phase, setPhase] = useState<RecorderPhase>('ready')
   const [remaining, setRemaining] = useState(0)
@@ -309,6 +312,10 @@ export function SpeakingSessionPage() {
           <Countdown label={timerLabel} seconds={remaining} recording={phase === 'recording'} />
         )}
       </header>
+
+      <div className="mb-4">
+        <StudyTaskAction taskId={studyTaskId} />
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,.85fr)]">
         <Card className="p-5 sm:p-7">
