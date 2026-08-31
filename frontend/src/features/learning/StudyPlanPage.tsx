@@ -87,13 +87,13 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
             : ' Anchored on the last completed day.'
           : ' Complete a task to start a streak.'}
       </p>
-      <section className="mt-5 max-w-xl" aria-label={monthLabel}>
+      <section className="mt-5 w-full" aria-label={monthLabel}>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-ink">{monthLabel}</h3>
           <div className="flex gap-1">
             <Button
               variant="secondary"
-              className="h-9 min-h-9 w-9 p-0"
+              className="h-9 min-h-9 w-9 rounded-full p-0"
               aria-label="Previous month"
               disabled={selectedMonthIndex === 0}
               onClick={() => setSelectedMonth(availableMonths[selectedMonthIndex - 1])}
@@ -102,7 +102,7 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
             </Button>
             <Button
               variant="secondary"
-              className="h-9 min-h-9 w-9 p-0"
+              className="h-9 min-h-9 w-9 rounded-full p-0"
               aria-label="Next month"
               disabled={selectedMonthIndex === availableMonths.length - 1}
               onClick={() => setSelectedMonth(availableMonths[selectedMonthIndex + 1])}
