@@ -1,5 +1,6 @@
 """Authenticated progress, repeat mistakes, and explainable study plans."""
 
+from datetime import timedelta
 from io import StringIO
 from uuid import uuid4
 
@@ -8,7 +9,7 @@ from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.utils import timezone
 
-from apps.accounts.models import User
+from apps.accounts.models import LearnerProfile, User
 from apps.content.models import ContentVersion
 from apps.learning.models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
 from apps.learning.services import regenerate_plan
@@ -113,6 +114,21 @@ def test_plan_rotates_every_available_skill_and_versions_explanations(learner):
     assert first.is_active is False
     assert second.version == first.version + 1
     assert StudyPlan.objects.filter(user=learner, is_active=True).count() == 1
+
+
+def test_plan_runs_through_a_future_exam_date(learner):
+    _all_skill_task_types()
+    profile, _ = LearnerProfile.objects.get_or_create(user=learner)
+    exam_date = timezone.localdate() + timedelta(days=40)
+    profile.exam_date = exam_date
+    profile.save(update_fields=["exam_date"])
+
+    plan = regenerate_plan(learner)
+
+    scheduled_dates = list(plan.tasks.values_list("scheduled_date", flat=True))
+    assert scheduled_dates
+    assert max(scheduled_dates) <= exam_date
+    assert max(scheduled_dates).month == exam_date.month
 
 
 def test_plan_task_completion_is_owned_and_generated_details_are_immutable(api_client, learner):

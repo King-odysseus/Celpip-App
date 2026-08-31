@@ -309,11 +309,14 @@ def regenerate_plan(user) -> StudyPlan:
     preferred = set(profile.preferred_weekdays or range(1, 8))
     study_dates = []
     cursor = local_today
-    end = min(
-        local_today + timedelta(days=13),
+    # With an exam date, keep generating the schedule all the way to the
+    # learner's exam. Without one, retain the short rolling planning window.
+    # The previous 14-day cap applied even when an exam was configured, which
+    # made an October exam appear to end in September.
+    end = (
         profile.exam_date
         if profile.exam_date and profile.exam_date >= local_today
-        else local_today + timedelta(days=13),
+        else local_today + timedelta(days=13)
     )
     while cursor <= end:
         if cursor.isoweekday() in preferred:
