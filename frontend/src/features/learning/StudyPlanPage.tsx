@@ -111,14 +111,14 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
             </Button>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-7 gap-y-3 text-center">
+        <div className="mt-3 grid grid-cols-7 gap-px overflow-hidden rounded-xl bg-line-light text-center">
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday, index) => (
-            <span key={`${weekday}-${index}`} className="text-[10px] font-bold uppercase text-muted">
+            <span key={`${weekday}-${index}`} className="bg-surface-secondary py-2 text-[10px] font-bold uppercase text-muted">
               {weekday}
             </span>
           ))}
           {Array.from({ length: firstWeekday }, (_, index) => (
-            <span key={`empty-${index}`} aria-hidden />
+            <span key={`empty-${index}`} className="min-h-16 bg-surface" aria-hidden />
           ))}
           {visibleDays.map((day) => {
                   const { day: dayNum } = dayParts(day.date)
@@ -127,7 +127,7 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
                     <div
                       key={day.date}
                       aria-label={`${day.date}${day.completed ? ', completed' : ''}`}
-                      className="flex min-h-12 flex-col items-center"
+                      className="flex min-h-16 flex-col items-center bg-surface px-1 pt-2"
                     >
                       <span
                         className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums ${
