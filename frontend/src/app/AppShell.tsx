@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, LogIn, MoreHorizontal, Timer, UserPlus, UserRound, X } from 'lucide-react'
+import { ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, GraduationCap, LayoutDashboard, ListChecks, LogIn, MoreHorizontal, Timer, UserPlus, UserRound, X } from 'lucide-react'
 import {
   mobilePrimaryNav,
 } from './navigation'
@@ -241,6 +241,7 @@ const desktopGroups = [
   {
     label: 'Study',
     to: '/study',
+    icon: BookOpen,
     items: [
       { to: '/study-plan', label: 'Study Plan' },
       { to: '/learn', label: 'Reading Learn' },
@@ -252,6 +253,7 @@ const desktopGroups = [
   {
     label: 'Practice',
     to: '/practice',
+    icon: ClipboardList,
     items: [
       { to: '/practice', label: 'Reading Practice' },
       { to: '/practice/listening', label: 'Listening Practice' },
@@ -262,6 +264,7 @@ const desktopGroups = [
   {
     label: 'Review',
     to: '/review',
+    icon: ListChecks,
     items: [
       { to: '/progress', label: 'Progress' },
       { to: '/mistakes', label: 'Mistakes' },
@@ -286,6 +289,7 @@ function DesktopNavGroup({
         to={group.to}
         className={`flex min-h-11 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? 'bg-brand-soft text-brand' : 'text-muted hover:text-ink'}`}
       >
+        <group.icon size={18} strokeWidth={1.9} />
         {group.label}
       </NavLink>
       <button

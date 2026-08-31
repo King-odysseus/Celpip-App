@@ -57,6 +57,16 @@ class StudyPlan(models.Model):
     generated_at = models.DateTimeField(auto_now_add=True)
     # Learner-chosen plan name; carried across regenerations so it never resets.
     name = models.CharField(max_length=120, blank=True, default="")
+    difficulty_preference = models.CharField(
+        max_length=16,
+        choices=[
+            ("adaptive", "Adaptive"),
+            ("foundation", "Foundation"),
+            ("developing", "Developing"),
+            ("challenge", "Challenge"),
+        ],
+        default="adaptive",
+    )
 
     class Meta:
         ordering = ["-version"]

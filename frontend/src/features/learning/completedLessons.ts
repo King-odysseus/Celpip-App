@@ -1,8 +1,8 @@
 import type { StudyPlan } from './types'
 
-/** Lesson slugs completed through the learner's current Study Plan. */
+/** Lesson slugs completed across plan versions and submitted practice. */
 export function completedLessonSlugs(plan: StudyPlan): Set<string> {
-  const slugs = new Set<string>()
+  const slugs = new Set<string>(plan.completed_lessons ?? [])
   for (const task of plan.tasks) {
     if (task.state !== 'completed' && !task.previously_completed) continue
     try {

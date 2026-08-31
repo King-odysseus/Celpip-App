@@ -87,7 +87,16 @@ export type StudyPlan = {
   version: number
   generated_at: string
   name: string
-  reason_summary: { priorities: Record<Skill, number>; rule: string; source_attempts: number; mock_interval_days?: number }
+  difficulty_preference?: 'adaptive' | 'foundation' | 'developing' | 'challenge'
+  reason_summary: {
+    priorities: Record<Skill, number>
+    rule: string
+    source_attempts: number
+    mock_interval_days?: number
+    difficulty_preference?: 'adaptive' | 'foundation' | 'developing' | 'challenge'
+    difficulty_by_skill?: Record<Skill, number>
+  }
+  completed_lessons?: string[]
   tasks: StudyTask[]
   consistency: StudyConsistency
 }

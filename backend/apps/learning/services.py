@@ -319,11 +319,18 @@ def regenerate_plan(user) -> StudyPlan:
     profile = _profile_for(user)
     progress = progress_payload(user)
     priorities = _skill_priority(progress)
-    difficulty_by_skill = {
+    previous = StudyPlan.objects.filter(user=user, is_active=True).first()
+    difficulty_preference = previous.difficulty_preference if previous else "adaptive"
+    adaptive_difficulty = {
         summary["skill"]: recommended_difficulty(summary)
         for summary in progress["skills"]
     }
-    previous = StudyPlan.objects.filter(user=user, is_active=True).first()
+    fixed_difficulty = {"foundation": 1, "developing": 2, "challenge": 3}.get(
+        difficulty_preference
+    )
+    difficulty_by_skill = {
+        skill: fixed_difficulty or adaptive_difficulty[skill] for skill in SKILLS
+    }
     version = (
         StudyPlan.objects.filter(user=user)
         .order_by("-version")
@@ -349,11 +356,14 @@ def regenerate_plan(user) -> StudyPlan:
         user=user,
         version=version,
         name=(previous.name if previous else ""),
+        difficulty_preference=difficulty_preference,
         reason_summary={
             "priorities": priorities,
             "rule": "Unpractised and weaker skills come first; every skill remains in rotation.",
             "source_attempts": sum(item["attempts"] for item in progress["skills"]),
             "mock_interval_days": profile.mock_interval_days,
+            "difficulty_preference": difficulty_preference,
+            "difficulty_by_skill": difficulty_by_skill,
         },
     )
     mistakes = {
@@ -399,7 +409,7 @@ def regenerate_plan(user) -> StudyPlan:
     tasks_per_day = len(ranked)
     minutes = max(5, profile.daily_minutes // tasks_per_day)
     type_offsets = defaultdict(int)
-    for scheduled_date in study_dates:
+    for day_index, scheduled_date in enumerate(study_dates):
         # Restart the rotation for each day so all available skills are
         # represented on that day, regardless of how many tasks the prior day
         # contained.
@@ -410,7 +420,15 @@ def regenerate_plan(user) -> StudyPlan:
             task_type = choices[type_offsets[skill] % len(choices)]
             type_offsets[skill] += 1
             mistake_count = mistakes.get(skill, 0)
-            difficulty = difficulty_by_skill[skill]
+            base_difficulty = difficulty_by_skill[skill]
+            # Adaptive plans graduate one level after each three study days.
+            # A newly struggling learner starts with support, then reaches more
+            # demanding material instead of receiving the same level forever.
+            difficulty = (
+                min(3, base_difficulty + day_index // 3)
+                if difficulty_preference == "adaptive"
+                else base_difficulty
+            )
             difficulty_name = {1: "Foundation", 2: "Developing", 3: "Challenge"}[difficulty]
             lesson = (
                 ContentVersion.objects.filter(
@@ -437,7 +455,8 @@ def regenerate_plan(user) -> StudyPlan:
             )
             reason = (
                 f"{SKILL_LABELS[skill]} priority {priorities[skill]:g}. "
-                f"Start at {difficulty_name} difficulty ({difficulty}/3). "
+                f"Use {difficulty_name} difficulty ({difficulty}/3)"
+                + (" in the adaptive progression. " if difficulty_preference == "adaptive" else ". ")
                 + lesson_label
                 + (
                 f"You have {mistake_count} open mistake pattern(s)."
@@ -483,26 +502,31 @@ def _task_destination(task: StudyTask) -> str:
     return f"{task.destination}{separator}lesson={lesson.item.slug}"
 
 
-def _task_payload(task: StudyTask) -> dict:
+def _completed_lesson_slugs(user_id: int) -> set[str]:
+    completed = set(
+        AssessmentSession.objects.filter(
+            user_id=user_id,
+            state=SessionState.SUBMITTED,
+        ).values_list("items__content_version__item__slug", flat=True)
+    )
+    for destination in StudyTask.objects.filter(
+        plan__user_id=user_id,
+        state=StudyTaskState.COMPLETED,
+    ).values_list("destination", flat=True):
+        lesson = parse_qs(urlparse(destination).query).get("lesson", [None])[0]
+        if lesson:
+            completed.add(lesson)
+    return {slug for slug in completed if slug}
+
+
+def _task_payload(task: StudyTask, completed_lessons: set[str] | None = None) -> dict:
     destination = _task_destination(task)
     separator = "&" if "?" in destination else "?"
     destination = f"{destination}{separator}study_task={task.pk}"
     lesson_slug = parse_qs(urlparse(destination).query).get("lesson", [None])[0]
-    previously_completed = bool(
-        lesson_slug
-        and AssessmentSession.objects.filter(
-            user_id=task.plan.user_id,
-            items__content_version__item__slug=lesson_slug,
-        ).exists()
-    )
-    if lesson_slug and not previously_completed:
-        # A learner can complete a Study Plan task after opening the lesson
-        # without submitting the practice session. Preserve that signal too.
-        previously_completed = StudyTask.objects.filter(
-            plan__user_id=task.plan.user_id,
-            state=StudyTaskState.COMPLETED,
-            destination__contains=f"lesson={lesson_slug}",
-        ).exclude(pk=task.pk).exists()
+    if completed_lessons is None:
+        completed_lessons = _completed_lesson_slugs(task.plan.user_id)
+    previously_completed = bool(lesson_slug and lesson_slug in completed_lessons)
     return {
         "id": task.pk,
         "scheduled_date": task.scheduled_date,
@@ -520,13 +544,19 @@ def _task_payload(task: StudyTask) -> dict:
 
 
 def plan_payload(plan: StudyPlan) -> dict:
+    completed_lessons = _completed_lesson_slugs(plan.user_id)
     return {
         "id": plan.pk,
         "version": plan.version,
         "generated_at": plan.generated_at,
         "name": plan.name,
+        "difficulty_preference": plan.difficulty_preference,
         "reason_summary": plan.reason_summary,
-        "tasks": [_task_payload(task) for task in plan.tasks.select_related("task_type")],
+        "completed_lessons": sorted(completed_lessons),
+        "tasks": [
+            _task_payload(task, completed_lessons)
+            for task in plan.tasks.select_related("task_type")
+        ],
     }
 
 
@@ -579,7 +609,7 @@ def study_plan_consistency(user, days: int = 14) -> dict:
 def set_task_state(*, user, task_id: int, state: str) -> StudyTask:
     try:
         task = StudyTask.objects.select_for_update().get(
-            pk=task_id, plan__user=user, plan__is_active=True
+            pk=task_id, plan__user=user
         )
     except StudyTask.DoesNotExist as exc:
         raise Http404 from exc
@@ -885,14 +915,19 @@ def _today_and_next(plan: StudyPlan | None, today) -> tuple[list[dict], dict | N
     if plan is None:
         return [], None
     tasks = list(plan.tasks.all())
-    today_tasks = [_task_payload(task) for task in tasks if task.scheduled_date == today]
+    completed_lessons = _completed_lesson_slugs(plan.user_id)
+    today_tasks = [
+        _task_payload(task, completed_lessons)
+        for task in tasks
+        if task.scheduled_date == today
+    ]
     upcoming = [
         task
         for task in tasks
         if task.scheduled_date > today and task.state == StudyTaskState.PENDING
     ]
     upcoming.sort(key=lambda task: (task.scheduled_date, task.order))
-    next_upcoming = _task_payload(upcoming[0]) if upcoming else None
+    next_upcoming = _task_payload(upcoming[0], completed_lessons) if upcoming else None
     return today_tasks, next_upcoming
 
 

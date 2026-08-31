@@ -32,6 +32,21 @@ const SKILL_LABEL: Record<Skill, string> = {
   speaking: 'Speaking',
 }
 
+const DIFFICULTY_LABEL: Record<number, string> = {
+  1: 'Foundation',
+  2: 'Developing',
+  3: 'Challenge',
+}
+
+function taskDifficulty(task: StudyTask): number | null {
+  try {
+    const value = Number(new URL(task.destination, window.location.origin).searchParams.get('difficulty'))
+    return value >= 1 && value <= 3 ? value : null
+  } catch {
+    return null
+  }
+}
+
 function dayParts(date: string): { day: string } {
   const value = new Date(`${date}T12:00:00`)
   return {
@@ -279,6 +294,56 @@ function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan:
   )
 }
 
+function DifficultyInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: StudyPlan) => void }) {
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function persist(value: NonNullable<StudyPlan['difficulty_preference']>) {
+    setSaving(true)
+    setError('')
+    try {
+      onSaved(await api.patch<StudyPlan>('/me/study-plan/', { difficulty_preference: value }))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not update lesson difficulty.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="min-w-52">
+      <label htmlFor="plan-difficulty" className="text-xs font-semibold uppercase tracking-wider text-muted">
+        Lesson difficulty
+      </label>
+      <select
+        id="plan-difficulty"
+        value={plan.difficulty_preference ?? 'adaptive'}
+        disabled={saving}
+        onChange={(event) => void persist(event.target.value as NonNullable<StudyPlan['difficulty_preference']>)}
+        className="mt-1 min-h-10 w-full rounded-input border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:opacity-60"
+      >
+        <option value="adaptive">AI-assisted adaptive · graduates over time</option>
+        <option value="foundation">Foundation · level 1</option>
+        <option value="developing">Developing · level 2</option>
+        <option value="challenge">Challenge · level 3</option>
+      </select>
+      <p className="mt-1 text-xs text-muted">
+        Adaptive uses objective results and AI-assisted Writing/Speaking estimates, then increases every three study days.
+      </p>
+      {plan.reason_summary.difficulty_by_skill && (
+        <div className="mt-2 flex max-w-sm flex-wrap gap-1.5" aria-label="Starting difficulty by skill">
+          {SKILLS.map((skill) => (
+            <span key={skill} className="rounded-full bg-brand-soft px-2 py-1 text-[11px] font-semibold text-brand">
+              {SKILL_LABEL[skill]}: {DIFFICULTY_LABEL[plan.reason_summary.difficulty_by_skill?.[skill] ?? 1]}
+            </span>
+          ))}
+        </div>
+      )}
+      {error && <p role="alert" className="mt-1 text-xs text-bad">{error}</p>}
+    </div>
+  )
+}
+
 export function StudyPlanPage() {
   const { status } = useAuth()
   const [plan, setPlan] = useState<StudyPlan | null>(null)
@@ -385,6 +450,7 @@ export function StudyPlanPage() {
               </div>
               <div className="flex flex-wrap items-end gap-4">
                 <PlanNameInput plan={plan} onSaved={setPlan} />
+                <DifficultyInput plan={plan} onSaved={setPlan} />
                 <MockIntervalInput plan={plan} onSaved={setPlan} />
               </div>
             </div>
@@ -414,6 +480,11 @@ export function StudyPlanPage() {
                             {SKILL_LABEL[task.skill]} · {task.minutes} min
                           </p>
                           <h3 className="mt-1 font-bold text-ink">{task.title}</h3>
+                          {taskDifficulty(task) && (
+                            <span className="mt-2 inline-flex rounded-full bg-info-bg px-2.5 py-1 text-xs font-semibold text-info">
+                              {DIFFICULTY_LABEL[taskDifficulty(task) ?? 1]} difficulty
+                            </span>
+                          )}
                           {task.previously_completed && task.state !== 'completed' && (
                             <span className="mt-2 inline-flex items-center rounded-full bg-good-soft px-2.5 py-1 text-xs font-semibold text-good">
                               Previously completed

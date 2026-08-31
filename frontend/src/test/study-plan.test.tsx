@@ -193,4 +193,43 @@ describe('study plan', () => {
     renderApp('/study-plan')
     expect(await screen.findByRole('alert')).toHaveTextContent('Plan unavailable.')
   })
+
+  it('shows the performance recap before navigating to a lesson', async () => {
+    const user = userEvent.setup()
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(makePlan()),
+      'GET /me/progress/': () => jsonResponse({
+        skills: [{ skill: 'reading', attempts: 1, questions_correct: 5, questions_total: 10, accuracy_percent: 50, estimate_low: null, estimate_high: null, target: 9, last_activity: null }],
+        task_types: [], trends: [], coverage: { practised_skills: 1, total_skills: 4 },
+        overall_readiness: null, readiness_explanation: '', disclaimer: '',
+      }),
+      'GET /me/mistakes/': () => jsonResponse({ results: [] }),
+    })
+    renderApp('/study-plan')
+
+    await user.click(await screen.findByRole('button', { name: /open practice/i }))
+    const recap = await screen.findByRole('dialog', { name: 'Your improvement recap' })
+    expect(recap).toBeInTheDocument()
+    expect(await screen.findByText(/reading accuracy is 50%/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /start lesson/i })).toBeInTheDocument()
+  })
+
+  it('lets the learner choose a difficulty strategy', async () => {
+    const user = userEvent.setup()
+    const patchDifficulty = vi.fn((init: RequestInit) => {
+      const body = JSON.parse(String(init.body))
+      return jsonResponse(makePlan({ difficulty_preference: body.difficulty_preference }))
+    })
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(makePlan({ difficulty_preference: 'adaptive' })),
+      'PATCH /me/study-plan/': patchDifficulty,
+    })
+    renderApp('/study-plan')
+
+    await user.selectOptions(await screen.findByLabelText('Lesson difficulty'), 'challenge')
+    await waitFor(() => expect(patchDifficulty).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(String(patchDifficulty.mock.calls[0][0].body))).toEqual({ difficulty_preference: 'challenge' })
+  })
 })

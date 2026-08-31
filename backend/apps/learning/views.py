@@ -142,6 +142,10 @@ class StudyPlanView(APIView):
     class InputSerializer(serializers.Serializer):
         name = serializers.CharField(max_length=120, allow_blank=True, required=False)
         mock_interval_days = serializers.IntegerField(min_value=1, max_value=30, required=False)
+        difficulty_preference = serializers.ChoiceField(
+            choices=("adaptive", "foundation", "developing", "challenge"),
+            required=False,
+        )
 
     def _active_plan(self, request):
         plan = StudyPlan.objects.filter(user=request.user, is_active=True).first()
@@ -183,6 +187,12 @@ class StudyPlanView(APIView):
             # learner preference without requiring a separate profile request.
             plan.reason_summary["mock_interval_days"] = profile.mock_interval_days
             plan.save(update_fields=["reason_summary"])
+        if "difficulty_preference" in serializer.validated_data:
+            preference = serializer.validated_data["difficulty_preference"]
+            if plan.difficulty_preference != preference:
+                plan.difficulty_preference = preference
+                plan.save(update_fields=["difficulty_preference"])
+                plan = regenerate_plan(request.user)
         return Response(
             {
                 **plan_payload(plan),

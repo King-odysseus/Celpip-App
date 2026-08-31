@@ -101,6 +101,27 @@ describe('Reading catalog', () => {
     expect(await screen.findByRole('heading', { name: 'Garden Plot Renewal' })).toBeInTheDocument()
     expect(sessionStorage.getItem(`celpip-guest-${session.id}`)).toBe('one-time-guest-token')
   })
+
+  it('marks lessons completed in an earlier study plan', async () => {
+    installRouteFetch({
+      'GET /auth/csrf/': () => jsonResponse({ detail: 'ok' }),
+      'POST /auth/refresh/': () => jsonResponse({ access: 'access-token' }),
+      'GET /me/': () => jsonResponse({ id: 1, identifier: 'learner', email: '', date_joined: '2026-08-29T00:00:00Z' }),
+      'GET /me/profile/': () => jsonResponse({ identifier: 'learner', exam_date: null, target_level: 9, target_listening: null, target_reading: null, target_writing: null, target_speaking: null, daily_minutes: 30, preferred_weekdays: [1], timezone: 'America/Toronto', practice_narration_voice: 'automatic', updated_at: '2026-08-29T00:00:00Z' }),
+      'GET /content/task-types/': () => jsonResponse(taskTypes),
+      'GET /content/reading/': () => jsonResponse(catalog),
+      'GET /me/study-plan/': () => jsonResponse({
+        id: 2, version: 4, generated_at: '2026-08-29T00:00:00Z', name: '',
+        difficulty_preference: 'adaptive', reason_summary: { priorities: {}, rule: '', source_attempts: 1 },
+        completed_lessons: ['garden-plot-renewal'], tasks: [],
+        consistency: { streak: { days: 0, active_today: false, anchor: null }, window_days: 1, today: '2026-08-29', days: [] },
+      }),
+    })
+    renderApp('/practice')
+
+    expect(await screen.findByText('Completed via Study Plan')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Practice again' })).toBeInTheDocument()
+  })
 })
 
 describe('Reading player', () => {

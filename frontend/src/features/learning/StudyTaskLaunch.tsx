@@ -1,5 +1,6 @@
 import { ArrowRight, CheckCircle2, Lightbulb, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -7,14 +8,11 @@ import type { Mistake, Progress, StudyTask } from './types'
 
 type CoachingData = { progress: Progress; mistakes: Mistake[] }
 
-let coachingRequest: Promise<CoachingData> | null = null
-
 function loadCoaching(): Promise<CoachingData> {
-  coachingRequest ??= Promise.all([
+  return Promise.all([
     api.get<Progress>('/me/progress/'),
     api.get<{ results: Mistake[] }>('/me/mistakes/'),
   ]).then(([progress, mistakes]) => ({ progress, mistakes: mistakes.results }))
-  return coachingRequest
 }
 
 function tipsFor(task: StudyTask, data: CoachingData): string[] {
@@ -61,6 +59,20 @@ export function StudyTaskLaunch({
   const [error, setError] = useState('')
   const [tips, setTips] = useState<string[]>([])
 
+  useEffect(() => {
+    if (!open) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
+
   async function begin() {
     setOpen(true)
     setLoading(true)
@@ -81,7 +93,7 @@ export function StudyTaskLaunch({
       <Button className="text-sm" onClick={() => void begin()}>
         {label} <ArrowRight size={16} />
       </Button>
-      {open && (
+      {open && createPortal((
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="presentation">
           <section
             role="dialog"
@@ -121,7 +133,7 @@ export function StudyTaskLaunch({
             )}
           </section>
         </div>
-      )}
+      ), document.body)}
     </>
   )
 }

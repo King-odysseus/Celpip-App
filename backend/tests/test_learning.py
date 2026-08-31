@@ -214,6 +214,54 @@ def test_plan_name_persists_across_regeneration(learner):
     assert StudyPlan.objects.filter(user=learner, is_active=True).get().name == "Countdown push"
 
 
+def test_adaptive_plan_graduates_difficulty_and_preference_can_be_fixed(api_client, learner):
+    _all_skill_task_types()
+    plan = regenerate_plan(learner)
+    reading = list(plan.tasks.filter(skill="reading").order_by("scheduled_date"))
+    assert "difficulty=1" in reading[0].destination
+    assert any("difficulty=2" in task.destination for task in reading[3:])
+    assert any("difficulty=3" in task.destination for task in reading[6:])
+
+    changed = api_client.patch(
+        "/api/v1/me/study-plan/",
+        {"difficulty_preference": "challenge"},
+        format="json",
+    )
+    assert changed.status_code == 200
+    payload = changed.json()
+    assert payload["difficulty_preference"] == "challenge"
+    assert all("difficulty=3" in task["destination"] for task in payload["tasks"])
+
+
+def test_completed_lesson_history_survives_regeneration(api_client, learner):
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    first = regenerate_plan(learner)
+    task = first.tasks.exclude(destination__contains="lesson=").first()
+    if task is None:
+        task = first.tasks.first()
+    # Use a concrete historical destination to model a lesson completed from a plan.
+    version = ContentVersion.objects.filter(item__task_type=task.task_type, status="published").first()
+    assert version is not None
+    StudyTask = type(task)
+    StudyTask.objects.filter(pk=task.pk).update(
+        destination=f"/practice?difficulty=1&lesson={version.item.slug}",
+        state=StudyTaskState.COMPLETED,
+        completed_at=timezone.now(),
+    )
+
+    regenerate_plan(learner)
+    payload = api_client.get("/api/v1/me/study-plan/").json()
+    assert version.item.slug in payload["completed_lessons"]
+
+    # The historical task remains completable even after its plan is inactive.
+    response = api_client.patch(
+        f"/api/v1/me/study-plan/tasks/{task.pk}/",
+        {"state": "completed"},
+        format="json",
+    )
+    assert response.status_code == 200
+
+
 def test_plan_name_patch_and_consistency_payload(api_client, learner):
     call_command("seed_reading_content", verbosity=0, stdout=StringIO())
     plan = regenerate_plan(learner)
