@@ -64,6 +64,7 @@ export type StudyConsistency = {
     anchor: 'today' | 'yesterday' | null
   }
   window_days: number
+  today: string
   days: Array<{
     date: string
     skills: Record<Skill, boolean>

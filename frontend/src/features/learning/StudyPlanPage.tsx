@@ -36,9 +36,9 @@ function dayParts(date: string): { weekday: string; day: string } {
 /** 14-day strip showing which skills were completed on each day + the streak. */
 function StreakBar({ plan }: { plan: StudyPlan }) {
   const { streak, days } = plan.consistency
-  const today = days[days.length - 1]?.date
+  const today = plan.consistency.today
   return (
-    <Card>
+    <Card className="lg:max-w-4xl">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <CardTitle className="flex items-center gap-2">
           <Flame size={20} className="text-accent" aria-hidden />
@@ -56,7 +56,7 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
             : ' Anchored on the last completed day.'
           : ' Complete a task to start a streak.'}
       </p>
-      <div className="mt-4 grid grid-cols-7 gap-1.5">
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
         {days.map((day) => {
           const { weekday, day: dayNum } = dayParts(day.date)
           const isToday = day.date === today
@@ -64,21 +64,23 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
             <div
               key={day.date}
               aria-label={`${day.date}${day.completed ? ', completed' : ''}`}
-              className={`rounded-lg border p-1.5 text-center ${
-                isToday ? 'border-brand/40' : 'border-line-light'
-              } ${day.completed ? 'bg-good-soft/60' : 'bg-surface-secondary'}`}
+              className="flex w-9 shrink-0 flex-col items-center text-center"
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">
                 {weekday}
-              </p>
-              <p
-                className={`text-xs font-bold tabular-nums ${
-                  isToday ? 'text-brand' : 'text-ink'
+              </span>
+              <span
+                className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums ${
+                  isToday
+                    ? 'border-brand bg-brand text-white'
+                    : day.completed
+                      ? 'border-good bg-good-soft text-good'
+                      : 'border-line-light bg-surface-secondary text-ink'
                 }`}
               >
                 {dayNum}
-              </p>
-              <div className="mt-1 flex justify-center gap-[3px]">
+              </span>
+              <div className="mt-1.5 flex h-1.5 justify-center gap-[3px]">
                 {SKILLS.map((skill) => (
                   <span
                     key={skill}

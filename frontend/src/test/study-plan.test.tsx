@@ -49,6 +49,7 @@ function makeConsistency(completedDays: number): StudyConsistency {
       anchor: completedDays >= 1 ? 'today' : null,
     },
     window_days: 14,
+    today: '2026-08-29',
     days,
   }
 }

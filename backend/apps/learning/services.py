@@ -414,8 +414,9 @@ def study_plan_consistency(user, days: int = 14) -> dict:
     streak = study_streak({day for day, _ in completions.items()}, today)
 
     start = today - timedelta(days=days - 1)
+    end = max(start + timedelta(days=days - 1), profile.exam_date or start)
     days_payload = []
-    for offset in range(days):
+    for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
         day_skills = completions.get(day, set())
         days_payload.append(
@@ -428,7 +429,8 @@ def study_plan_consistency(user, days: int = 14) -> dict:
     return {
         "streak": streak,
         "days": days_payload,
-        "window_days": days,
+        "window_days": len(days_payload),
+        "today": today.isoformat(),
     }
 
 
