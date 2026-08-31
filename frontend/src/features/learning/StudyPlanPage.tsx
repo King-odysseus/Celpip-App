@@ -1,4 +1,11 @@
-import { CalendarRange, CheckCircle2, Flame, RefreshCcw } from 'lucide-react'
+import {
+  CalendarRange,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Flame,
+  RefreshCcw,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Card, CardTitle } from '../../components/ui'
@@ -41,6 +48,26 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
     const month = day.date.slice(0, 7)
     monthGroups.set(month, [...(monthGroups.get(month) ?? []), day])
   }
+  const availableMonths = [...monthGroups.keys()]
+  const initialMonthIndex = Math.max(0, availableMonths.indexOf(today.slice(0, 7)))
+  const [selectedMonth, setSelectedMonth] = useState(today.slice(0, 7))
+  const selectedMonthIndex = Math.max(
+    0,
+    availableMonths.indexOf(selectedMonth) === -1
+      ? initialMonthIndex
+      : availableMonths.indexOf(selectedMonth),
+  )
+  const visibleMonth = availableMonths[selectedMonthIndex]
+  const visibleDays = monthGroups.get(visibleMonth) ?? []
+  const monthLabel = visibleMonth
+    ? new Date(`${visibleMonth}-01T12:00:00`).toLocaleDateString(undefined, {
+        month: 'long',
+        year: 'numeric',
+      })
+    : ''
+  const firstWeekday = visibleDays.length
+    ? new Date(`${visibleDays[0].date}T12:00:00`).getDay()
+    : 0
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -60,26 +87,40 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
             : ' Anchored on the last completed day.'
           : ' Complete a task to start a streak.'}
       </p>
-      <div className="mt-5 space-y-6">
-        {[...monthGroups.entries()].map(([month, monthDays]) => {
-          const firstWeekday = new Date(`${monthDays[0].date}T12:00:00`).getDay()
-          const monthLabel = new Date(`${month}-01T12:00:00`).toLocaleDateString(undefined, {
-            month: 'long',
-            year: 'numeric',
-          })
-          return (
-            <section key={month} aria-label={monthLabel}>
-              <h3 className="mb-3 text-sm font-bold text-ink">{monthLabel}</h3>
-              <div className="grid grid-cols-7 gap-y-3 text-center">
-                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday, index) => (
-                  <span key={`${weekday}-${index}`} className="text-[10px] font-bold uppercase text-muted">
-                    {weekday}
-                  </span>
-                ))}
-                {Array.from({ length: firstWeekday }, (_, index) => (
-                  <span key={`empty-${index}`} aria-hidden />
-                ))}
-                {monthDays.map((day) => {
+      <section className="mt-5 max-w-xl" aria-label={monthLabel}>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-bold text-ink">{monthLabel}</h3>
+          <div className="flex gap-1">
+            <Button
+              variant="secondary"
+              className="h-9 min-h-9 w-9 p-0"
+              aria-label="Previous month"
+              disabled={selectedMonthIndex === 0}
+              onClick={() => setSelectedMonth(availableMonths[selectedMonthIndex - 1])}
+            >
+              <ChevronLeft size={17} />
+            </Button>
+            <Button
+              variant="secondary"
+              className="h-9 min-h-9 w-9 p-0"
+              aria-label="Next month"
+              disabled={selectedMonthIndex === availableMonths.length - 1}
+              onClick={() => setSelectedMonth(availableMonths[selectedMonthIndex + 1])}
+            >
+              <ChevronRight size={17} />
+            </Button>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-7 gap-y-3 text-center">
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday, index) => (
+            <span key={`${weekday}-${index}`} className="text-[10px] font-bold uppercase text-muted">
+              {weekday}
+            </span>
+          ))}
+          {Array.from({ length: firstWeekday }, (_, index) => (
+            <span key={`empty-${index}`} aria-hidden />
+          ))}
+          {visibleDays.map((day) => {
                   const { day: dayNum } = dayParts(day.date)
                   const isToday = day.date === today
                   return (
@@ -112,12 +153,9 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
                       </div>
                     </div>
                   )
-                })}
-              </div>
-            </section>
-          )
-        })}
-      </div>
+          })}
+        </div>
+      </section>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
         {SKILLS.map((skill) => (
           <span key={skill} className="flex items-center gap-1.5 text-xs text-muted">
