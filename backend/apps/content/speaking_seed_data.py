@@ -5,10 +5,14 @@ materials. Every scenario and all wording below are original to this project.
 """
 # ruff: noqa: E501
 
-SCENE_RECREATION = "/speaking/scene-recreation-centre.png"
-SCENE_MARKET = "/speaking/scene-farmers-market.png"
-UNUSUAL_INSTRUMENT = "/speaking/unusual-water-instrument.png"
-UNUSUAL_TRICYCLE = "/speaking/unusual-greenhouse-tricycle.png"
+# WebP rather than PNG: these are photographic scenes, where PNG's lossless
+# encoding cost ~3 MB each (~12 MB for the set). WebP holds the same 1536x1024
+# detail at roughly a tenth of the bytes, which matters most on mobile data
+# where the image gates the start of a Speaking task.
+SCENE_RECREATION = "/speaking/scene-recreation-centre.webp"
+SCENE_MARKET = "/speaking/scene-farmers-market.webp"
+UNUSUAL_INSTRUMENT = "/speaking/unusual-water-instrument.webp"
+UNUSUAL_TRICYCLE = "/speaking/unusual-greenhouse-tricycle.webp"
 
 
 SPEAKING_TASK_TYPES = [

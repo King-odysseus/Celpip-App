@@ -26,7 +26,11 @@ class ContentCatalogView(ListAPIView):
     skill = Skill.READING
 
     def get_queryset(self):
-        queryset = published_versions(self.skill)
+        # ContentCatalogSerializer exposes only item-level fields, so the
+        # question/choice prefetch that published_versions() sets up for the
+        # detail view is pure overhead here — two extra queries plus the model
+        # instantiation for every question and choice on the page.
+        queryset = published_versions(self.skill).prefetch_related(None)
         task_type = self.request.query_params.get("task_type")
         difficulty = self.request.query_params.get("difficulty")
         if task_type:

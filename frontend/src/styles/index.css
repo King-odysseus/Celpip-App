@@ -81,9 +81,12 @@
   --color-warn: var(--color-warning);
   --color-warn-soft: var(--color-warning-bg);
 
-  /* ── Motion ── */
-  --animate-fade-in: fade-in 0.4s ease-out both;
-  --animate-fade-up: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  /* ── Motion ──
+     Page-level entrances stay short: fade-up runs on every route change, and
+     because it starts at opacity 0 its duration is felt as navigation latency
+     rather than as polish. */
+  --animate-fade-in: fade-in 0.2s ease-out both;
+  --animate-fade-up: fade-up 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-scale-in: scale-in 0.25s ease-out both;
   --animate-slide-up: slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 
@@ -105,6 +108,20 @@
   @keyframes slide-up {
     from { opacity: 0; transform: translateY(100%); }
     to { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* Respect a system request for reduced motion: keep the end state, drop the
+   travel. Animations use `both`, so they must still run to hold their final
+   frame — collapsing the duration is what removes the movement. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

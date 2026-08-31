@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # How long authenticated learners can revisit an AI feedback artifact (the
 # transcript + analysis + score). After this, the retention command purges it.
 # The audio recording is dropped much earlier — immediately once feedback lands.
-FEEDBACK_RETENTION_DAYS = 50
+FEEDBACK_RETENTION_DAYS = 180
 
 
 def discard_speaking_audio(submission) -> None:

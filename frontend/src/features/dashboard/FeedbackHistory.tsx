@@ -124,7 +124,7 @@ function ChevronDownIcon() {
 
 /**
  * Revisitable AI-assisted feedback (transcript + analysis + score) for the last
- * 50 days, newest first. Audio is never shown — it is discarded after analysis.
+ * 6 months, newest first. Audio is never shown — it is discarded after analysis.
  */
 export function FeedbackHistory() {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
@@ -157,7 +157,7 @@ export function FeedbackHistory() {
       </CardTitle>
       <p className="mt-1 text-sm text-muted">
         AI-assisted transcript, analysis, and score for your recent Writing and
-        Speaking attempts, kept for 50 days.
+        Speaking attempts, kept for 6 months.
       </p>
       {error ? (
         <p role="alert" className="mt-3 rounded-input bg-bad-soft p-3 text-bad">{error}</p>
