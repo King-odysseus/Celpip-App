@@ -22,10 +22,12 @@ export function ReadingCatalogPage({
 }) {
   const navigate = useNavigate()
   const { status: authStatus } = useAuth()
+  const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
+  const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
   const [taskTypes, setTaskTypes] = useState<ReadingTaskType[]>([])
   const [items, setItems] = useState<ReadingCatalogItem[]>([])
   const [taskFilter, setTaskFilter] = useState('all')
-  const [difficulty, setDifficulty] = useState('all')
+  const [difficulty, setDifficulty] = useState(requestedDifficulty ?? 'all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
@@ -35,12 +37,16 @@ export function ReadingCatalogPage({
     let active = true
     Promise.all([
       api.get<ReadingTaskType[]>(`/content/task-types/?skill=${skill}`),
-      fetchAllPages<ReadingCatalogItem>(`/content/${skill}/`),
+      fetchAllPages<ReadingCatalogItem>(
+        `/content/${skill}/${requestedDifficulty ? `?difficulty=${requestedDifficulty}` : ''}`,
+      ),
     ])
       .then(([types, catalog]) => {
         if (!active) return
         setTaskTypes(types)
         setItems(catalog)
+        const lesson = requestedLesson && catalog.find((item) => item.slug === requestedLesson)
+        if (lesson) void begin(lesson)
       })
       .catch((reason: unknown) => {
         if (active) setError(reason instanceof Error ? reason.message : 'Could not load Reading practice.')

@@ -26,9 +26,12 @@ const timings: Record<string, { prep: string; total: number; response: number }>
 export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   const navigate = useNavigate()
   const { status: authStatus } = useAuth()
+  const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
+  const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
   const [taskTypes, setTaskTypes] = useState<SpeakingTaskType[]>([])
   const [items, setItems] = useState<SpeakingCatalogItem[]>([])
   const [filter, setFilter] = useState('all')
+  const [difficulty] = useState(requestedDifficulty ?? 'all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
@@ -38,12 +41,16 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
     let active = true
     Promise.all([
       api.get<SpeakingTaskType[]>('/content/task-types/?skill=speaking'),
-      fetchAllPages<SpeakingCatalogItem>('/content/speaking/'),
+      fetchAllPages<SpeakingCatalogItem>(
+        `/content/speaking/${requestedDifficulty ? `?difficulty=${requestedDifficulty}` : ''}`,
+      ),
     ])
       .then(([types, catalog]) => {
         if (active) {
           setTaskTypes(types)
           setItems(catalog)
+          const lesson = requestedLesson && catalog.find((item) => item.slug === requestedLesson)
+          if (lesson) void begin(lesson)
         }
       })
       .catch((reason: unknown) => {
@@ -56,8 +63,8 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   }, [])
 
   const filtered = useMemo(
-    () => items.filter((item) => (filter === 'all' || item.task_type === filter) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
-    [filter, items, search],
+    () => items.filter((item) => (filter === 'all' || item.task_type === filter) && (difficulty === 'all' || item.difficulty === Number(difficulty)) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
+    [difficulty, filter, items, search],
   )
   const isLearn = mode === 'learn'
 

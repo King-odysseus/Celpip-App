@@ -217,6 +217,7 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
       target_writing: form.target_writing,
       target_speaking: form.target_speaking,
       daily_minutes: minutes,
+      mock_interval_days: form.mock_interval_days ?? 7,
       preferred_weekdays: form.preferred_weekdays,
       timezone: form.timezone,
       practice_narration_voice: form.practice_narration_voice ?? 'automatic',
@@ -391,6 +392,17 @@ export function ProfileForm({ profile }: { profile: LearnerProfile }) {
           })}
         </div>
       </fieldset>
+
+      <Field
+        label="Full mock interval (days)"
+        name="mock_interval_days"
+        type="number"
+        min={1}
+        max={30}
+        value={form.mock_interval_days ?? 7}
+        onChange={(e) => set('mock_interval_days', Number(e.target.value))}
+        hint="Your Study Plan will remind you to complete a full mock at this interval."
+      />
 
       <div className="block">
         <label

@@ -19,6 +19,7 @@ from .services import (
     RECENT_RESULTS_LIMIT,
     SKILL_LABELS,
     DESTINATIONS,
+    recommended_difficulty,
     _skill_priority,
     progress_payload,
 )
@@ -176,30 +177,6 @@ def analytics_payload(user) -> dict:
     }
 
 
-def _recommended_difficulty(summary: dict) -> int:
-    """Map a skill's own performance onto the 1-3 difficulty bank.
-
-    Objective accuracy is the primary signal; AI-assisted estimates fall back to
-    the midpoint (1-12 scale). Unpractised skills start on the easier bank so a
-    first attempt is approachable rather than overwhelming.
-    """
-    if summary["accuracy_percent"] is not None:
-        accuracy = summary["accuracy_percent"]
-        if accuracy >= 80:
-            return 3
-        if accuracy >= 55:
-            return 2
-        return 1
-    if summary["estimate_low"] is not None:
-        midpoint = (summary["estimate_low"] + summary["estimate_high"]) / 2
-        if midpoint >= 8:
-            return 3
-        if midpoint >= 5:
-            return 2
-        return 1
-    return 1
-
-
 def _published_for(task_type: TaskType, difficulty: int | None) -> ContentVersion | None:
     queryset = ContentVersion.objects.filter(
         item__task_type=task_type, status=PublicationStatus.PUBLISHED
@@ -238,7 +215,7 @@ def recommendation_payload(user) -> dict:
     weakest = max(priorities, key=lambda skill: priorities[skill])
     summaries = {summary["skill"]: summary for summary in progress["skills"]}
     task_stats = {stat["task_type"]: stat for stat in progress["task_types"]}
-    difficulty = _recommended_difficulty(summaries[weakest])
+    difficulty = recommended_difficulty(summaries[weakest])
     basis["weakest_skill"] = weakest
     basis["target_difficulty"] = difficulty
 

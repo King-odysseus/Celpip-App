@@ -104,6 +104,30 @@ describe('Reading catalog', () => {
 })
 
 describe('Reading player', () => {
+  it('renders an image when Reading content provides one', async () => {
+    const imageSession = {
+      ...session,
+      content: {
+        ...session.content,
+        stimulus: {
+          ...session.content.stimulus,
+          image_url: '/reading/utility-rate-comparison.png',
+          image_alt: 'Comparison of household utility plans',
+        },
+      },
+    }
+    sessionStorage.setItem(`celpip-guest-${session.id}`, 'guest-token')
+    installRouteFetch({
+      [`GET /sessions/${session.id}/`]: () => jsonResponse(imageSession),
+    })
+    renderApp(`/reading/session/${session.id}`)
+
+    expect(await screen.findByRole('img', { name: 'Comparison of household utility plans' })).toHaveAttribute(
+      'src',
+      '/reading/utility-rate-comparison.png',
+    )
+  })
+
   it('saves an answer and shows immediate feedback in Learn mode', async () => {
     const user = userEvent.setup()
     sessionStorage.setItem(`celpip-guest-${session.id}`, 'guest-token')

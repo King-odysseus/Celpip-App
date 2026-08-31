@@ -116,6 +116,20 @@ def test_plan_rotates_every_available_skill_and_versions_explanations(learner):
     assert StudyPlan.objects.filter(user=learner, is_active=True).count() == 1
 
 
+def test_plan_includes_all_four_skills_on_each_study_day(learner):
+    _all_skill_task_types()
+
+    plan = regenerate_plan(learner)
+
+    for date in set(plan.tasks.values_list("scheduled_date", flat=True)):
+        assert set(plan.tasks.filter(scheduled_date=date).values_list("skill", flat=True)) == {
+            "listening",
+            "reading",
+            "writing",
+            "speaking",
+        }
+
+
 def test_plan_runs_through_a_future_exam_date(learner):
     _all_skill_task_types()
     profile, _ = LearnerProfile.objects.get_or_create(user=learner)

@@ -118,6 +118,7 @@ class LearnerProfileSerializer(serializers.ModelSerializer):
             "target_writing",
             "target_speaking",
             "daily_minutes",
+            "mock_interval_days",
             "preferred_weekdays",
             "timezone",
             "practice_narration_voice",
@@ -147,6 +148,7 @@ class LearnerProfileSerializer(serializers.ModelSerializer):
                 "max_value": MAX_TARGET_LEVEL,
             },
             "daily_minutes": {"min_value": 5, "max_value": 600},
+            "mock_interval_days": {"min_value": 1, "max_value": 30},
         }
 
     def validate_preferred_weekdays(self, value: list[int]) -> list[int]:

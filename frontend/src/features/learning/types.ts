@@ -77,7 +77,7 @@ export type StudyPlan = {
   version: number
   generated_at: string
   name: string
-  reason_summary: { priorities: Record<Skill, number>; rule: string; source_attempts: number }
+  reason_summary: { priorities: Record<Skill, number>; rule: string; source_attempts: number; mock_interval_days?: number }
   tasks: StudyTask[]
   consistency: StudyConsistency
 }

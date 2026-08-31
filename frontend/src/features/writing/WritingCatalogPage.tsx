@@ -28,9 +28,12 @@ function durationLabel(taskCode: string): string {
 export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
   const navigate = useNavigate()
   const { status: authStatus } = useAuth()
+  const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
+  const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
   const [taskTypes, setTaskTypes] = useState<WritingTaskType[]>([])
   const [items, setItems] = useState<WritingCatalogItem[]>([])
   const [taskFilter, setTaskFilter] = useState('all')
+  const [difficulty] = useState(requestedDifficulty ?? 'all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
@@ -40,12 +43,16 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
     let active = true
     Promise.all([
       api.get<WritingTaskType[]>('/content/task-types/?skill=writing'),
-      fetchAllPages<WritingCatalogItem>('/content/writing/'),
+      fetchAllPages<WritingCatalogItem>(
+        `/content/writing/${requestedDifficulty ? `?difficulty=${requestedDifficulty}` : ''}`,
+      ),
     ])
       .then(([types, catalog]) => {
         if (!active) return
         setTaskTypes(types)
         setItems(catalog)
+        const lesson = requestedLesson && catalog.find((item) => item.slug === requestedLesson)
+        if (lesson) void begin(lesson)
       })
       .catch((reason: unknown) =>
         active && setError(reason instanceof Error ? reason.message : 'Could not load Writing practice.'),
@@ -57,8 +64,8 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
   }, [])
 
   const filtered = useMemo(
-    () => items.filter((item) => (taskFilter === 'all' || item.task_type === taskFilter) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
-    [items, taskFilter, search],
+    () => items.filter((item) => (taskFilter === 'all' || item.task_type === taskFilter) && (difficulty === 'all' || item.difficulty === Number(difficulty)) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
+    [items, taskFilter, difficulty, search],
   )
 
   async function begin(item: WritingCatalogItem) {

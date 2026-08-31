@@ -42,7 +42,9 @@ function dayParts(date: string): { day: string } {
 /** Calendar showing which skills were completed on each day + the streak. */
 function StreakBar({ plan }: { plan: StudyPlan }) {
   const { streak, days } = plan.consistency
-  const today = plan.consistency.today
+  // Older cached plan payloads may not include the consistency strip's
+  // `today` field; use the latest supplied day so the page remains usable.
+  const today = plan.consistency.today ?? days.at(-1)?.date ?? new Date().toISOString().slice(0, 10)
   const monthGroups = new Map<string, typeof days>()
   for (const day of days) {
     const month = day.date.slice(0, 7)
@@ -323,6 +325,10 @@ export function StudyPlanPage() {
                 <p className="mt-1 text-xs text-muted">
                   Based on {plan.reason_summary.source_attempts} completed attempt(s).
                   Every recommendation displays its reason.
+                </p>
+                <p className="mt-2 text-xs font-semibold text-brand">
+                  Full mock checkpoint every {plan.reason_summary.mock_interval_days ?? 7} days.
+                  Change this in your profile settings.
                 </p>
               </div>
               <PlanNameInput plan={plan} onSaved={setPlan} />

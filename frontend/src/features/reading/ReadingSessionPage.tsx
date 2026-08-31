@@ -443,9 +443,26 @@ function SessionTimer({ deadline, serverNow }: { deadline: string; serverNow: st
 
 function Stimulus({ stimulus }: { stimulus: Record<string, unknown> }) {
   const type = String(stimulus.type ?? '')
+  const imageUrl = typeof stimulus.image_url === 'string' ? stimulus.image_url : ''
+  const imageAlt = typeof stimulus.image_alt === 'string'
+    ? stimulus.image_alt
+    : 'Illustration for this Reading practice'
+  const image = imageUrl ? (
+    <figure className="mb-5 overflow-hidden rounded-input border border-line bg-surface-secondary">
+      <img
+        className="max-h-[28rem] w-full object-contain"
+        src={imageUrl}
+        alt={imageAlt}
+      />
+      <figcaption className="border-t border-line px-4 py-2 text-xs text-muted">
+        Reference image
+      </figcaption>
+    </figure>
+  ) : null
   if (type === 'email') {
     return (
       <article className="overflow-hidden rounded-input border border-line bg-surface">
+        {image}
         <dl className="grid grid-cols-[4rem_1fr] gap-x-2 gap-y-1 border-b border-line bg-surface-secondary p-4 text-sm">
           <dt className="font-bold text-muted">From</dt><dd>{String(stimulus.from)}</dd>
           <dt className="font-bold text-muted">To</dt><dd>{String(stimulus.to)}</dd>
@@ -460,6 +477,7 @@ function Stimulus({ stimulus }: { stimulus: Record<string, unknown> }) {
     const rows = stimulus.rows as string[][]
     return (
       <div>
+        {image}
         <h2 className="mb-3 text-xl font-bold text-ink">{String(stimulus.title)}</h2>
         <div className="overflow-x-auto rounded-input border border-line">
           <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
@@ -473,11 +491,11 @@ function Stimulus({ stimulus }: { stimulus: Record<string, unknown> }) {
   }
   if (type === 'article') {
     const sections = stimulus.sections as Array<{ heading: string; body: string }>
-    return <article><h2 className="text-xl font-bold text-ink">{String(stimulus.title)}</h2>{sections.map((section) => <section key={section.heading} className="mt-5"><h3 className="font-bold text-ink">{section.heading}</h3><p className="mt-1 text-sm leading-7 text-ink">{section.body}</p></section>)}</article>
+    return <article>{image}<h2 className="text-xl font-bold text-ink">{String(stimulus.title)}</h2>{sections.map((section) => <section key={section.heading} className="mt-5"><h3 className="font-bold text-ink">{section.heading}</h3><p className="mt-1 text-sm leading-7 text-ink">{section.body}</p></section>)}</article>
   }
   if (type === 'viewpoints') {
     const speakers = stimulus.speakers as Array<{ name: string; position: string; body: string }>
-    return <article><h2 className="text-xl font-bold text-ink">{String(stimulus.title)}</h2><p className="mt-2 text-sm leading-7 text-muted">{String(stimulus.background)}</p><div className="mt-5 space-y-4">{speakers.map((speaker) => <section key={speaker.name} className="rounded-input border border-line p-4"><h3 className="font-bold text-ink">{speaker.name}</h3><p className="text-xs font-semibold uppercase tracking-wide text-accent">{speaker.position}</p><p className="mt-2 text-sm leading-7 text-ink">{speaker.body}</p></section>)}</div></article>
+    return <article>{image}<h2 className="text-xl font-bold text-ink">{String(stimulus.title)}</h2><p className="mt-2 text-sm leading-7 text-muted">{String(stimulus.background)}</p><div className="mt-5 space-y-4">{speakers.map((speaker) => <section key={speaker.name} className="rounded-input border border-line p-4"><h3 className="font-bold text-ink">{speaker.name}</h3><p className="text-xs font-semibold uppercase tracking-wide text-accent">{speaker.position}</p><p className="mt-2 text-sm leading-7 text-ink">{speaker.body}</p></section>)}</div></article>
   }
   return <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(stimulus, null, 2)}</pre>
 }

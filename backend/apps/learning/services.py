@@ -20,7 +20,7 @@ from apps.assessments.models import (
     SpeakingSubmission,
     WritingSubmission,
 )
-from apps.content.models import Question, Skill, TaskType
+from apps.content.models import ContentVersion, PublicationStatus, Question, Skill, TaskType
 
 from .models import (
     MistakeRecord,
@@ -251,11 +251,33 @@ def _skill_priority(progress: dict) -> dict[str, float]:
     return priorities
 
 
+def recommended_difficulty(summary: dict) -> int:
+    """Choose a graduated 1–3 practice difficulty for one skill."""
+    if summary["accuracy_percent"] is not None:
+        accuracy = summary["accuracy_percent"]
+        if accuracy >= 80:
+            return 3
+        if accuracy >= 55:
+            return 2
+        return 1
+    if summary["estimate_low"] is not None:
+        midpoint = (summary["estimate_low"] + summary["estimate_high"]) / 2
+        if midpoint >= 8:
+            return 3
+        if midpoint >= 5:
+            return 2
+    return 1
+
+
 @transaction.atomic
 def regenerate_plan(user) -> StudyPlan:
     profile = _profile_for(user)
     progress = progress_payload(user)
     priorities = _skill_priority(progress)
+    difficulty_by_skill = {
+        summary["skill"]: recommended_difficulty(summary)
+        for summary in progress["skills"]
+    }
     previous = StudyPlan.objects.filter(user=user, is_active=True).first()
     version = (
         StudyPlan.objects.filter(user=user)
@@ -286,6 +308,7 @@ def regenerate_plan(user) -> StudyPlan:
             "priorities": priorities,
             "rule": "Unpractised and weaker skills come first; every skill remains in rotation.",
             "source_attempts": sum(item["attempts"] for item in progress["skills"]),
+            "mock_interval_days": profile.mock_interval_days,
         },
     )
     mistakes = {
@@ -304,7 +327,6 @@ def regenerate_plan(user) -> StudyPlan:
     )
     if not ranked:
         return plan
-    rotation = cycle(ranked + ranked[:2])
     local_today = timezone.now().astimezone(ZoneInfo(profile.timezone)).date()
     preferred = set(profile.preferred_weekdays or range(1, 8))
     study_dates = []
@@ -324,27 +346,63 @@ def regenerate_plan(user) -> StudyPlan:
         cursor += timedelta(days=1)
     if not study_dates:
         study_dates = [local_today]
-    tasks_per_day = max(1, min(3, profile.daily_minutes // 15))
+    # A plan should give every available CELPIP skill a place on each study
+    # day.  The old three-task cap meant a learner could get Reading,
+    # Listening, and Writing while Speaking was silently left out of a short
+    # plan (especially when only one preferred study day was selected).
+    # Split the learner's daily budget across the available skills instead.
+    tasks_per_day = len(ranked)
     minutes = max(5, profile.daily_minutes // tasks_per_day)
     type_offsets = defaultdict(int)
     for scheduled_date in study_dates:
+        # Restart the rotation for each day so all available skills are
+        # represented on that day, regardless of how many tasks the prior day
+        # contained.
+        rotation = cycle(ranked)
         for order in range(1, tasks_per_day + 1):
             skill = next(rotation)
             choices = task_types[skill]
             task_type = choices[type_offsets[skill] % len(choices)]
             type_offsets[skill] += 1
             mistake_count = mistakes.get(skill, 0)
-            reason = f"{SKILL_LABELS[skill]} priority {priorities[skill]:g}. " + (
+            difficulty = difficulty_by_skill[skill]
+            difficulty_name = {1: "Foundation", 2: "Developing", 3: "Challenge"}[difficulty]
+            lesson = (
+                ContentVersion.objects.filter(
+                    item__task_type=task_type,
+                    item__difficulty=difficulty,
+                    status=PublicationStatus.PUBLISHED,
+                )
+                .order_by("item__slug")
+                .first()
+            )
+            if lesson is None:
+                lesson = (
+                    ContentVersion.objects.filter(
+                        item__task_type=task_type,
+                        status=PublicationStatus.PUBLISHED,
+                    )
+                    .order_by("item__difficulty", "item__slug")
+                    .first()
+                )
+            lesson_label = (
+                f"Lesson: {lesson.item.title}. "
+                if lesson is not None
+                else "Choose a lesson from this task family. "
+            )
+            reason = (
+                f"{SKILL_LABELS[skill]} priority {priorities[skill]:g}. "
+                f"Start at {difficulty_name} difficulty ({difficulty}/3). "
+                + lesson_label
+                + (
                 f"You have {mistake_count} open mistake pattern(s)."
                 if mistake_count
                 else "This keeps all four skills in rotation."
+                )
             )
-            destination = {
-                Skill.READING: "/practice",
-                Skill.LISTENING: "/practice/listening",
-                Skill.WRITING: "/practice/writing",
-                Skill.SPEAKING: "/practice/speaking",
-            }[skill]
+            destination = f"{DESTINATIONS[skill]}?difficulty={difficulty}"
+            if lesson is not None:
+                destination += f"&lesson={lesson.item.slug}"
             carried = carry.get((scheduled_date, skill))
             StudyTask.objects.create(
                 plan=plan,
@@ -352,7 +410,7 @@ def regenerate_plan(user) -> StudyPlan:
                 order=order,
                 skill=skill,
                 task_type=task_type,
-                title=f"Practise {task_type.title}",
+                title=f"Practise {lesson.item.title if lesson is not None else task_type.title}",
                 minutes=minutes,
                 reason=reason,
                 destination=destination,

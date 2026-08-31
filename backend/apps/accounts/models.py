@@ -211,6 +211,11 @@ class LearnerProfile(models.Model):
         validators=[MinValueValidator(5), MaxValueValidator(600)],
         help_text="Minutes of study the learner plans per study day.",
     )
+    mock_interval_days = models.PositiveSmallIntegerField(
+        default=7,
+        validators=[MinValueValidator(1), MaxValueValidator(30)],
+        help_text="Days between full mock-test checkpoints.",
+    )
     preferred_weekdays = models.JSONField(
         default=default_preferred_weekdays,
         help_text="ISO weekday numbers (Mon=1 … Sun=7) the learner will study.",
