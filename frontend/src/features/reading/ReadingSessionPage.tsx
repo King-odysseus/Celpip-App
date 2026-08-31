@@ -302,6 +302,31 @@ function AudioPlayer({ session }: { session: ReadingSession }) {
   const duration = Math.ceil(audio.duration_ms / 1000)
   const onePlayEnded = audio.playback_policy === 'one_play' && ended
 
+  // Learn audio can be replayed, so obtain its short-lived stream URL while
+  // the player is loading. Waiting for this request after a Play click loses
+  // the browser's user-activation window and commonly requires extra clicks.
+  useEffect(() => {
+    if (audio.playback_policy === 'one_play' || url) return
+    let active = true
+    void api
+      .post<AudioAccess>(
+        `/sessions/${session.id}/media/${audio.asset_id}/access/`,
+        undefined,
+        tokenHeaders(session.id),
+      )
+      .then((access) => {
+        if (!active) return
+        setUrl(access.url)
+        if (element.current) element.current.src = access.url
+      })
+      .catch(() => {
+        // Keep the explicit Play action as a retry path if the warm-up fails.
+      })
+    return () => {
+      active = false
+    }
+  }, [audio.asset_id, audio.playback_policy, session.id, url])
+
   async function togglePlayback() {
     if (playing) {
       element.current?.pause()
