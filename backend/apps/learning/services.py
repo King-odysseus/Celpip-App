@@ -420,6 +420,24 @@ def regenerate_plan(user) -> StudyPlan:
     return plan
 
 
+def _task_destination(task: StudyTask) -> str:
+    """Resolve legacy generic plan links to a concrete published lesson."""
+    if "lesson=" in task.destination:
+        return task.destination
+    lesson = (
+        ContentVersion.objects.filter(
+            item__task_type=task.task_type,
+            status=PublicationStatus.PUBLISHED,
+        )
+        .order_by("item__difficulty", "item__slug")
+        .first()
+    )
+    if lesson is None:
+        return task.destination
+    separator = "&" if "?" in task.destination else "?"
+    return f"{task.destination}{separator}lesson={lesson.item.slug}"
+
+
 def _task_payload(task: StudyTask) -> dict:
     return {
         "id": task.pk,
@@ -430,7 +448,7 @@ def _task_payload(task: StudyTask) -> dict:
         "title": task.title,
         "minutes": task.minutes,
         "reason": task.reason,
-        "destination": task.destination,
+        "destination": _task_destination(task),
         "state": task.state,
         "completed_at": task.completed_at,
     }

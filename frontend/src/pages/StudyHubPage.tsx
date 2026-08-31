@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { Card } from '../components/ui'
 
 const studyLinks = [
+  { to: '/study-plan', title: 'Study plan', description: 'Follow a schedule shaped around your target and recent activity.', icon: CalendarRange },
   { to: '/learn', title: 'Reading', description: 'Build comprehension with guided passages and task strategies.', icon: BookOpen },
   { to: '/learn/listening', title: 'Listening', description: 'Study conversations, announcements, and viewpoints with feedback.', icon: Headphones },
   { to: '/learn/writing', title: 'Writing', description: 'Learn how to structure emails and survey responses.', icon: PenLine },
   { to: '/learn/speaking', title: 'Speaking', description: 'Plan responses and practise each speaking task type.', icon: Mic2 },
-  { to: '/study-plan', title: 'Study plan', description: 'Follow a schedule shaped around your target and recent activity.', icon: CalendarRange },
 ]
 
 export function StudyHubPage() {

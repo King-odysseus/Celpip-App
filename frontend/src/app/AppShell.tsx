@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ChevronRight, GraduationCap, LogIn, MoreHorizontal, UserPlus, UserRound, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, LogIn, MoreHorizontal, Timer, UserPlus, UserRound, X } from 'lucide-react'
 import {
   mobileOverflowNav,
   mobilePrimaryNav,
-  primaryNav,
 } from './navigation'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { AccountControl } from '../components/AccountControl'
@@ -223,15 +222,97 @@ function MoreMenu({
   )
 }
 
+const desktopGroups = [
+  {
+    label: 'Study',
+    to: '/study',
+    items: [
+      { to: '/study-plan', label: 'Study Plan' },
+      { to: '/learn', label: 'Reading Learn' },
+      { to: '/learn/listening', label: 'Listening Learn' },
+      { to: '/learn/writing', label: 'Writing Learn' },
+      { to: '/learn/speaking', label: 'Speaking Learn' },
+    ],
+  },
+  {
+    label: 'Practice',
+    to: '/practice',
+    items: [
+      { to: '/practice', label: 'Reading Practice' },
+      { to: '/practice/listening', label: 'Listening Practice' },
+      { to: '/practice/writing', label: 'Writing Practice' },
+      { to: '/practice/speaking', label: 'Speaking Practice' },
+    ],
+  },
+  {
+    label: 'Review',
+    to: '/review',
+    items: [
+      { to: '/progress', label: 'Progress' },
+      { to: '/mistakes', label: 'Mistakes' },
+    ],
+  },
+] as const
+
+function DesktopNavGroup({
+  group,
+  open,
+  onToggle,
+}: {
+  group: (typeof desktopGroups)[number]
+  open: boolean
+  onToggle: () => void
+}) {
+  const location = useLocation()
+  const active = location.pathname === group.to || group.items.some((item) => location.pathname === item.to)
+  return (
+    <div className="relative flex items-center">
+      <NavLink
+        to={group.to}
+        className={`flex min-h-11 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${active ? 'bg-brand-soft text-brand' : 'text-muted hover:text-ink'}`}
+      >
+        {group.label}
+      </NavLink>
+      <button
+        type="button"
+        aria-label={`${group.label} menu`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={onToggle}
+        className="-ml-2 flex min-h-11 items-center rounded-full px-2 text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+      >
+        <ChevronDown size={15} className={open ? 'rotate-180 transition-transform' : 'transition-transform'} />
+      </button>
+      {open && (
+        <div role="menu" className="absolute top-full right-0 z-50 mt-2 min-w-52 rounded-2xl border border-line bg-surface p-2 shadow-elevated">
+          {group.items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              role="menuitem"
+              onClick={onToggle}
+              className={({ isActive }) => `block rounded-xl px-3 py-2.5 text-sm font-medium ${isActive ? 'bg-brand-soft text-brand' : 'text-ink hover:bg-surface-secondary'}`}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AppShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [desktopMenu, setDesktopMenu] = useState<string | null>(null)
   const moreTriggerRef = useRef<HTMLButtonElement>(null)
 
   // Close the overflow sheet whenever navigation happens.
   useEffect(() => {
     setMoreOpen(false)
+    setDesktopMenu(null)
   }, [location.pathname])
 
   const moreActive = mobileOverflowNav.some(
@@ -296,21 +377,33 @@ export function AppShell() {
           </Link>
 
           <nav aria-label="Primary" className="ml-auto hidden items-center gap-1 lg:flex">
-            {primaryNav.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) =>
-                  `flex min-h-11 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-                    isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:text-ink'
-                  }`
-                }
-              >
-                <item.icon size={18} strokeWidth={1.9} />
-                <span>{item.label}</span>
-              </NavLink>
+            <NavLink
+              to="/"
+              end
+              className={({ isActive }) =>
+                `flex min-h-11 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:text-ink'}`
+              }
+            >
+              <LayoutDashboard size={18} strokeWidth={1.9} />
+              Dashboard
+            </NavLink>
+            {desktopGroups.map((group) => (
+              <DesktopNavGroup
+                key={group.to}
+                group={group}
+                open={desktopMenu === group.to}
+                onToggle={() => setDesktopMenu((current) => (current === group.to ? null : group.to))}
+              />
             ))}
+            <NavLink
+              to="/mock"
+              className={({ isActive }) =>
+                `flex min-h-11 items-center gap-2 rounded-full px-3.5 py-2.5 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:text-ink'}`
+              }
+            >
+              <Timer size={18} strokeWidth={1.9} />
+              Mock Test
+            </NavLink>
           </nav>
 
           <div className="ml-auto flex items-center gap-1 lg:ml-2">
