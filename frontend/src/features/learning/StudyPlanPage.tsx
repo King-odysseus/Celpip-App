@@ -25,18 +25,22 @@ const SKILL_LABEL: Record<Skill, string> = {
   speaking: 'Speaking',
 }
 
-function dayParts(date: string): { weekday: string; day: string } {
+function dayParts(date: string): { day: string } {
   const value = new Date(`${date}T12:00:00`)
   return {
-    weekday: value.toLocaleDateString(undefined, { weekday: 'narrow' }),
     day: value.toLocaleDateString(undefined, { day: 'numeric' }),
   }
 }
 
-/** 14-day strip showing which skills were completed on each day + the streak. */
+/** Calendar showing which skills were completed on each day + the streak. */
 function StreakBar({ plan }: { plan: StudyPlan }) {
   const { streak, days } = plan.consistency
   const today = plan.consistency.today
+  const monthGroups = new Map<string, typeof days>()
+  for (const day of days) {
+    const month = day.date.slice(0, 7)
+    monthGroups.set(month, [...(monthGroups.get(month) ?? []), day])
+  }
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -56,42 +60,61 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
             : ' Anchored on the last completed day.'
           : ' Complete a task to start a streak.'}
       </p>
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
-        {days.map((day) => {
-          const { weekday, day: dayNum } = dayParts(day.date)
-          const isToday = day.date === today
+      <div className="mt-5 space-y-6">
+        {[...monthGroups.entries()].map(([month, monthDays]) => {
+          const firstWeekday = new Date(`${monthDays[0].date}T12:00:00`).getDay()
+          const monthLabel = new Date(`${month}-01T12:00:00`).toLocaleDateString(undefined, {
+            month: 'long',
+            year: 'numeric',
+          })
           return (
-            <div
-              key={day.date}
-              aria-label={`${day.date}${day.completed ? ', completed' : ''}`}
-              className="flex w-9 shrink-0 flex-col items-center text-center"
-            >
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                {weekday}
-              </span>
-              <span
-                className={`mt-1 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums ${
-                  isToday
-                    ? 'border-brand bg-brand text-white'
-                    : day.completed
-                      ? 'border-good bg-good-soft text-good'
-                      : 'border-line-light bg-surface-secondary text-ink'
-                }`}
-              >
-                {dayNum}
-              </span>
-              <div className="mt-1.5 flex h-1.5 justify-center gap-[3px]">
-                {SKILLS.map((skill) => (
-                  <span
-                    key={skill}
-                    aria-hidden
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      day.skills[skill] ? SKILL_DOT[skill] : 'bg-line'
-                    }`}
-                  />
+            <section key={month} aria-label={monthLabel}>
+              <h3 className="mb-3 text-sm font-bold text-ink">{monthLabel}</h3>
+              <div className="grid grid-cols-7 gap-y-3 text-center">
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday, index) => (
+                  <span key={`${weekday}-${index}`} className="text-[10px] font-bold uppercase text-muted">
+                    {weekday}
+                  </span>
                 ))}
+                {Array.from({ length: firstWeekday }, (_, index) => (
+                  <span key={`empty-${index}`} aria-hidden />
+                ))}
+                {monthDays.map((day) => {
+                  const { day: dayNum } = dayParts(day.date)
+                  const isToday = day.date === today
+                  return (
+                    <div
+                      key={day.date}
+                      aria-label={`${day.date}${day.completed ? ', completed' : ''}`}
+                      className="flex min-h-12 flex-col items-center"
+                    >
+                      <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums ${
+                          isToday
+                            ? 'border-brand bg-brand text-white'
+                            : day.completed
+                              ? 'border-good bg-good-soft text-good'
+                              : 'border-line-light bg-surface-secondary text-ink'
+                        }`}
+                      >
+                        {dayNum}
+                      </span>
+                      <div className="mt-1.5 flex h-1.5 justify-center gap-[3px]">
+                        {SKILLS.map((skill) => (
+                          <span
+                            key={skill}
+                            aria-hidden
+                            className={`h-1.5 w-1.5 rounded-full ${
+                              day.skills[skill] ? SKILL_DOT[skill] : 'bg-line'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            </div>
+            </section>
           )
         })}
       </div>
