@@ -38,7 +38,7 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
   const { streak, days } = plan.consistency
   const today = plan.consistency.today
   return (
-    <Card className="lg:max-w-4xl">
+    <Card>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <CardTitle className="flex items-center gap-2">
           <Flame size={20} className="text-accent" aria-hidden />
