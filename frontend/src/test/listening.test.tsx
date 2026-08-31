@@ -78,8 +78,11 @@ describe('Listening player', () => {
       expect((accessCall?.[1]?.headers as Record<string, string>)['X-Guest-Token']).toBe(
         'private-guest-token',
       )
+      expect(HTMLMediaElement.prototype.play).toHaveBeenCalledTimes(1)
     })
     const audio = container.querySelector('audio')!
+    expect(audio.src).toContain('/api/v1/media/audio/asset/stream/?token=signed')
+    expect(screen.queryByText(/select play again/i)).not.toBeInTheDocument()
     fireEvent.play(audio)
     expect(screen.getByRole('button', { name: 'Pause practice audio' })).toBeInTheDocument()
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()

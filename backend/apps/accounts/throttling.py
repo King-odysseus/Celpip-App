@@ -22,6 +22,22 @@ class _IdentifierScopedThrottle(SimpleRateThrottle):
         return self.cache_format % {"scope": self.scope, "ident": ident}
 
 
+class _IPScopedThrottle(SimpleRateThrottle):
+    """Throttle an endpoint by client IP, independent of submitted data.
+
+    The identifier-scoped bucket is useful for stopping attacks against one
+    account, but it must be paired with an IP bucket on public endpoints. An
+    attacker should not be able to evade registration limits simply by sending
+    a different identifier on every request.
+    """
+
+    def get_cache_key(self, request, view):  # noqa: ANN001
+        return self.cache_format % {
+            "scope": self.scope,
+            "ident": self.get_ident(request),
+        }
+
+
 class LoginRateThrottle(_IdentifierScopedThrottle):
     scope = "auth_login"
 
@@ -32,3 +48,15 @@ class RegisterRateThrottle(_IdentifierScopedThrottle):
 
 class RecoveryRateThrottle(_IdentifierScopedThrottle):
     scope = "auth_recovery"
+
+
+class RegisterIPRateThrottle(_IPScopedThrottle):
+    scope = "auth_register_ip"
+
+
+class LoginIPRateThrottle(_IPScopedThrottle):
+    scope = "auth_login_ip"
+
+
+class RecoveryIPRateThrottle(_IPScopedThrottle):
+    scope = "auth_recovery_ip"

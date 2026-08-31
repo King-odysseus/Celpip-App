@@ -324,13 +324,22 @@ function AudioPlayer({ session }: { session: ReadingSession }) {
       setCurrentTime(0)
       setEnded(false)
       setUrl(access.url)
-      window.setTimeout(() => {
-        element.current?.play().catch(() => {
-          setError('Audio is ready. Select Play again to begin.')
-        })
-      }, 0)
+      const media = element.current
+      if (!media) throw new Error('Audio player is unavailable.')
+
+      // React applies the new `src` on its next render. Assign it to the media
+      // element immediately as well, then play without a timer so the browser
+      // can associate playback with this button click. Deferring with
+      // setTimeout caused mobile browsers to reject the first play attempt as
+      // autoplay, forcing learners to click twice.
+      media.src = access.url
+      await media.play()
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : 'Audio could not be prepared.')
+      setError(
+        reason instanceof ApiError
+          ? reason.message
+          : 'Audio could not start. Check your connection and try again.',
+      )
     } finally {
       setRequesting(false)
     }

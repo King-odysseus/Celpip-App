@@ -6,6 +6,7 @@ serialises the result. Business rules and state changes live in
 """
 from __future__ import annotations
 
+from django.conf import settings
 from django.middleware.csrf import get_token
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -27,8 +28,11 @@ from .serializers import (
     UserSerializer,
 )
 from .throttling import (
+    LoginIPRateThrottle,
     LoginRateThrottle,
+    RecoveryIPRateThrottle,
     RecoveryRateThrottle,
+    RegisterIPRateThrottle,
     RegisterRateThrottle,
 )
 
@@ -64,9 +68,17 @@ class CsrfView(APIView):
 class RegisterView(APIView):
     permission_classes = [AllowAny]
     authentication_classes: list = []
-    throttle_classes = [RegisterRateThrottle]
+    # Keep both controls: per-identifier limits slow attacks on one account;
+    # the IP-wide limit prevents bulk account creation with changing names.
+    throttle_classes = [RegisterRateThrottle, RegisterIPRateThrottle]
 
     def post(self, request: Request) -> Response:
+        if not settings.REGISTRATION_ENABLED:
+            return error(
+                "registration_disabled",
+                "New account registration is temporarily disabled.",
+                status.HTTP_403_FORBIDDEN,
+            )
         tokens.enforce_csrf(request)
         serializer = RegisterSerializer(data=request.data)
         if not serializer.is_valid():
@@ -98,7 +110,7 @@ class RegisterView(APIView):
 class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes: list = []
-    throttle_classes = [LoginRateThrottle]
+    throttle_classes = [LoginRateThrottle, LoginIPRateThrottle]
 
     def post(self, request: Request) -> Response:
         tokens.enforce_csrf(request)
@@ -181,7 +193,7 @@ class LogoutView(APIView):
 class RecoveryResetView(APIView):
     permission_classes = [AllowAny]
     authentication_classes: list = []
-    throttle_classes = [RecoveryRateThrottle]
+    throttle_classes = [RecoveryRateThrottle, RecoveryIPRateThrottle]
 
     def post(self, request: Request) -> Response:
         tokens.enforce_csrf(request)

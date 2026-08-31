@@ -4,7 +4,10 @@ import pytest
 from django.conf import settings
 
 from apps.accounts.models import RecoveryCode, User
-from apps.accounts.throttling import LoginRateThrottle
+from apps.accounts.throttling import (
+    LoginRateThrottle,
+    RegisterIPRateThrottle,
+)
 
 pytestmark = pytest.mark.django_db
 
@@ -42,6 +45,16 @@ def test_register_rejects_short_password(api_client):
         REGISTER_URL, {"identifier": "learner", "password": "12345"}, format="json"
     )
     assert resp.status_code == 400
+    assert not User.objects.filter(identifier="learner").exists()
+
+
+def test_registration_can_be_disabled(api_client, settings):
+    settings.REGISTRATION_ENABLED = False
+    resp = api_client.post(
+        REGISTER_URL, {"identifier": "learner", "password": "secret1"}, format="json"
+    )
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "registration_disabled"
     assert not User.objects.filter(identifier="learner").exists()
 
 
@@ -390,3 +403,21 @@ def test_login_is_throttled_by_identifier(api_client, monkeypatch):
     ]
     assert statuses[:3] == [401, 401, 401]
     assert statuses[3] == 429
+
+
+def test_registration_is_also_throttled_by_ip(api_client, monkeypatch):
+    monkeypatch.setattr(
+        RegisterIPRateThrottle,
+        "THROTTLE_RATES",
+        {**RegisterIPRateThrottle.THROTTLE_RATES, "auth_register_ip": "2/min"},
+    )
+    statuses = [
+        api_client.post(
+            REGISTER_URL,
+            {"identifier": f"learner-{index}", "password": "secret1"},
+            format="json",
+        ).status_code
+        for index in range(3)
+    ]
+    assert statuses[:2] == [201, 201]
+    assert statuses[2] == 429

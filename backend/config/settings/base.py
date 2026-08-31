@@ -166,6 +166,10 @@ REST_FRAMEWORK = {
         "auth_login": os.environ.get("THROTTLE_AUTH_LOGIN", "10/min"),
         "auth_register": os.environ.get("THROTTLE_AUTH_REGISTER", "10/hour"),
         "auth_recovery": os.environ.get("THROTTLE_AUTH_RECOVERY", "10/hour"),
+        # IP-wide companion buckets prevent evasion by changing identifiers.
+        "auth_login_ip": os.environ.get("THROTTLE_AUTH_LOGIN_IP", "30/min"),
+        "auth_register_ip": os.environ.get("THROTTLE_AUTH_REGISTER_IP", "5/hour"),
+        "auth_recovery_ip": os.environ.get("THROTTLE_AUTH_RECOVERY_IP", "5/hour"),
     },
     "EXCEPTION_HANDLER": "apps.core.exceptions.exception_handler",
 }
@@ -314,6 +318,11 @@ SERVICE_NAME = "celpip-backend"
 SERVICE_VERSION = "0.1.0"
 
 # ── Audited AI services ──────────────────────────────────────────────────
+# Registration can be closed operationally without changing the deployed code.
+# Keep enabled for local development; set REGISTRATION_ENABLED=false in
+# production while the service is private or during an incident.
+REGISTRATION_ENABLED = env_bool("REGISTRATION_ENABLED", default=True)
+
 # The fake provider keeps development/tests deterministic. Production can
 # switch to OpenAI without changing domain code. API responses are never
 # treated as official CELPIP scores and generated content remains a draft.

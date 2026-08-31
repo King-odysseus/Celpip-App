@@ -90,30 +90,27 @@ if [ "$bootstrap_content" = "true" ]; then
     echo "Practice-content bootstrap complete."
 fi
 
-# Natural-voice audio. Seeded Listening audio is locally/OS-synthesized
-# development audio; replace it with the configured remote provider (OpenAI by
-# default) using LISTENING_TTS_PROVIDER_ORDER / LISTENING_OPENAI_VOICES /
-# OPENAI_TTS_MODEL. `--only-local` targets just those assets and leaves any
-# remote recordings alone, so this is a no-op once audio is natural. It is
-# non-fatal: a transient provider outage must not take the whole app down, so
-# failures are logged and the app starts with the existing (working) audio.
-#
-# A voice/model change never applies to audio that is already natural unless
-# forced: set FORCE_REGENERATE_LISTENING_AUDIO=true for exactly one deploy to
-# re-synthesize every Listening asset with the current voices/model (e.g. after
-# switching the voice pair), then unset it so ordinary restarts stay fast and
-# don't re-spend on each restart.
-(
-    if [ "${FORCE_REGENERATE_LISTENING_AUDIO:-false}" = "true" ]; then
-        echo "Force-regenerating listening audio (FORCE_REGENERATE_LISTENING_AUDIO=true)..."
-        python manage.py regenerate_listening_audio --force \
-            || echo "WARNING: listening audio regeneration had failures; serving existing audio."
-    else
-        echo "Regenerating local-synthesized listening audio (if any)..."
-        python manage.py regenerate_listening_audio --only-local \
-            || echo "WARNING: listening audio regeneration had failures; serving existing audio."
-    fi
-) &
+# Natural-voice audio is deliberately opt-in. A startup hook that regenerates
+# every local recording can create a remote TTS request for every Listening
+# asset on every Railway restart when the provider order starts with OpenAI.
+# Existing bundled/local WAVs are already usable, so ordinary deploys must not
+# spend money regenerating them. Set REGENERATE_LISTENING_AUDIO_ON_START=true
+# for one deliberate migration, then unset it.
+if [ "${REGENERATE_LISTENING_AUDIO_ON_START:-false}" = "true" ]; then
+    (
+        if [ "${FORCE_REGENERATE_LISTENING_AUDIO:-false}" = "true" ]; then
+            echo "Force-regenerating listening audio..."
+            python manage.py regenerate_listening_audio --force \
+                || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+        else
+            echo "Regenerating local-synthesized listening audio..."
+            python manage.py regenerate_listening_audio --only-local \
+                || echo "WARNING: listening audio regeneration had failures; serving existing audio."
+        fi
+    ) &
+else
+    echo "Listening audio regeneration disabled at startup."
+fi
 
 # AI feedback worker. Speaking and Writing submissions enqueue an AIJob in the
 # database; this supervised loop claims and runs them, so learner feedback
