@@ -5,9 +5,10 @@ import {
   ChevronRight,
   Flame,
   RefreshCcw,
+  Timer,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, CardTitle } from '../../components/ui'
+import { Button, ButtonLink, Card, CardTitle } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import { AccountRequired } from './ProgressPage'
@@ -85,6 +86,7 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
   const firstWeekday = visibleDays.length
     ? new Date(`${visibleDays[0].date}T12:00:00`).getDay()
     : 0
+  const mockDates = new Set((plan.mock_checkpoints ?? []).map((checkpoint) => checkpoint.date))
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -168,6 +170,11 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
                           />
                         ))}
                       </div>
+                      {mockDates.has(day.date) && (
+                        <span className="mt-1 flex items-center gap-0.5 text-[9px] font-bold uppercase text-accent">
+                          <Timer size={10} aria-hidden /> Mock
+                        </span>
+                      )}
                     </div>
                   )
           })}
@@ -216,7 +223,7 @@ function PlanNameInput({
   }
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0 w-full">
       <label htmlFor="plan-name" className="text-xs font-semibold uppercase tracking-wider text-muted">
         Plan name
       </label>
@@ -232,7 +239,7 @@ function PlanNameInput({
         maxLength={120}
         disabled={saving}
         aria-describedby={saveError ? 'plan-name-error' : undefined}
-        className="mt-1 w-full min-w-0 rounded-input border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:opacity-60 sm:w-64"
+        className="mt-1 min-h-10 w-full min-w-0 rounded-input border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink placeholder:text-muted focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:opacity-60"
       />
       {saveError && (
         <p id="plan-name-error" role="alert" className="mt-1 text-xs text-bad">
@@ -268,7 +275,7 @@ function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan:
   }
 
   return (
-    <div className="min-w-44">
+    <div className="min-w-0 w-full">
       <label htmlFor="mock-interval" className="text-xs font-semibold uppercase tracking-wider text-muted">
         Mock/review interval
       </label>
@@ -285,7 +292,7 @@ function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan:
           onKeyDown={(event) => {
             if (event.key === 'Enter') event.currentTarget.blur()
           }}
-          className="w-20 rounded-input border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:opacity-60"
+          className="min-h-10 w-24 rounded-input border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:opacity-60"
         />
         <span className="text-sm text-muted">days</span>
       </div>
@@ -311,7 +318,7 @@ function DifficultyInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: S
   }
 
   return (
-    <div className="min-w-52">
+    <div className="min-w-0 w-full">
       <label htmlFor="plan-difficulty" className="text-xs font-semibold uppercase tracking-wider text-muted">
         Lesson difficulty
       </label>
@@ -328,7 +335,7 @@ function DifficultyInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: S
         <option value="challenge">Challenge · level 3</option>
       </select>
       <p className="mt-1 text-xs text-muted">
-        Adaptive uses objective results and AI-assisted Writing/Speaking estimates, then increases every three study days.
+        Adaptive uses your target, objective results, and AI-assisted Writing/Speaking estimates, then increases every three study days.
       </p>
       {plan.reason_summary.difficulty_by_skill && (
         <div className="mt-2 flex max-w-sm flex-wrap gap-1.5" aria-label="Starting difficulty by skill">
@@ -367,11 +374,16 @@ export function StudyPlanPage() {
   }, [status])
 
   const groups = useMemo(() => {
-    const result = new Map<string, StudyTask[]>()
+    const result = new Map<string, { tasks: StudyTask[]; mocks: NonNullable<StudyPlan['mock_checkpoints']> }>()
     for (const task of plan?.tasks ?? []) {
-      result.set(task.scheduled_date, [...(result.get(task.scheduled_date) ?? []), task])
+      const group = result.get(task.scheduled_date) ?? { tasks: [], mocks: [] }
+      result.set(task.scheduled_date, { ...group, tasks: [...group.tasks, task] })
     }
-    return [...result.entries()]
+    for (const checkpoint of plan?.mock_checkpoints ?? []) {
+      const group = result.get(checkpoint.date) ?? { tasks: [], mocks: [] }
+      result.set(checkpoint.date, { ...group, mocks: [...group.mocks, checkpoint] })
+    }
+    return [...result.entries()].sort(([left], [right]) => left.localeCompare(right))
   }, [plan])
 
   async function setState(task: StudyTask, state: StudyTask['state']) {
@@ -445,10 +457,10 @@ export function StudyPlanPage() {
                 </p>
                 <p className="mt-2 text-xs font-semibold text-brand">
                   Full mock checkpoint every {plan.reason_summary.mock_interval_days ?? 7} days.
-                  Change this in your profile settings.
+                  Change it below whenever your schedule changes.
                 </p>
               </div>
-              <div className="flex flex-wrap items-end gap-4">
+              <div className="grid w-full items-start gap-4 sm:grid-cols-2 xl:w-auto xl:min-w-[48rem] xl:grid-cols-[minmax(12rem,1fr)_minmax(20rem,1.5fr)_minmax(11rem,.8fr)]">
                 <PlanNameInput plan={plan} onSaved={setPlan} />
                 <DifficultyInput plan={plan} onSaved={setPlan} />
                 <MockIntervalInput plan={plan} onSaved={setPlan} />
@@ -459,7 +471,7 @@ export function StudyPlanPage() {
           <StreakBar plan={plan} />
 
           <div className="space-y-6">
-            {groups.map(([date, tasks]) => (
+            {groups.map(([date, day]) => (
               <section key={date}>
                 <h2 className="text-xl font-bold text-ink">
                   {new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
@@ -469,7 +481,20 @@ export function StudyPlanPage() {
                   })}
                 </h2>
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
-                  {tasks.map((task) => (
+                  {day.mocks.map((checkpoint) => (
+                    <Card key={`mock-${checkpoint.date}`} className="border-accent/40 bg-accent-soft/20 p-5">
+                      <div className="flex items-start gap-3">
+                        <span className="rounded-full bg-accent-fill p-2 text-white"><Timer size={19} aria-hidden /></span>
+                        <div>
+                          <p className="text-xs font-bold uppercase tracking-wider text-accent">Mock-test day</p>
+                          <h3 className="mt-1 font-bold text-ink">{checkpoint.title}</h3>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-muted">{checkpoint.reason}</p>
+                      <ButtonLink to={checkpoint.destination} className="mt-4">Open mock tests</ButtonLink>
+                    </Card>
+                  ))}
+                  {day.tasks.map((task) => (
                     <Card
                       key={task.id}
                       className={`p-5 ${task.state === 'completed' ? 'border-good/30 bg-good-soft/30' : ''}`}
@@ -480,16 +505,18 @@ export function StudyPlanPage() {
                             {SKILL_LABEL[task.skill]} · {task.minutes} min
                           </p>
                           <h3 className="mt-1 font-bold text-ink">{task.title}</h3>
-                          {taskDifficulty(task) && (
-                            <span className="mt-2 inline-flex rounded-full bg-info-bg px-2.5 py-1 text-xs font-semibold text-info">
-                              {DIFFICULTY_LABEL[taskDifficulty(task) ?? 1]} difficulty
-                            </span>
-                          )}
-                          {task.previously_completed && task.state !== 'completed' && (
-                            <span className="mt-2 inline-flex items-center rounded-full bg-good-soft px-2.5 py-1 text-xs font-semibold text-good">
-                              Previously completed
-                            </span>
-                          )}
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {taskDifficulty(task) && (
+                              <span className="inline-flex rounded-full bg-info-bg px-2.5 py-1 text-xs font-semibold text-info">
+                                {DIFFICULTY_LABEL[taskDifficulty(task) ?? 1]} difficulty
+                              </span>
+                            )}
+                            {task.previously_completed && task.state !== 'completed' && (
+                              <span className="inline-flex items-center rounded-full bg-good-soft px-2.5 py-1 text-xs font-semibold text-good">
+                                Previously completed
+                              </span>
+                            )}
+                          </div>
                         </div>
                         {task.state === 'completed' && (
                           <CheckCircle2 className="text-good" size={22} aria-label="Completed" />

@@ -12,7 +12,7 @@ from django.utils import timezone
 from apps.accounts.models import LearnerProfile, User
 from apps.content.models import ContentVersion
 from apps.learning.models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
-from apps.learning.services import regenerate_plan
+from apps.learning.services import recommended_difficulty, regenerate_plan
 
 pytestmark = pytest.mark.django_db
 
@@ -97,6 +97,56 @@ def test_progress_keeps_accuracy_separate_from_constructed_estimates(
     assert payload["coverage"] == {"practised_skills": 1, "total_skills": 4}
 
 
+def test_tips_cite_the_learners_own_weak_areas_before_generic_advice(
+    api_client, learner, django_capture_on_commit_callbacks
+):
+    """A practised skill is coached from evidence; an unpractised one is not.
+
+    The generic advice is a fallback, so once a learner has results the tips
+    must name what they actually got wrong rather than repeating study habits
+    that ignore their performance.
+    """
+    call_command("seed_reading_content", verbosity=0, stdout=StringIO())
+    _reading_attempt(api_client, django_capture_on_commit_callbacks, correct=False)
+
+    guidance = {
+        item["skill"]: item["tips"]
+        for item in api_client.get("/api/v1/me/progress/").json()["target_guidance"]
+    }
+
+    reading_tips = " ".join(guidance["reading"])
+    assert "%" in reading_tips, "a practised skill should be coached from its own accuracy"
+    assert "Read the question first" not in reading_tips
+
+    # Speaking has no attempts, so it has nothing to cite and keeps the default.
+    assert guidance["speaking"] == [
+        "Use preparation time to plan an opinion, two reasons, and a specific example.",
+        "Record again after reviewing clarity, pacing, and task coverage.",
+    ]
+
+
+def test_ai_rubric_feedback_becomes_a_named_coaching_tip():
+    """The weakest graded dimension carries the model's own next step."""
+    from apps.learning.services import _coaching_tips
+
+    tips = _coaching_tips(
+        "writing",
+        task_stats={},
+        dimensions={
+            "content_coherence": [(2, ""), (1, "State your position in the first line.")],
+            "vocabulary": [(4, "Keep using precise verbs.")],
+        },
+        mistakes=[],
+    )
+
+    assert len(tips) == 1
+    assert "Content/Coherence" in tips[0]
+    assert "1.5/4" in tips[0]
+    assert "State your position in the first line." in tips[0]
+    # The strong dimension is not coached against.
+    assert "Vocabulary" not in tips[0]
+
+
 def test_plan_rotates_every_available_skill_and_versions_explanations(learner):
     call_command("seed_reading_content", verbosity=0, stdout=StringIO())
     call_command("seed_listening_content", verbosity=0, stdout=StringIO())
@@ -114,6 +164,16 @@ def test_plan_rotates_every_available_skill_and_versions_explanations(learner):
     assert first.is_active is False
     assert second.version == first.version + 1
     assert StudyPlan.objects.filter(user=learner, is_active=True).count() == 1
+
+
+def test_high_target_moves_developing_performance_to_challenge():
+    assert recommended_difficulty({
+        "attempts": 2,
+        "accuracy_percent": 65,
+        "estimate_low": None,
+        "estimate_high": None,
+        "target": 9,
+    }) == 3
 
 
 def test_plan_includes_all_four_skills_on_each_study_day(learner):
@@ -287,6 +347,34 @@ def test_plan_name_patch_and_consistency_payload(api_client, learner):
     assert listing.status_code == 200
     assert listing.json()["name"] == "My Plan"
     assert regenerate_plan(learner).name == "My Plan"
+
+
+def test_stale_plan_algorithm_is_rebuilt_on_first_load(api_client, learner):
+    _all_skill_task_types()
+    stale = regenerate_plan(learner)
+    stale.reason_summary.pop("algorithm_version", None)
+    stale.save(update_fields=["reason_summary"])
+
+    response = api_client.get("/api/v1/me/study-plan/")
+    assert response.status_code == 200
+    assert response.json()["id"] != stale.pk
+    assert response.json()["reason_summary"]["algorithm_version"] == 2
+
+
+def test_mock_interval_creates_dated_plan_checkpoints(api_client, learner):
+    _all_skill_task_types()
+    profile, _ = LearnerProfile.objects.get_or_create(user=learner)
+    profile.preferred_weekdays = list(range(1, 8))
+    profile.mock_interval_days = 3
+    profile.save(update_fields=["preferred_weekdays", "mock_interval_days"])
+    plan = regenerate_plan(learner)
+
+    payload = api_client.get("/api/v1/me/study-plan/").json()
+    checkpoints = payload["mock_checkpoints"]
+    assert checkpoints
+    first_task_date = plan.tasks.order_by("scheduled_date").first().scheduled_date
+    assert checkpoints[0]["date"] == (first_task_date + timedelta(days=3)).isoformat()
+    assert all(checkpoint["destination"] == "/mock" for checkpoint in checkpoints)
 
 
 def test_manual_mistake_resolution_is_owner_scoped(

@@ -97,6 +97,12 @@ export type StudyPlan = {
     difficulty_by_skill?: Record<Skill, number>
   }
   completed_lessons?: string[]
+  mock_checkpoints?: Array<{
+    date: string
+    title: string
+    reason: string
+    destination: string
+  }>
   tasks: StudyTask[]
   consistency: StudyConsistency
 }

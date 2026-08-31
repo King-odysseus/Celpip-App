@@ -232,4 +232,23 @@ describe('study plan', () => {
     await waitFor(() => expect(patchDifficulty).toHaveBeenCalledTimes(1))
     expect(JSON.parse(String(patchDifficulty.mock.calls[0][0].body))).toEqual({ difficulty_preference: 'challenge' })
   })
+
+  it('shows scheduled mock-test days in the plan', async () => {
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(makePlan({
+        mock_checkpoints: [{
+          date: '2026-08-29',
+          title: 'Full mock checkpoint',
+          reason: 'Scheduled every 7 days to measure all four skills.',
+          destination: '/mock',
+        }],
+      })),
+    })
+    renderApp('/study-plan')
+
+    expect(await screen.findByText('Mock-test day')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Full mock checkpoint' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open mock tests' })).toHaveAttribute('href', '/mock')
+  })
 })

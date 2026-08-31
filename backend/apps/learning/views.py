@@ -15,6 +15,7 @@ from .analytics import (
 )
 from .models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
 from .services import (
+    PLAN_ALGORITHM_VERSION,
     dashboard_payload,
     plan_payload,
     progress_payload,
@@ -149,7 +150,10 @@ class StudyPlanView(APIView):
 
     def _active_plan(self, request):
         plan = StudyPlan.objects.filter(user=request.user, is_active=True).first()
-        if plan is None:
+        if (
+            plan is None
+            or plan.reason_summary.get("algorithm_version") != PLAN_ALGORITHM_VERSION
+        ):
             plan = regenerate_plan(request.user)
         return plan
 

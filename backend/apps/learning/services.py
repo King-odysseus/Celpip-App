@@ -33,6 +33,7 @@ from .models import (
 
 SKILLS = (Skill.LISTENING, Skill.READING, Skill.WRITING, Skill.SPEAKING)
 SKILL_LABELS = dict(Skill.choices)
+PLAN_ALGORITHM_VERSION = 2
 
 # Number of most-recent results shown on the dashboard. Small and privacy-safe:
 # only the learner's own submitted/estimated outcomes, with no prompt text.
@@ -141,11 +142,26 @@ def progress_payload(user) -> dict:
             }
         )
     feedback_ranges: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    # Ratings the AI gave each rubric dimension, newest last. The graded
+    # dimension is what turns "leave time to check verb forms" into a tip that
+    # names the learner's actual weakest area, so it is collected here rather
+    # than discarded with the rest of the assessment.
+    dimension_ratings: dict[str, dict[str, list[tuple[int, str]]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for artifact in feedback:
         skill = artifact.session_item.snapshot["skill"]
         assessment = artifact.assessment
         low, high = assessment["estimated_level_low"], assessment["estimated_level_high"]
         feedback_ranges[skill].append((low, high))
+        for dimension in assessment.get("dimensions", []):
+            if not isinstance(dimension, dict):
+                continue
+            key, rating = dimension.get("key"), dimension.get("rating")
+            if isinstance(key, str) and isinstance(rating, int):
+                dimension_ratings[skill][key].append(
+                    (rating, str(dimension.get("next_step", "")).strip())
+                )
         summary = by_skill[skill]
         summary["attempts"] += 1
         summary["last_activity"] = artifact.created_at
@@ -171,24 +187,7 @@ def progress_payload(user) -> dict:
 
     practiced = sum(summary["attempts"] > 0 for summary in by_skill.values())
     target_guidance = []
-    tips = {
-        Skill.LISTENING: [
-            "Listen for the purpose and speaker attitude before focusing on details.",
-            "Write short keywords, then eliminate choices that add information not stated.",
-        ],
-        Skill.READING: [
-            "Read the question first and locate the exact evidence in the passage.",
-            "Eliminate answers that are plausible but unsupported by the text.",
-        ],
-        Skill.WRITING: [
-            "Answer every requested point with a clear paragraph structure.",
-            "Leave time to check verb forms, linking words, and word count.",
-        ],
-        Skill.SPEAKING: [
-            "Use preparation time to plan an opinion, two reasons, and a specific example.",
-            "Record again after reviewing clarity, pacing, and task coverage.",
-        ],
-    }
+    open_mistakes = _open_mistake_counts(user)
     for summary in by_skill.values():
         signal = _practice_signal(summary)
         target = summary["target"]
@@ -210,7 +209,12 @@ def progress_payload(user) -> dict:
             "attained": attained,
             "comparison": comparison,
             "suggestion": None if attained is not False else "Take this practice test again after reviewing these tips.",
-            "tips": tips[summary["skill"]],
+            "tips": _coaching_tips(
+                summary["skill"],
+                task_stats,
+                dimension_ratings.get(summary["skill"], {}),
+                open_mistakes.get(summary["skill"], []),
+            ),
             "destination": DESTINATIONS[summary["skill"]],
         })
     return {
@@ -297,21 +301,28 @@ def _skill_priority(progress: dict) -> dict[str, float]:
 
 
 def recommended_difficulty(summary: dict) -> int:
-    """Choose a graduated 1–3 practice difficulty for one skill."""
+    """Choose a target-aware graduated 1–3 difficulty for one skill."""
+    difficulty = 1
     if summary["accuracy_percent"] is not None:
         accuracy = summary["accuracy_percent"]
         if accuracy >= 80:
-            return 3
-        if accuracy >= 55:
-            return 2
-        return 1
-    if summary["estimate_low"] is not None:
+            difficulty = 3
+        elif accuracy >= 55:
+            difficulty = 2
+    elif summary["estimate_low"] is not None:
         midpoint = (summary["estimate_low"] + summary["estimate_high"]) / 2
         if midpoint >= 8:
-            return 3
-        if midpoint >= 5:
-            return 2
-    return 1
+            difficulty = 3
+        elif midpoint >= 5:
+            difficulty = 2
+
+    # Learners targeting CELPIP 8+ need practice slightly above their current
+    # comfort level once there is real performance evidence. This turns a
+    # Developing recommendation into Challenge instead of leaving an ambitious
+    # learner at level 2 indefinitely.
+    if summary["attempts"] > 0 and summary["target"] >= 8:
+        difficulty = min(3, difficulty + 1)
+    return difficulty
 
 
 @transaction.atomic
@@ -358,6 +369,7 @@ def regenerate_plan(user) -> StudyPlan:
         name=(previous.name if previous else ""),
         difficulty_preference=difficulty_preference,
         reason_summary={
+            "algorithm_version": PLAN_ALGORITHM_VERSION,
             "priorities": priorities,
             "rule": "Unpractised and weaker skills come first; every skill remains in rotation.",
             "source_attempts": sum(item["attempts"] for item in progress["skills"]),
@@ -545,6 +557,27 @@ def _task_payload(task: StudyTask, completed_lessons: set[str] | None = None) ->
 
 def plan_payload(plan: StudyPlan) -> dict:
     completed_lessons = _completed_lesson_slugs(plan.user_id)
+    tasks = list(plan.tasks.select_related("task_type"))
+    interval = max(1, int(plan.reason_summary.get("mock_interval_days", 7)))
+    mock_checkpoints = []
+    if tasks:
+        checkpoint_date = tasks[0].scheduled_date + timedelta(days=interval)
+        # Always expose at least the next chosen checkpoint, even when the
+        # interval extends beyond the short rolling lesson window.
+        last_date = max(tasks[-1].scheduled_date, checkpoint_date)
+        while checkpoint_date <= last_date:
+            mock_checkpoints.append(
+                {
+                    "date": checkpoint_date,
+                    "title": "Full mock checkpoint",
+                    "reason": (
+                        f"Scheduled every {interval} days to measure progress across "
+                        "Listening, Reading, Writing, and Speaking."
+                    ),
+                    "destination": "/mock",
+                }
+            )
+            checkpoint_date += timedelta(days=interval)
     return {
         "id": plan.pk,
         "version": plan.version,
@@ -553,9 +586,10 @@ def plan_payload(plan: StudyPlan) -> dict:
         "difficulty_preference": plan.difficulty_preference,
         "reason_summary": plan.reason_summary,
         "completed_lessons": sorted(completed_lessons),
+        "mock_checkpoints": mock_checkpoints,
         "tasks": [
             _task_payload(task, completed_lessons)
-            for task in plan.tasks.select_related("task_type")
+            for task in tasks
         ],
     }
 
@@ -585,7 +619,23 @@ def study_plan_consistency(user, days: int = 14) -> dict:
     streak = study_streak({day for day, _ in completions.items()}, today)
 
     start = today - timedelta(days=days - 1)
-    end = max(start + timedelta(days=days - 1), profile.exam_date or start)
+    active_plan = StudyPlan.objects.filter(user=user, is_active=True).first()
+    mock_interval = (
+        int(active_plan.reason_summary.get("mock_interval_days", 7))
+        if active_plan
+        else 7
+    )
+    first_plan_date = (
+        active_plan.tasks.order_by("scheduled_date").values_list("scheduled_date", flat=True).first()
+        if active_plan
+        else None
+    )
+    next_mock_date = (first_plan_date or today) + timedelta(days=mock_interval)
+    end = max(
+        start + timedelta(days=days - 1),
+        profile.exam_date or start,
+        next_mock_date,
+    )
     days_payload = []
     for offset in range((end - start).days + 1):
         day = start + timedelta(days=offset)
@@ -733,6 +783,117 @@ def _recent_results(user) -> list[dict]:
         {**entry, "date": entry["date"].isoformat()}
         for entry in entries[:RECENT_RESULTS_LIMIT]
     ]
+
+
+# Fallbacks used only while a skill has produced no evidence to coach from.
+# Anything the learner has actually done outranks these.
+GENERIC_TIPS = {
+    Skill.LISTENING: [
+        "Listen for the purpose and speaker attitude before focusing on details.",
+        "Write short keywords, then eliminate choices that add information not stated.",
+    ],
+    Skill.READING: [
+        "Read the question first and locate the exact evidence in the passage.",
+        "Eliminate answers that are plausible but unsupported by the text.",
+    ],
+    Skill.WRITING: [
+        "Answer every requested point with a clear paragraph structure.",
+        "Leave time to check verb forms, linking words, and word count.",
+    ],
+    Skill.SPEAKING: [
+        "Use preparation time to plan an opinion, two reasons, and a specific example.",
+        "Record again after reviewing clarity, pacing, and task coverage.",
+    ],
+}
+
+# Learner-facing names for the four AI rubric dimensions, mirroring the labels
+# the feedback panel shows so a tip names the dimension the learner saw graded.
+DIMENSION_LABELS = {
+    "content_coherence": "Content/Coherence",
+    "vocabulary": "Vocabulary",
+    "delivery": "Readability/Listenability",
+    "task_fulfillment": "Task Fulfillment",
+}
+
+# A task type at or below this accuracy is worth calling out by name.
+WEAK_TASK_ACCURACY = 75
+# Rubric ratings run 1-4, so 2 and below is the bottom half of the scale.
+WEAK_DIMENSION_RATING = 2
+MAX_TIPS = 3
+
+
+def _open_mistake_counts(user) -> dict[str, list[dict]]:
+    """Recurring unresolved mistakes per skill, most frequent first."""
+    records = (
+        MistakeRecord.objects.filter(user=user, state=MistakeState.OPEN)
+        .order_by("-occurrences", "-last_seen_at")
+        .values("skill", "occurrences", "explanation_snapshot")[:40]
+    )
+    grouped: dict[str, list[dict]] = defaultdict(list)
+    for record in records:
+        grouped[record["skill"]].append(record)
+    return grouped
+
+
+def _coaching_tips(
+    skill: str,
+    task_stats: dict[str, dict],
+    dimensions: dict[str, list[tuple[int, str]]],
+    mistakes: list[dict],
+) -> list[str]:
+    """Build tips from what this learner actually got wrong.
+
+    Evidence is preferred over advice: the weakest task type by name, the
+    lowest-rated AI rubric dimension (carrying the model's own next step), and
+    the most repeated open mistake. Generic guidance fills any remaining slot
+    only when a skill has no evidence yet, so a learner who has practised never
+    sees advice that ignores their results.
+    """
+    tips: list[str] = []
+
+    weakest_tasks = sorted(
+        (
+            stat
+            for stat in task_stats.values()
+            if stat["skill"] == skill
+            and stat["total"] > 0
+            and stat["accuracy_percent"] <= WEAK_TASK_ACCURACY
+        ),
+        key=lambda stat: stat["accuracy_percent"],
+    )
+    for stat in weakest_tasks[:1]:
+        tips.append(
+            f"{stat['title']} is your weakest task type at {stat['accuracy_percent']}% "
+            f"({stat['correct']}/{stat['total']} correct). Before answering, name the "
+            "evidence that rules out each option you reject."
+        )
+
+    # Average each dimension so one unlucky attempt does not dominate, then
+    # coach the weakest. The AI already wrote a next step for it; prefer that
+    # over anything generic this function could say.
+    averaged = [
+        (sum(rating for rating, _ in entries) / len(entries), key, entries[-1][1])
+        for key, entries in dimensions.items()
+        if entries
+    ]
+    for average, key, next_step in sorted(averaged)[:1]:
+        if average > WEAK_DIMENSION_RATING:
+            continue
+        label = DIMENSION_LABELS.get(key, key.replace("_", " ").title())
+        detail = f" {next_step}" if next_step else ""
+        tips.append(f"{label} is your lowest rated area, averaging {average:.1f}/4.{detail}")
+
+    for mistake in mistakes[:1]:
+        if mistake["occurrences"] < 2 or not mistake["explanation_snapshot"]:
+            continue
+        tips.append(
+            f"You have missed this {mistake['occurrences']} times: "
+            f"{mistake['explanation_snapshot']}"
+        )
+
+    if not tips:
+        return list(GENERIC_TIPS[skill])
+    return tips[:MAX_TIPS]
 
 
 def _practice_signal(summary: dict) -> dict | None:
