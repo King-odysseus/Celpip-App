@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronRight, GraduationCap, LayoutDashboard, LogIn, MoreHorizontal, Timer, UserPlus, UserRound, X } from 'lucide-react'
 import {
-  mobileOverflowNav,
   mobilePrimaryNav,
 } from './navigation'
 import { ThemeToggle } from '../components/ThemeToggle'
@@ -119,33 +118,49 @@ function MoreMenu({
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          <section aria-labelledby="more-explore-title">
-            <h3 id="more-explore-title" className="eyebrow px-3 pt-4 pb-2">
-              Explore
-            </h3>
-            <ul className="space-y-1">
-              {mobileOverflowNav.map((item) => (
-                <li key={item.to}>
+          {desktopGroups.map((group) => (
+            <section key={group.to} aria-labelledby={`more-${group.label.toLowerCase()}-title`}>
+              <h3 id={`more-${group.label.toLowerCase()}-title`} className="eyebrow px-3 pt-4 pb-2">
+                {group.label}
+              </h3>
+              <ul className="space-y-1">
+                <li>
                   <NavLink
-                    to={item.to}
-                    end={item.end}
+                    to={group.to}
                     onClick={onClose}
                     className={({ isActive }) =>
-                      `flex min-h-14 items-center gap-3 rounded-2xl px-3 py-2.5 text-base font-semibold transition-colors ${
+                      `flex min-h-12 items-center gap-3 rounded-2xl px-3 py-2.5 text-base font-semibold transition-colors ${
                         isActive
                           ? 'bg-brand-soft text-brand'
                           : 'text-ink hover:bg-surface-secondary'
                       }`
                     }
                   >
-                    <item.icon size={22} strokeWidth={1.9} />
-                    <span className="flex-1">{item.label}</span>
+                    <span className="flex-1">{group.label}</span>
                     <ChevronRight size={18} className="text-muted" aria-hidden="true" />
                   </NavLink>
                 </li>
-              ))}
-            </ul>
-          </section>
+                {group.items.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        `flex min-h-12 items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition-colors ${
+                          isActive
+                            ? 'bg-brand-soft text-brand'
+                            : 'text-ink hover:bg-surface-secondary'
+                        }`
+                      }
+                    >
+                      <span className="ml-2 flex-1">{item.label}</span>
+                      <ChevronRight size={18} className="text-muted" aria-hidden="true" />
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
 
           <section aria-labelledby="more-account-title">
             <h3 id="more-account-title" className="eyebrow px-3 pt-5 pb-2">
@@ -315,8 +330,8 @@ export function AppShell() {
     setDesktopMenu(null)
   }, [location.pathname])
 
-  const moreActive = mobileOverflowNav.some(
-    (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`),
+  const moreActive = desktopGroups.some(
+    (group) => location.pathname === group.to || group.items.some((item) => location.pathname === item.to),
   )
 
   const showBack = showBackButton(location.pathname)

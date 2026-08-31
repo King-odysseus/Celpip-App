@@ -7,12 +7,12 @@ import {
   RefreshCcw,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { Button, Card, CardTitle } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import { AccountRequired } from './ProgressPage'
 import type { Skill, StudyPlan, StudyTask } from './types'
+import { StudyTaskLaunch } from './StudyTaskLaunch'
 
 const SKILLS: Skill[] = ['listening', 'reading', 'writing', 'speaking']
 
@@ -426,9 +426,7 @@ export function StudyPlanPage() {
                       </div>
                       <p className="mt-3 text-sm leading-6 text-muted">{task.reason}</p>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <Link className="btn-primary" to={task.destination}>
-                          Open practice
-                        </Link>
+                        <StudyTaskLaunch task={task} />
                         <Button
                           variant="secondary"
                           onClick={() => {

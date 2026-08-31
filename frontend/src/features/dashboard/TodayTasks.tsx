@@ -2,6 +2,7 @@ import { CalendarDays, CheckCircle2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card, CardTitle } from '../../components/ui'
 import type { StudyTask } from '../learning/types'
+import { StudyTaskLaunch } from '../learning/StudyTaskLaunch'
 import { SKILL_LABELS } from './labels'
 
 function formatDay(isoDate: string): string {
@@ -55,9 +56,7 @@ export function TodayTasks({
                       <CheckCircle2 size={16} aria-hidden /> Done
                     </span>
                   ) : (
-                    <Link className="btn-primary text-sm" to={task.destination}>
-                      Open
-                    </Link>
+                    <StudyTaskLaunch task={task} label="Open" />
                   )}
                 </li>
               ))}
@@ -68,9 +67,7 @@ export function TodayTasks({
               <p className="mt-1 text-sm text-ink">
                 Next up: {nextUpcoming.title} on {formatDay(nextUpcoming.scheduled_date)}.
               </p>
-              <Link className="btn-secondary mt-3 text-sm" to={nextUpcoming.destination}>
-                Open next task
-              </Link>
+              <div className="mt-3"><StudyTaskLaunch task={nextUpcoming} label="Open next task" /></div>
             </div>
           ) : (
             <p className="text-sm text-muted">
