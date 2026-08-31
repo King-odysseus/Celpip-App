@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import timedelta
 from itertools import cycle
+from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
 from django.db import transaction
@@ -439,6 +440,16 @@ def _task_destination(task: StudyTask) -> str:
 
 
 def _task_payload(task: StudyTask) -> dict:
+    destination = _task_destination(task)
+    lesson_slug = parse_qs(urlparse(destination).query).get("lesson", [None])[0]
+    previously_completed = bool(
+        lesson_slug
+        and AssessmentSession.objects.filter(
+            user_id=task.plan.user_id,
+            state=SessionState.SUBMITTED,
+            items__content_version__item__slug=lesson_slug,
+        ).exists()
+    )
     return {
         "id": task.pk,
         "scheduled_date": task.scheduled_date,
@@ -448,7 +459,8 @@ def _task_payload(task: StudyTask) -> dict:
         "title": task.title,
         "minutes": task.minutes,
         "reason": task.reason,
-        "destination": _task_destination(task),
+        "destination": destination,
+        "previously_completed": previously_completed,
         "state": task.state,
         "completed_at": task.completed_at,
     }

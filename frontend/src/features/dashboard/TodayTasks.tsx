@@ -44,6 +44,11 @@ export function TodayTasks({
                     <p className="text-xs text-muted">
                       {SKILL_LABELS[task.skill]} · {task.minutes} min
                     </p>
+                    {task.previously_completed && task.state !== 'completed' && (
+                      <span className="mt-1 inline-flex rounded-full bg-good-soft px-2 py-0.5 text-[11px] font-semibold text-good">
+                        Previously completed
+                      </span>
+                    )}
                   </div>
                   {task.state === 'completed' ? (
                     <span className="inline-flex items-center gap-1 text-sm font-semibold text-good">

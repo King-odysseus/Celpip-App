@@ -294,6 +294,7 @@ function AudioPlayer({ session }: { session: ReadingSession }) {
   const audio = session.audio!
   const element = useRef<HTMLAudioElement>(null)
   const [url, setUrl] = useState('')
+  const [warming, setWarming] = useState(audio.playback_policy !== 'one_play')
   const [requesting, setRequesting] = useState(false)
   const [playing, setPlaying] = useState(false)
   const [ended, setEnded] = useState(false)
@@ -317,10 +318,12 @@ function AudioPlayer({ session }: { session: ReadingSession }) {
       .then((access) => {
         if (!active) return
         setUrl(access.url)
+        setWarming(false)
         if (element.current) element.current.src = access.url
       })
       .catch(() => {
         // Keep the explicit Play action as a retry path if the warm-up fails.
+        if (active) setWarming(false)
       })
     return () => {
       active = false
@@ -402,12 +405,12 @@ function AudioPlayer({ session }: { session: ReadingSession }) {
         <Button
           type="button"
           variant="accent"
-          disabled={requesting || onePlayEnded}
+          disabled={warming || requesting || onePlayEnded}
           onClick={() => void togglePlayback()}
           aria-label={playing ? 'Pause practice audio' : ended ? 'Replay practice audio' : 'Play practice audio'}
         >
           {playing ? <Pause size={18} /> : ended ? <RotateCcw size={18} /> : <Play size={18} />}
-          {requesting ? 'Preparing…' : playing ? 'Pause' : ended ? 'Replay' : 'Play audio'}
+          {warming || requesting ? 'Preparing…' : playing ? 'Pause' : ended ? 'Replay' : 'Play audio'}
         </Button>
         <span className="text-sm font-semibold text-muted tabular-nums">
           {formatTime(currentTime)} / {formatTime(duration)}

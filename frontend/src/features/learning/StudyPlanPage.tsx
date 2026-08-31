@@ -414,6 +414,11 @@ export function StudyPlanPage() {
                             {SKILL_LABEL[task.skill]} · {task.minutes} min
                           </p>
                           <h3 className="mt-1 font-bold text-ink">{task.title}</h3>
+                          {task.previously_completed && task.state !== 'completed' && (
+                            <span className="mt-2 inline-flex items-center rounded-full bg-good-soft px-2.5 py-1 text-xs font-semibold text-good">
+                              Previously completed
+                            </span>
+                          )}
                         </div>
                         {task.state === 'completed' && (
                           <CheckCircle2 className="text-good" size={22} aria-label="Completed" />

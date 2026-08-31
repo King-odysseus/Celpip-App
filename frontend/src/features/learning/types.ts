@@ -53,6 +53,7 @@ export type StudyTask = {
   minutes: number
   reason: string
   destination: string
+  previously_completed?: boolean
   state: 'pending' | 'completed' | 'skipped'
   completed_at: string | null
 }
