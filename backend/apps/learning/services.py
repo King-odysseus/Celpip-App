@@ -170,11 +170,55 @@ def progress_payload(user) -> dict:
         stat["accuracy_percent"] = round(100 * stat["correct"] / stat["total"])
 
     practiced = sum(summary["attempts"] > 0 for summary in by_skill.values())
+    target_guidance = []
+    tips = {
+        Skill.LISTENING: [
+            "Listen for the purpose and speaker attitude before focusing on details.",
+            "Write short keywords, then eliminate choices that add information not stated.",
+        ],
+        Skill.READING: [
+            "Read the question first and locate the exact evidence in the passage.",
+            "Eliminate answers that are plausible but unsupported by the text.",
+        ],
+        Skill.WRITING: [
+            "Answer every requested point with a clear paragraph structure.",
+            "Leave time to check verb forms, linking words, and word count.",
+        ],
+        Skill.SPEAKING: [
+            "Use preparation time to plan an opinion, two reasons, and a specific example.",
+            "Record again after reviewing clarity, pacing, and task coverage.",
+        ],
+    }
+    for summary in by_skill.values():
+        signal = _practice_signal(summary)
+        target = summary["target"]
+        if signal is None:
+            attained = None
+            comparison = "No completed practice signal yet."
+        elif signal["measure"] == "estimated_midpoint":
+            attained = signal["value"] >= target
+            comparison = f"Estimated {signal['value']}/12 against target {target}."
+        else:
+            # Objective skills do not produce official CELPIP levels. This
+            # threshold is only a clearly labelled planning proxy.
+            threshold = min(95, max(50, 40 + target * 5))
+            attained = signal["value"] >= threshold
+            comparison = f"{signal['value']}% accuracy planning proxy against target {target}."
+        target_guidance.append({
+            "skill": summary["skill"],
+            "target": target,
+            "attained": attained,
+            "comparison": comparison,
+            "suggestion": None if attained is not False else "Take this practice test again after reviewing these tips.",
+            "tips": tips[summary["skill"]],
+            "destination": DESTINATIONS[summary["skill"]],
+        })
     return {
         "skills": list(by_skill.values()),
         "task_types": sorted(task_stats.values(), key=lambda value: value["accuracy_percent"]),
         "trends": sorted(trends, key=lambda value: value["date"]),
         "coverage": {"practised_skills": practiced, "total_skills": 4},
+        "target_guidance": target_guidance,
         "overall_readiness": None,
         "readiness_explanation": (
             "A single overall readiness number is withheld. CELPIP reports four component "
@@ -446,10 +490,17 @@ def _task_payload(task: StudyTask) -> dict:
         lesson_slug
         and AssessmentSession.objects.filter(
             user_id=task.plan.user_id,
-            state=SessionState.SUBMITTED,
             items__content_version__item__slug=lesson_slug,
         ).exists()
     )
+    if lesson_slug and not previously_completed:
+        # A learner can complete a Study Plan task after opening the lesson
+        # without submitting the practice session. Preserve that signal too.
+        previously_completed = StudyTask.objects.filter(
+            plan__user_id=task.plan.user_id,
+            state=StudyTaskState.COMPLETED,
+            destination__contains=f"lesson={lesson_slug}",
+        ).exclude(pk=task.pk).exists()
     return {
         "id": task.pk,
         "scheduled_date": task.scheduled_date,

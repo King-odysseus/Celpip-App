@@ -22,6 +22,15 @@ export type Progress = {
   }>
   trends: Array<{ date: string; skill: Skill; metric: string; value: number; label: string }>
   coverage: { practised_skills: number; total_skills: number }
+  target_guidance?: Array<{
+    skill: Skill
+    target: number
+    attained: boolean | null
+    comparison: string
+    suggestion: string | null
+    tips: string[]
+    destination: string
+  }>
   overall_readiness: null
   readiness_explanation: string
   disclaimer: string

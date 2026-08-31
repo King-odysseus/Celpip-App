@@ -96,6 +96,7 @@ describe('learning loop', () => {
     renderApp('/study-plan')
     expect(await screen.findByText(task.reason)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /mark complete/i }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, I understand' }))
     expect(await screen.findByRole('button', { name: 'Undo' })).toBeInTheDocument()
   })
 })

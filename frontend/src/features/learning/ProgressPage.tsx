@@ -24,6 +24,22 @@ export function ProgressPage() {
       <header><p className="eyebrow">Evidence, not guesswork</p><h1 className="mt-1 text-3xl font-bold text-ink">Progress</h1><p className="mt-2 max-w-3xl text-muted">Objective accuracy and AI-assisted Writing/Speaking ranges stay separate so you can see what each measure actually means.</p></header>
       {error && <p role="alert" className="rounded-input bg-bad-soft p-3 text-bad">{error}</p>}
       {!progress ? <p role="status" className="py-10 text-center text-muted">Building your progress view…</p> : <>
+        {progress.target_guidance?.some((item) => item.attained === false) && (
+          <Card className="border-warning/40 bg-warning-soft/30 p-5">
+            <h2 className="text-xl font-bold text-ink">Your target needs another attempt</h2>
+            <p className="mt-2 text-sm leading-6 text-muted">These are unofficial practice estimates, not official CELPIP results. Review the tips, then take the recommended test again.</p>
+            <div className="mt-4 space-y-4">
+              {progress.target_guidance.filter((item) => item.attained === false).map((item) => (
+                <div key={item.skill} className="rounded-input border border-line bg-surface p-4">
+                  <p className="font-bold text-ink">{labels[item.skill]} · Target {item.target}</p>
+                  <p className="mt-1 text-sm text-muted">{item.comparison}</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-ink">{item.tips.map((tip) => <li key={tip}>{tip}</li>)}</ul>
+                  <Link className="btn-primary mt-3 inline-flex" to={item.destination}>Take {labels[item.skill]} again</Link>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           {progress.skills.map((skill) => {
             const value = skill.accuracy_percent ?? (skill.estimate_high ? skill.estimate_high / 12 * 100 : 0)
