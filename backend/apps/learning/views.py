@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import LearnerProfile
+
 from .analytics import (
     HISTORY_PAGE_SIZE_DEFAULT,
     analytics_payload,
@@ -139,6 +141,7 @@ class StudyPlanView(APIView):
 
     class InputSerializer(serializers.Serializer):
         name = serializers.CharField(max_length=120, allow_blank=True, required=False)
+        mock_interval_days = serializers.IntegerField(min_value=1, max_value=30, required=False)
 
     def _active_plan(self, request):
         plan = StudyPlan.objects.filter(user=request.user, is_active=True).first()
@@ -172,6 +175,14 @@ class StudyPlanView(APIView):
         if "name" in serializer.validated_data:
             plan.name = serializer.validated_data["name"]
             plan.save(update_fields=["name"])
+        if "mock_interval_days" in serializer.validated_data:
+            profile, _ = LearnerProfile.objects.get_or_create(user=request.user)
+            profile.mock_interval_days = serializer.validated_data["mock_interval_days"]
+            profile.save(update_fields=["mock_interval_days"])
+            # Keep the response's plan metadata in sync with the saved
+            # learner preference without requiring a separate profile request.
+            plan.reason_summary["mock_interval_days"] = profile.mock_interval_days
+            plan.save(update_fields=["reason_summary"])
         return Response(
             {
                 **plan_payload(plan),

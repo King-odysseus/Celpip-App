@@ -228,11 +228,63 @@ function PlanNameInput({
   )
 }
 
+function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: StudyPlan) => void }) {
+  const [value, setValue] = useState(String(plan.reason_summary.mock_interval_days ?? 7))
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => setValue(String(plan.reason_summary.mock_interval_days ?? 7)), [plan.reason_summary.mock_interval_days])
+
+  async function persist() {
+    const days = Number(value)
+    if (!Number.isInteger(days) || days < 1 || days > 30) {
+      setError('Choose an interval from 1 to 30 days.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      onSaved(await api.patch<StudyPlan>('/me/study-plan/', { mock_interval_days: days }))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not save the mock interval.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="min-w-44">
+      <label htmlFor="mock-interval" className="text-xs font-semibold uppercase tracking-wider text-muted">
+        Mock/review interval
+      </label>
+      <div className="mt-1 flex items-center gap-2">
+        <input
+          id="mock-interval"
+          type="number"
+          min={1}
+          max={30}
+          value={value}
+          disabled={saving}
+          onChange={(event) => setValue(event.target.value)}
+          onBlur={() => void persist()}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') event.currentTarget.blur()
+          }}
+          className="w-20 rounded-input border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand disabled:opacity-60"
+        />
+        <span className="text-sm text-muted">days</span>
+      </div>
+      {error && <p role="alert" className="mt-1 text-xs text-bad">{error}</p>}
+    </div>
+  )
+}
+
 export function StudyPlanPage() {
   const { status } = useAuth()
   const [plan, setPlan] = useState<StudyPlan | null>(null)
   const [error, setError] = useState('')
   const [regenerating, setRegenerating] = useState(false)
+  const [confirmingTaskId, setConfirmingTaskId] = useState<number | null>(null)
 
   useEffect(() => {
     if (status !== 'authenticated') {
@@ -331,7 +383,10 @@ export function StudyPlanPage() {
                   Change this in your profile settings.
                 </p>
               </div>
-              <PlanNameInput plan={plan} onSaved={setPlan} />
+              <div className="flex flex-wrap items-end gap-4">
+                <PlanNameInput plan={plan} onSaved={setPlan} />
+                <MockIntervalInput plan={plan} onSaved={setPlan} />
+              </div>
             </div>
           </Card>
 
@@ -371,13 +426,37 @@ export function StudyPlanPage() {
                         </Link>
                         <Button
                           variant="secondary"
-                          onClick={() =>
-                            void setState(task, task.state === 'completed' ? 'pending' : 'completed')
-                          }
+                          onClick={() => {
+                            if (task.state === 'completed') {
+                              void setState(task, 'pending')
+                            } else {
+                              setConfirmingTaskId(task.id)
+                            }
+                          }}
                         >
                           {task.state === 'completed' ? 'Undo' : 'Mark complete'}
                         </Button>
                       </div>
+                      {confirmingTaskId === task.id && task.state !== 'completed' && (
+                        <div className="mt-4 rounded-input border border-brand/30 bg-brand-soft p-4" role="dialog" aria-label="Confirm lesson understanding">
+                          <p className="text-sm font-semibold text-ink">Do you understand this lesson?</p>
+                          <p className="mt-1 text-xs text-muted">Confirm after you have completed the recommended practice.</p>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <Button
+                              variant="primary"
+                              onClick={() => {
+                                setConfirmingTaskId(null)
+                                void setState(task, 'completed')
+                              }}
+                            >
+                              Yes, I understand
+                            </Button>
+                            <Button variant="ghost" onClick={() => setConfirmingTaskId(null)}>
+                              Not yet
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </Card>
                   ))}
                 </div>

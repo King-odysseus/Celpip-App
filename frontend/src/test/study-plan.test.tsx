@@ -175,6 +175,7 @@ describe('study plan', () => {
 
     const button = await screen.findByRole('button', { name: 'Mark complete' })
     await user.click(button)
+    await user.click(await screen.findByRole('button', { name: 'Yes, I understand' }))
 
     await waitFor(() => expect(patchTask).toHaveBeenCalledTimes(1))
     // The completion triggered a refetch, and the streak bar updated.
