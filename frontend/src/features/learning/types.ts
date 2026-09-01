@@ -51,6 +51,10 @@ export type Mistake = {
   last_seen_at: string
   resolved_at: string | null
   destination?: string
+  next_review_at?: string | null
+  review_interval_days?: number
+  review_count?: number
+  due_for_review?: boolean
 }
 
 export type StudyTask = {

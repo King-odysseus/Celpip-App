@@ -252,7 +252,9 @@ def record_objective_learning(result: ObjectiveResult) -> None:
             if existing and existing.state == MistakeState.OPEN:
                 existing.state = MistakeState.RESOLVED
                 existing.resolved_at = result.scored_at
-                existing.save(update_fields=["state", "resolved_at"])
+                existing.next_review_at = None
+                existing.review_count += 1
+                existing.save(update_fields=["state", "resolved_at", "next_review_at", "review_count"])
             continue
         choices = {choice.pk: choice for choice in question.choices.all()}
         selected = choices.get(outcome["selected_choice_id"])
@@ -266,6 +268,8 @@ def record_objective_learning(result: ObjectiveResult) -> None:
             "explanation_snapshot": question.explanation,
             "first_seen_at": result.scored_at,
             "last_seen_at": result.scored_at,
+            "next_review_at": result.scored_at + timedelta(days=1),
+            "review_interval_days": 1,
         }
         if existing:
             for key, value in defaults.items():
@@ -274,6 +278,8 @@ def record_objective_learning(result: ObjectiveResult) -> None:
             existing.occurrences += 1
             existing.state = MistakeState.OPEN
             existing.resolved_at = None
+            existing.next_review_at = result.scored_at + timedelta(days=1)
+            existing.review_interval_days = 1
             existing.save()
         else:
             MistakeRecord.objects.create(

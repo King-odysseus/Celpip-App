@@ -64,6 +64,14 @@ def _mistake_payload(mistake: MistakeRecord) -> dict:
         "first_seen_at": mistake.first_seen_at,
         "last_seen_at": mistake.last_seen_at,
         "resolved_at": mistake.resolved_at,
+        "next_review_at": mistake.next_review_at,
+        "review_interval_days": mistake.review_interval_days,
+        "review_count": mistake.review_count,
+        "due_for_review": bool(
+            mistake.state == MistakeState.OPEN
+            and mistake.next_review_at is not None
+            and mistake.next_review_at <= timezone.now()
+        ),
     }
 
 
@@ -140,7 +148,8 @@ class MistakeDetailView(APIView):
         mistake = get_object_or_404(MistakeRecord, pk=mistake_id, user=request.user)
         mistake.state = serializer.validated_data["state"]
         mistake.resolved_at = timezone.now() if mistake.state == MistakeState.RESOLVED else None
-        mistake.save(update_fields=["state", "resolved_at"])
+        mistake.next_review_at = None if mistake.state == MistakeState.RESOLVED else timezone.now()
+        mistake.save(update_fields=["state", "resolved_at", "next_review_at"])
         return Response(_mistake_payload(mistake))
 
 

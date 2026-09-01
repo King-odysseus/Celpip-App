@@ -33,6 +33,9 @@ class MistakeRecord(models.Model):
     first_seen_at = models.DateTimeField()
     last_seen_at = models.DateTimeField()
     resolved_at = models.DateTimeField(null=True, blank=True)
+    next_review_at = models.DateTimeField(null=True, blank=True)
+    review_interval_days = models.PositiveSmallIntegerField(default=1)
+    review_count = models.PositiveIntegerField(default=0)
 
     class Meta:
         ordering = ["-occurrences", "-last_seen_at"]
