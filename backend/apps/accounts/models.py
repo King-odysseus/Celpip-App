@@ -168,6 +168,11 @@ def default_preferred_weekdays() -> list[int]:
     return [1, 2, 3, 4, 5]
 
 
+def default_mock_weekdays() -> list[int]:
+    """Days a learner prefers to take full mock tests (Saturday and Sunday)."""
+    return [6, 7]
+
+
 def _target_validators() -> list:
     return [MinValueValidator(MIN_TARGET_LEVEL), MaxValueValidator(MAX_TARGET_LEVEL)]
 
@@ -219,6 +224,10 @@ class LearnerProfile(models.Model):
     preferred_weekdays = models.JSONField(
         default=default_preferred_weekdays,
         help_text="ISO weekday numbers (Mon=1 … Sun=7) the learner will study.",
+    )
+    mock_weekdays = models.JSONField(
+        default=default_mock_weekdays,
+        help_text="ISO weekday numbers (Mon=1 … Sun=7) for full mock tests.",
     )
     timezone = models.CharField(
         max_length=64,

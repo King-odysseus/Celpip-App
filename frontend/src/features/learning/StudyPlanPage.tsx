@@ -33,6 +33,11 @@ const SKILL_LABEL: Record<Skill, string> = {
   speaking: 'Speaking',
 }
 
+const MOCK_WEEKDAYS = [
+  { iso: 6, label: 'Sat' },
+  { iso: 7, label: 'Sun' },
+]
+
 const DIFFICULTY_LABEL: Record<number, string> = {
   1: 'Foundation',
   2: 'Developing',
@@ -301,6 +306,47 @@ function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan:
   )
 }
 
+function MockDaysInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: StudyPlan) => void }) {
+  const selected = plan.reason_summary.mock_weekdays ?? [6, 7]
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function toggle(day: number) {
+    const next = selected.includes(day) ? selected.filter((value) => value !== day) : [...selected, day].sort()
+    if (!next.length) {
+      setError('Choose at least one mock-test day.')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      onSaved(await api.patch<StudyPlan>('/me/study-plan/', { mock_weekdays: next }))
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not save mock-test days.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <fieldset className="min-w-0 w-full">
+      <legend className="text-xs font-semibold uppercase tracking-wider text-muted">Mock-test days</legend>
+      <div className="mt-1 flex gap-2">
+        {MOCK_WEEKDAYS.map((day) => {
+          const active = selected.includes(day.iso)
+          return (
+            <button key={day.iso} type="button" aria-pressed={active} disabled={saving} onClick={() => void toggle(day.iso)} className={`min-h-10 rounded-input border px-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-brand ${active ? 'border-brand bg-brand-soft text-brand' : 'border-line text-muted hover:border-brand'}`}>
+              {day.label}
+            </button>
+          )
+        })}
+      </div>
+      <p className="mt-1 text-xs text-muted">Schedule full mocks on Saturday, Sunday, or both.</p>
+      {error && <p role="alert" className="mt-1 text-xs text-bad">{error}</p>}
+    </fieldset>
+  )
+}
+
 function DifficultyInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: StudyPlan) => void }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -471,6 +517,7 @@ export function StudyPlanPage() {
                 <PlanNameInput plan={plan} onSaved={setPlan} />
                 <DifficultyInput plan={plan} onSaved={setPlan} />
                 <MockIntervalInput plan={plan} onSaved={setPlan} />
+                <MockDaysInput plan={plan} onSaved={setPlan} />
               </div>
             </div>
           </Card>

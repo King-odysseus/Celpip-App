@@ -100,6 +100,7 @@ export type StudyPlan = {
     rule: string
     source_attempts: number
     mock_interval_days?: number
+    mock_weekdays?: number[]
     difficulty_preference?: 'adaptive' | 'foundation' | 'developing' | 'challenge'
     difficulty_by_skill?: Record<Skill, number>
   }

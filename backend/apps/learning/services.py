@@ -474,6 +474,7 @@ def regenerate_plan(user) -> StudyPlan:
             "rule": "Unpractised and weaker skills come first; every skill remains in rotation.",
             "source_attempts": sum(item["attempts"] for item in progress["skills"]),
             "mock_interval_days": profile.mock_interval_days,
+            "mock_weekdays": profile.mock_weekdays,
             "difficulty_preference": difficulty_preference,
             "difficulty_by_skill": difficulty_by_skill,
         },
@@ -659,6 +660,7 @@ def plan_payload(plan: StudyPlan) -> dict:
     completed_lessons = _completed_lesson_slugs(plan.user_id)
     tasks = list(plan.tasks.select_related("task_type"))
     interval = max(1, int(plan.reason_summary.get("mock_interval_days", 7)))
+    mock_weekdays = set(plan.reason_summary.get("mock_weekdays", [6, 7])) or {6, 7}
     mock_checkpoints = []
     if tasks:
         checkpoint_date = tasks[0].scheduled_date + timedelta(days=interval)
@@ -666,12 +668,16 @@ def plan_payload(plan: StudyPlan) -> dict:
         # interval extends beyond the short rolling lesson window.
         last_date = max(tasks[-1].scheduled_date, checkpoint_date)
         while checkpoint_date <= last_date:
+            while checkpoint_date.isoweekday() not in mock_weekdays:
+                checkpoint_date += timedelta(days=1)
+            if checkpoint_date > last_date:
+                break
             mock_checkpoints.append(
                 {
                     "date": checkpoint_date,
                     "title": "Full mock checkpoint",
                     "reason": (
-                        f"Scheduled every {interval} days to measure progress across "
+                        f"Scheduled every {interval} days on the selected mock-test day(s) to measure progress across "
                         "Listening, Reading, Writing, and Speaking."
                     ),
                     "destination": "/mock",

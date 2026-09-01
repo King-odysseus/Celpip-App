@@ -106,6 +106,9 @@ class LearnerProfileSerializer(serializers.ModelSerializer):
     preferred_weekdays = serializers.ListField(
         child=serializers.IntegerField(), required=False
     )
+    mock_weekdays = serializers.ListField(
+        child=serializers.IntegerField(), required=False
+    )
 
     class Meta:
         model = LearnerProfile
@@ -120,6 +123,7 @@ class LearnerProfileSerializer(serializers.ModelSerializer):
             "daily_minutes",
             "mock_interval_days",
             "preferred_weekdays",
+            "mock_weekdays",
             "timezone",
             "practice_narration_voice",
             "preferred_audio_provider",
@@ -153,6 +157,12 @@ class LearnerProfileSerializer(serializers.ModelSerializer):
 
     def validate_preferred_weekdays(self, value: list[int]) -> list[int]:
         return _validate_weekdays(value)
+
+    def validate_mock_weekdays(self, value: list[int]) -> list[int]:
+        cleaned = _validate_weekdays(value)
+        if not cleaned:
+            raise serializers.ValidationError("Choose at least one mock-test day.")
+        return cleaned
 
     def validate_timezone(self, value: str) -> str:
         try:
