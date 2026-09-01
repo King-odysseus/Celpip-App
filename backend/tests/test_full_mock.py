@@ -260,3 +260,139 @@ def test_compact_mock_is_still_available_and_unaffected(user):
     assert attempt.scope == COMPACT_SCOPE
     assert attempt.tasks.count() == 20
     assert attempt.tasks.filter(is_simulated_unscored=True).count() == 0
+
+
+# --- Completion review: time used, unanswered items, next steps -----------
+
+
+def _complete_full_length_attempt(user):
+    """Drive a fresh full-length attempt to completion, answering every
+    objective question correctly, and return the completed attempt."""
+    from apps.assessments.models import AssessmentSession
+    from apps.assessments.services import save_response, submit_session, submit_writing
+    from apps.mocks.services import advance_attempt, start_attempt
+    from uuid import uuid4
+
+    attempt = create_attempt(user, scope=FULL_LENGTH_SCOPE)
+    attempt, _ = start_attempt(attempt.id, user)
+
+    while attempt.state != "completed":
+        task = MockTask.objects.select_related("session", "content_version").get(
+            attempt=attempt, order=attempt.current_order
+        )
+        if task.section in (Skill.LISTENING, Skill.READING):
+            item = task.session.items.get()
+            for question in item.content_version.questions.prefetch_related("choices"):
+                correct_choice = next(choice for choice in question.choices.all() if choice.is_correct)
+                save_response(
+                    session=task.session,
+                    question_id=question.id,
+                    choice_id=correct_choice.id,
+                    expected_revision=0,
+                    idempotency_key=uuid4(),
+                )
+            submit_session(task.session)
+        elif task.section == Skill.WRITING:
+            submit_writing(task.session, final_text="A complete mock response with enough words.")
+        else:
+            from django.utils import timezone
+
+            AssessmentSession.objects.filter(pk=task.session_id).update(
+                state=SessionState.SUBMITTED, submitted_at=timezone.now()
+            )
+        attempt, _ = advance_attempt(attempt.id, user, expected_order=attempt.current_order)
+    return attempt
+
+
+def test_completion_review_reports_time_used_per_section(user):
+    attempt = _complete_full_length_attempt(user)
+    results = results_payload(attempt)
+
+    for component in results["components"]:
+        assert component["time_used_seconds"] is not None
+        assert component["time_used_seconds"] >= 0
+    assert results["time_used_seconds_total"] is not None
+    assert results["time_used_seconds_total"] >= 0
+
+
+def test_completion_review_reports_no_unanswered_tasks_when_all_submitted(user):
+    attempt = _complete_full_length_attempt(user)
+    results = results_payload(attempt)
+
+    assert results["tasks_unanswered_total"] == 0
+    for component in results["components"]:
+        assert component["tasks_unanswered"] == 0
+
+
+def test_completion_review_identifies_strongest_and_needs_attention_skills(user):
+    attempt = _complete_full_length_attempt(user)
+    results = results_payload(attempt)
+
+    all_skills = {Skill.LISTENING, Skill.READING, Skill.WRITING, Skill.SPEAKING}
+    assert results["strongest_skill"] in all_skills
+    assert results["needs_attention_skill"] in all_skills
+    # Every recommendation is honest about where it sends the learner and why.
+    for step in results["recommended_next_steps"]:
+        assert step["skill"] in all_skills
+        assert step["reason"]
+        assert step["destination"].startswith("/")
+
+
+def test_completion_review_never_claims_an_overall_celpip_level(user):
+    attempt = _complete_full_length_attempt(user)
+    results = results_payload(attempt)
+
+    assert results["overall_score"] is None
+    assert "unofficial" in results["disclaimer"].lower()
+
+
+def test_completion_review_counts_skipped_tasks_as_unanswered(user):
+    """A section that expires mid-way marks its unfinished tasks skipped;
+    the completion review must surface those as unanswered, and recommend
+    revisiting that skill."""
+    from apps.mocks.services import _expire_locked
+    from django.utils import timezone
+
+    attempt = create_attempt(user, scope=FULL_LENGTH_SCOPE)
+    from apps.mocks.services import start_attempt
+
+    attempt, _ = start_attempt(attempt.id, user)
+    first_section = attempt.current_section
+
+    # Force the first section's deadline into the past and let it expire,
+    # skipping every remaining task in that section without answering them.
+    attempt.section_deadline_at = timezone.now() - __import__("datetime").timedelta(seconds=1)
+    attempt.save()
+    _expire_locked(attempt, timezone.now())
+    attempt.save()
+
+    # Finish the remaining sections normally.
+    attempt = _drain_remaining(attempt, user)
+
+    results = results_payload(attempt)
+    skipped_component = next(c for c in results["components"] if c["skill"] == first_section)
+    assert skipped_component["tasks_unanswered"] > 0
+    assert results["tasks_unanswered_total"] > 0
+    assert any(step["skill"] == first_section for step in results["recommended_next_steps"])
+
+
+def _drain_remaining(attempt, user):
+    from apps.assessments.models import AssessmentSession
+    from apps.assessments.services import submit_session, submit_writing
+    from apps.mocks.services import advance_attempt
+    from django.utils import timezone
+
+    while attempt.state != "completed":
+        task = MockTask.objects.select_related("session", "content_version").get(
+            attempt=attempt, order=attempt.current_order
+        )
+        if task.section in (Skill.LISTENING, Skill.READING):
+            submit_session(task.session)
+        elif task.section == Skill.WRITING:
+            submit_writing(task.session, final_text="A complete mock response with enough words.")
+        else:
+            AssessmentSession.objects.filter(pk=task.session_id).update(
+                state=SessionState.SUBMITTED, submitted_at=timezone.now()
+            )
+        attempt, _ = advance_attempt(attempt.id, user, expected_order=attempt.current_order)
+    return attempt

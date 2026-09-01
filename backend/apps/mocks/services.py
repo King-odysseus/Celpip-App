@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import random
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from django.db import transaction
 from django.db.models import Count
@@ -346,7 +346,22 @@ def _create_full_length_attempt(user) -> MockAttempt:
     return attempt
 
 
+def _close_open_section_log(attempt: MockAttempt, now) -> None:
+    """Close whichever section is currently open in the log, if any.
+
+    section_started_at/section_deadline_at get overwritten on every
+    transition, so this JSON log is the only place "time used" can be read
+    from once the attempt completes.
+    """
+    if not attempt.current_section:
+        return
+    entry = attempt.section_log.get(attempt.current_section)
+    if entry and entry.get("ended_at") is None:
+        entry["ended_at"] = now.isoformat()
+
+
 def _start_section(attempt: MockAttempt, task: MockTask, now) -> None:
+    _close_open_section_log(attempt, now)
     seconds = attempt.format_snapshot["component_timings"][task.section]["mock_seconds"]
     deadline = now + timedelta(seconds=seconds)
     attempt.current_section = task.section
@@ -354,6 +369,10 @@ def _start_section(attempt: MockAttempt, task: MockTask, now) -> None:
     attempt.section_started_at = now
     attempt.section_deadline_at = deadline
     attempt.state = MockState.ACTIVE
+    attempt.section_log = {
+        **attempt.section_log,
+        task.section: {"started_at": now.isoformat(), "ended_at": None},
+    }
     task.state = MockTaskState.CURRENT
     task.save(update_fields=["state"])
     AssessmentSession.objects.filter(
@@ -364,6 +383,7 @@ def _start_section(attempt: MockAttempt, task: MockTask, now) -> None:
 
 
 def _complete(attempt: MockAttempt, now) -> None:
+    _close_open_section_log(attempt, now)
     attempt.state = MockState.COMPLETED
     attempt.completed_at = now
     attempt.section_deadline_at = None
@@ -560,12 +580,44 @@ def attempt_payload(attempt: MockAttempt, *, include_tasks: bool = True) -> dict
     return payload
 
 
+# Where the completion review points a learner for each skill's "next step".
+_NEXT_STEP_DESTINATIONS = {
+    Skill.LISTENING: "/practice/listening",
+    Skill.READING: "/practice",
+    Skill.WRITING: "/practice/writing",
+    Skill.SPEAKING: "/practice/speaking",
+}
+
+
+def _section_time_used_seconds(attempt: MockAttempt, skill: str) -> int | None:
+    entry = attempt.section_log.get(skill)
+    if not entry or not entry.get("ended_at"):
+        return None
+    started = datetime.fromisoformat(entry["started_at"])
+    ended = datetime.fromisoformat(entry["ended_at"])
+    return max(0, round((ended - started).total_seconds()))
+
+
+def _normalized_signal(component: dict) -> float | None:
+    """0-100 planning signal so Listening/Reading accuracy and Writing/Speaking
+    AI estimates can be ranked against each other for strongest/needs-attention,
+    mirroring apps.learning.services._practice_signal's normalisation."""
+    if component["measure"] == "practice_accuracy":
+        return component["accuracy_percent"]
+    if component["estimate_low"] is None:
+        return None
+    midpoint = (component["estimate_low"] + component["estimate_high"]) / 2
+    return round(midpoint / 12 * 100)
+
+
 def results_payload(attempt: MockAttempt) -> dict:
     if attempt.state != MockState.COMPLETED:
         raise ResultsEmbargoed("Mock results are released only after all four components finish.")
     components = []
     for skill in COMPONENT_ORDER:
         tasks = list(attempt.tasks.filter(section=skill).select_related("session"))
+        skipped = sum(1 for task in tasks if task.state == MockTaskState.SKIPPED)
+        time_used = _section_time_used_seconds(attempt, skill)
         if skill in (Skill.LISTENING, Skill.READING):
             # Simulated-unscored items stay indistinguishable to the learner
             # during the attempt but never contribute to raw accuracy.
@@ -584,6 +636,8 @@ def results_payload(attempt: MockAttempt) -> dict:
                     "accuracy_percent": round(100 * correct / possible) if possible else None,
                     "items_attempted": len(tasks),
                     "items_scored": len(scored_tasks),
+                    "tasks_unanswered": skipped,
+                    "time_used_seconds": time_used,
                 }
             )
         else:
@@ -606,13 +660,53 @@ def results_payload(attempt: MockAttempt) -> dict:
                     "estimate_high": round(sum(high for _, high in ranges) / len(ranges), 1)
                     if ranges
                     else None,
+                    "tasks_unanswered": skipped,
+                    "time_used_seconds": time_used,
                 }
             )
+
+    signals = [(component["skill"], _normalized_signal(component)) for component in components]
+    scored_signals = [(skill, value) for skill, value in signals if value is not None]
+    strongest_skill = max(scored_signals, key=lambda pair: pair[1])[0] if scored_signals else None
+    needs_attention_skill = min(scored_signals, key=lambda pair: pair[1])[0] if scored_signals else None
+
+    section_times = [c["time_used_seconds"] for c in components if c["time_used_seconds"] is not None]
+    total_time_used = sum(section_times) if section_times else None
+    total_unanswered = sum(component["tasks_unanswered"] for component in components)
+
+    next_steps = []
+    if needs_attention_skill:
+        label = needs_attention_skill.capitalize()
+        next_steps.append(
+            {
+                "skill": needs_attention_skill,
+                "reason": f"{label} had this attempt's lowest practice signal.",
+                "destination": _NEXT_STEP_DESTINATIONS[needs_attention_skill],
+            }
+        )
+    for component in components:
+        if component["tasks_unanswered"] > 0 and component["skill"] != needs_attention_skill:
+            next_steps.append(
+                {
+                    "skill": component["skill"],
+                    "reason": (
+                        f"{component['tasks_unanswered']} task(s) ran out of time unanswered "
+                        f"in {component['skill'].capitalize()}."
+                    ),
+                    "destination": _NEXT_STEP_DESTINATIONS[component["skill"]],
+                }
+            )
+
     return {
         "attempt_id": str(attempt.id),
         "completed_at": attempt.completed_at,
         "components": components,
         "overall_score": None,
+        "time_used_seconds_total": total_time_used,
+        "tasks_unanswered_total": total_unanswered,
+        "strongest_skill": strongest_skill,
+        "needs_attention_skill": needs_attention_skill,
+        "recommended_next_steps": next_steps,
         "disclaimer": (
             "Unofficial practice results only. Objective accuracy is not converted to a CELPIP "
             "level; AI-assisted ranges are not official ratings. Immigration decisions use "

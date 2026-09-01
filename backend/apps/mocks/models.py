@@ -45,6 +45,12 @@ class MockAttempt(models.Model):
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # {section: {"started_at": iso, "ended_at": iso | None}}, one entry per
+    # component. section_started_at/section_deadline_at are overwritten as the
+    # attempt progresses, so this is the only durable per-section timing
+    # record once the attempt completes — the completion review's "time used"
+    # has nowhere else to read it from.
+    section_log = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ["-created_at"]

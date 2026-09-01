@@ -16,8 +16,18 @@ export const COMPONENT_META: Record<Skill, { label: string; timingLabel: string 
   speaking: { label: 'Speaking', timingLabel: '15 minutes' },
 }
 
+export const COMPACT_SCOPE = 'compact_task_family_mock'
+export const FULL_LENGTH_SCOPE = 'full_length_simulation'
+
 export const COMPACT_SCOPE_LIMITATION =
   'This compact task-family mock covers every current CELPIP-General task family and ' +
   'uses official component time boxes. Its original starter bank has fewer objective ' +
   'questions than the live test, so question volume and practice accuracy are not an ' +
   'official test simulation or score conversion.'
+
+export const FULL_LENGTH_SCOPE_LIMITATION =
+  'Full simulation — unofficial. Uses the current official Listening and Reading question ' +
+  'counts and all eight Speaking tasks, assembled from original, human-reviewed content in ' +
+  'the official section order and official time boxes. It reproduces official test structure ' +
+  'only: content, audio, and scoring are original to this project, not an official CELPIP ' +
+  'test, and raw practice accuracy is never converted to an official CELPIP score or level.'

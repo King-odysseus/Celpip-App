@@ -82,6 +82,10 @@ export type ObjectiveMockComponent = {
   raw_correct: number
   raw_possible: number
   accuracy_percent: number | null
+  items_attempted: number
+  items_scored: number
+  tasks_unanswered: number
+  time_used_seconds: number | null
 }
 
 export type AiEstimatedMockComponent = {
@@ -91,14 +95,27 @@ export type AiEstimatedMockComponent = {
   tasks_total: number
   estimate_low: number | null
   estimate_high: number | null
+  tasks_unanswered: number
+  time_used_seconds: number | null
 }
 
 export type MockComponent = ObjectiveMockComponent | AiEstimatedMockComponent
+
+export type NextStep = {
+  skill: Skill
+  reason: string
+  destination: string
+}
 
 export type MockResults = {
   attempt_id: string
   completed_at: string
   components: MockComponent[]
   overall_score: null
+  time_used_seconds_total: number | null
+  tasks_unanswered_total: number
+  strongest_skill: Skill | null
+  needs_attention_skill: Skill | null
+  recommended_next_steps: NextStep[]
   disclaimer: string
 }

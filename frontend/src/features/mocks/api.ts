@@ -5,8 +5,8 @@ export function listMocks(): Promise<MockListResponse> {
   return api.get<MockListResponse>('/mocks/')
 }
 
-export function createMock(): Promise<MockAttempt> {
-  return api.post<MockAttempt>('/mocks/')
+export function createMock(scope?: string): Promise<MockAttempt> {
+  return api.post<MockAttempt>('/mocks/', scope ? { scope } : undefined)
 }
 
 export function getMock(attemptId: string): Promise<MockAttempt> {

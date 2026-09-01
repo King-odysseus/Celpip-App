@@ -12,10 +12,11 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Card, Meter } from '../../components/ui'
+import { Button, ButtonLink, Card, Meter } from '../../components/ui'
 import { ApiError } from '../../lib/api'
 import { getMock, getMockResults, startMock } from './api'
-import { COMPONENT_META, COMPONENT_ORDER } from './constants'
+import { COMPONENT_META, COMPONENT_ORDER, FULL_LENGTH_SCOPE } from './constants'
+import { MockPreflight } from './MockPreflight'
 import type {
   MockAttempt,
   MockComponent,
@@ -102,7 +103,9 @@ export function MockWorkspacePage() {
           <ArrowLeft size={17} /> Exit
         </Button>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-accent">Mock attempt</p>
+          <p className="text-xs font-bold uppercase tracking-wider text-accent">
+            {attempt.scope === FULL_LENGTH_SCOPE ? 'Full simulation' : 'Compact mock'}
+          </p>
           <h1 className="truncate font-bold text-ink">Listening → Reading → Writing → Speaking</h1>
         </div>
         <span className="rounded-full bg-brand-soft px-3 py-1.5 text-sm font-bold text-brand">
@@ -144,17 +147,32 @@ function ReadyView({
   error: string
   onStart: () => void
 }) {
+  const [preflightDone, setPreflightDone] = useState(false)
+
+  if (!preflightDone) {
+    return (
+      <div className="space-y-5">
+        <MockPreflight onReady={() => setPreflightDone(true)} />
+        <TaskProgress tasks={attempt.tasks ?? []} />
+        <DisclaimerNote text={attempt.disclaimer} />
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <Card className="text-center">
         <p className="eyebrow">Ready when you are</p>
         <h2 className="mt-2 text-2xl font-bold text-ink">Your mock is assembled</h2>
         <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-muted">
-          All 20 task families are frozen in official order. Starting begins the Listening
-          section and its server-managed time box; leaving mid-section marks unfinished tasks
-          as skipped when time runs out.
+          All {attempt.progress.total} tasks are frozen in official order. Starting begins the
+          Listening section and its server-managed time box; leaving mid-section marks
+          unfinished tasks as skipped when time runs out.
         </p>
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex justify-center gap-3">
+          <Button variant="secondary" onClick={() => setPreflightDone(false)}>
+            Back to device check
+          </Button>
           <Button disabled={starting} onClick={onStart}>
             <Play size={18} /> {starting ? 'Starting…' : 'Start mock'}
           </Button>
@@ -223,7 +241,7 @@ function ActiveView({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="eyebrow">
-                {COMPONENT_META[current.section]?.label} · Task {current.order} of 20
+                {COMPONENT_META[current.section]?.label} · Task {current.order} of {attempt.progress.total}
               </p>
               <h2 className="mt-1 text-xl font-bold text-ink">{current.title}</h2>
               <p className="mt-1 text-sm text-muted">
@@ -272,6 +290,13 @@ function IdleView({ attempt, onRefresh }: { attempt: MockAttempt; onRefresh: () 
   )
 }
 
+function formatDuration(seconds: number): string {
+  const minutes = Math.floor(seconds / 60)
+  const remainder = seconds % 60
+  if (minutes === 0) return `${remainder}s`
+  return `${minutes}m ${remainder}s`
+}
+
 function CompletedView({
   attempt,
   results,
@@ -297,11 +322,60 @@ function CompletedView({
       </Card>
 
       {results ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {results.components.map((component) => (
-            <ComponentCard key={component.skill} component={component} />
-          ))}
-        </div>
+        <>
+          <Card>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">Summary</h2>
+            <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-muted">Time used</dt>
+                <dd className="mt-1 text-lg font-bold tabular-nums text-ink">
+                  {results.time_used_seconds_total === null ? '—' : formatDuration(results.time_used_seconds_total)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-muted">Unanswered tasks</dt>
+                <dd className="mt-1 text-lg font-bold tabular-nums text-ink">{results.tasks_unanswered_total}</dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-muted">Strongest area</dt>
+                <dd className="mt-1 text-lg font-bold text-good">
+                  {results.strongest_skill ? COMPONENT_META[results.strongest_skill]?.label : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs font-semibold uppercase tracking-wider text-muted">Needs attention</dt>
+                <dd className="mt-1 text-lg font-bold text-warn">
+                  {results.needs_attention_skill ? COMPONENT_META[results.needs_attention_skill]?.label : '—'}
+                </dd>
+              </div>
+            </dl>
+          </Card>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {results.components.map((component) => (
+              <ComponentCard key={component.skill} component={component} />
+            ))}
+          </div>
+
+          {results.recommended_next_steps.length > 0 && (
+            <Card>
+              <h2 className="text-lg font-semibold tracking-tight text-ink">Recommended next steps</h2>
+              <ul className="mt-3 space-y-2">
+                {results.recommended_next_steps.map((step) => (
+                  <li key={step.skill} className="flex items-start justify-between gap-3 rounded-input border border-line bg-surface-secondary px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">{COMPONENT_META[step.skill]?.label ?? step.skill}</p>
+                      <p className="mt-0.5 text-sm text-muted">{step.reason}</p>
+                    </div>
+                    <ButtonLink to={step.destination} variant="secondary" className="shrink-0">
+                      Practice
+                    </ButtonLink>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </>
       ) : (
         <p role="status" className="py-8 text-center text-muted">Releasing your component results…</p>
       )}
@@ -317,7 +391,14 @@ function ComponentCard({ component }: { component: MockComponent }) {
   const label = COMPONENT_META[component.skill]?.label ?? component.skill
   return (
     <Card>
-      <h3 className="text-lg font-bold text-ink">{label}</h3>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-lg font-bold text-ink">{label}</h3>
+        {component.time_used_seconds !== null && (
+          <span className="shrink-0 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-semibold text-muted tabular-nums">
+            {formatDuration(component.time_used_seconds)}
+          </span>
+        )}
+      </div>
       {component.measure === 'practice_accuracy' ? (
         <div className="mt-3">
           <p className="text-3xl font-bold tabular-nums text-ink">
@@ -340,6 +421,11 @@ function ComponentCard({ component }: { component: MockComponent }) {
             AI-assisted practice estimate · {component.feedback_ready}/{component.tasks_total} tasks
           </p>
         </div>
+      )}
+      {component.tasks_unanswered > 0 && (
+        <p className="mt-2 text-xs font-semibold text-bad">
+          {component.tasks_unanswered} task(s) unanswered — time ran out before submitting.
+        </p>
       )}
     </Card>
   )

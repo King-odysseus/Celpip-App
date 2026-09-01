@@ -15,9 +15,12 @@ import { ApiError } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import { createMock, listMocks } from './api'
 import {
+  COMPACT_SCOPE,
   COMPACT_SCOPE_LIMITATION,
   COMPONENT_META,
   COMPONENT_ORDER,
+  FULL_LENGTH_SCOPE,
+  FULL_LENGTH_SCOPE_LIMITATION,
   OFFICIAL_SOURCE_URL,
 } from './constants'
 import type { MockAttempt, MockState } from './types'
@@ -70,8 +73,9 @@ function CompactScopeCard() {
       <div className="flex items-start gap-3">
         <Info size={20} className="mt-0.5 shrink-0 text-warn" aria-hidden="true" />
         <div>
-          <h2 className="text-lg font-semibold tracking-tight text-ink">An honest compact scope</h2>
+          <h2 className="text-lg font-semibold tracking-tight text-ink">Two ways to practice</h2>
           <p className="mt-1 text-sm leading-6 text-muted">{COMPACT_SCOPE_LIMITATION}</p>
+          <p className="mt-2 text-sm leading-6 text-muted">{FULL_LENGTH_SCOPE_LIMITATION}</p>
           <p className="mt-2 text-sm">
             <a
               href={OFFICIAL_SOURCE_URL}
@@ -143,7 +147,7 @@ function MockHub() {
   const navigate = useNavigate()
   const [attempts, setAttempts] = useState<MockAttempt[]>([])
   const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
+  const [creatingScope, setCreatingScope] = useState<string | null>(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -159,15 +163,15 @@ function MockHub() {
     }
   }, [])
 
-  async function create() {
-    setCreating(true)
+  async function create(scope: string) {
+    setCreatingScope(scope)
     setError('')
     try {
-      const attempt = await createMock()
+      const attempt = await createMock(scope)
       navigate(`/mock/${attempt.id}`)
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'The mock could not be created.')
-      setCreating(false)
+      setCreatingScope(null)
     }
   }
 
@@ -179,16 +183,39 @@ function MockHub() {
       <OfficialFormatCard />
 
       <Card>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-ink">Start a new mock</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-ink">Start a new mock</h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-input border border-line p-4">
+            <p className="font-semibold text-ink">Compact mock</p>
             <p className="mt-1 text-sm text-muted">
-              A fresh attempt assembles all 20 current task families in official order.
+              All 20 task families, one prompt each. Faster — good for a quick rehearsal.
             </p>
+            <Button
+              className="mt-3 w-full"
+              variant="secondary"
+              disabled={creatingScope !== null}
+              onClick={() => void create(COMPACT_SCOPE)}
+            >
+              {creatingScope === COMPACT_SCOPE ? 'Creating…' : <><Play size={18} /> Compact mock</>}
+            </Button>
           </div>
-          <Button className="self-start" disabled={creating} onClick={() => void create()}>
-            {creating ? 'Creating…' : <><Play size={18} /> Create mock</>}
-          </Button>
+          <div className="rounded-input border border-brand/40 bg-brand-soft/30 p-4">
+            <p className="flex items-center gap-2 font-semibold text-ink">
+              Full simulation
+              <span className="rounded-full bg-brand px-2 py-0.5 text-[11px] font-bold text-white">Unofficial</span>
+            </p>
+            <p className="mt-1 text-sm text-muted">
+              Current official Listening/Reading question counts and every Speaking task —
+              the full-length exam-day rehearsal.
+            </p>
+            <Button
+              className="mt-3 w-full"
+              disabled={creatingScope !== null}
+              onClick={() => void create(FULL_LENGTH_SCOPE)}
+            >
+              {creatingScope === FULL_LENGTH_SCOPE ? 'Creating…' : <><Play size={18} /> Full simulation</>}
+            </Button>
+          </div>
         </div>
         {error && <p role="alert" className="mt-3 rounded-input bg-bad-soft p-3 text-sm text-bad">{error}</p>}
       </Card>
@@ -215,6 +242,9 @@ function MockHub() {
                       <span className={`rounded-full px-3 py-1 text-xs font-bold ${stateTone(attempt.state)}`}>
                         {STATE_LABEL[attempt.state]}
                       </span>
+                      <span className="rounded-full bg-surface-secondary px-2 py-0.5 text-[11px] font-semibold text-muted">
+                        {attempt.scope === FULL_LENGTH_SCOPE ? 'Full simulation' : 'Compact mock'}
+                      </span>
                       <span className="text-xs text-muted">
                         {attempt.started_at
                           ? `Started ${formatDate(attempt.started_at)}`
@@ -225,8 +255,8 @@ function MockHub() {
                       {attempt.state === 'completed'
                         ? 'All four components finished.'
                         : attempt.state === 'active'
-                          ? `Section ${attempt.current_order ?? '–'} of 20 tasks · ${attempt.progress.completed} complete`
-                          : '20 task families · Listening → Reading → Writing → Speaking'}
+                          ? `Task ${attempt.current_order} of ${attempt.progress.total} · ${attempt.progress.completed} complete`
+                          : `${attempt.progress.total} tasks · Listening → Reading → Writing → Speaking`}
                     </p>
                   </div>
                   <Button

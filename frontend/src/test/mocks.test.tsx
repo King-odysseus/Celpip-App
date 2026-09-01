@@ -1,9 +1,57 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { renderApp } from './renderApp'
 import { errorResponse, installRouteFetch, jsonResponse } from './mockFetch'
 import type { MockAttempt, MockFormat, MockTask, Skill } from '../features/mocks/types'
+
+/** jsdom has neither getUserMedia nor AudioContext; stub both device checks
+ * the preflight screen runs so a test can clear it like a real browser would. */
+function stubPreflightDevices() {
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: vi.fn().mockResolvedValue({ getTracks: () => [{ stop: vi.fn() }] }) },
+  })
+  vi.stubGlobal('MediaRecorder', class {
+    static isTypeSupported() { return true }
+  })
+  class FakeAnalyser {
+    fftSize = 256
+    frequencyBinCount = 128
+    connect() {}
+    getByteFrequencyData(array: Uint8Array) { array.fill(0) }
+  }
+  class FakeAudioContext {
+    currentTime = 0
+    destination = {}
+    createOscillator() {
+      return { frequency: { value: 0 }, connect: () => {}, start: () => {}, stop: () => {} }
+    }
+    createGain() {
+      return { gain: { value: 0 }, connect: () => {} }
+    }
+    createMediaStreamSource() {
+      return { connect: () => {} }
+    }
+    createAnalyser() {
+      return new FakeAnalyser()
+    }
+    close() {
+      return Promise.resolve()
+    }
+  }
+  vi.stubGlobal('AudioContext', FakeAudioContext)
+}
+
+async function clearPreflight(user: ReturnType<typeof userEvent.setup>) {
+  stubPreflightDevices()
+  await user.click(await screen.findByRole('button', { name: /play test tone/i }))
+  await user.click(await screen.findByRole('button', { name: /i heard it/i }))
+  await user.click(await screen.findByRole('button', { name: /test microphone/i }))
+  await screen.findByText(/microphone connected/i)
+  await user.click(screen.getByLabelText(/i understand these rules/i))
+  await user.click(await screen.findByRole('button', { name: /continue to start/i }))
+}
 
 const attemptId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const mockSessionId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
@@ -177,7 +225,7 @@ describe('Mock Tests hub', () => {
     expect(await screen.findByRole('heading', { name: 'Mock Tests' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /create a free account/i })).toHaveAttribute('href', '/register')
     expect(screen.getAllByRole('link', { name: 'Sign in' }).length).toBeGreaterThan(0)
-    expect(screen.getByRole('heading', { name: /honest compact scope/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /two ways to practice/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /official component order and timing/i })).toBeInTheDocument()
   })
 
@@ -192,7 +240,8 @@ describe('Mock Tests hub', () => {
     })
     renderApp('/mock')
 
-    await user.click(await screen.findByRole('button', { name: /create mock/i }))
+    await user.click(await screen.findByRole('button', { name: /compact mock/i }))
+    await clearPreflight(user)
     await user.click(await screen.findByRole('button', { name: /start mock/i }))
 
     expect(await screen.findByRole('button', { name: /launch task/i })).toBeInTheDocument()
@@ -232,12 +281,19 @@ describe('Mock workspace results', () => {
           attempt_id: attemptId,
           completed_at: '2026-08-29T00:30:00Z',
           components: [
-            { skill: 'listening', measure: 'practice_accuracy', raw_correct: 12, raw_possible: 18, accuracy_percent: 67 },
-            { skill: 'reading', measure: 'practice_accuracy', raw_correct: 8, raw_possible: 12, accuracy_percent: 67 },
-            { skill: 'writing', measure: 'ai_assisted_practice_estimate', feedback_ready: 2, tasks_total: 2, estimate_low: 6, estimate_high: 7 },
-            { skill: 'speaking', measure: 'ai_assisted_practice_estimate', feedback_ready: 8, tasks_total: 8, estimate_low: 5, estimate_high: 6 },
+            { skill: 'listening', measure: 'practice_accuracy', raw_correct: 12, raw_possible: 18, accuracy_percent: 67, items_attempted: 6, items_scored: 6, tasks_unanswered: 0, time_used_seconds: 2800 },
+            { skill: 'reading', measure: 'practice_accuracy', raw_correct: 8, raw_possible: 12, accuracy_percent: 67, items_attempted: 4, items_scored: 4, tasks_unanswered: 0, time_used_seconds: 2500 },
+            { skill: 'writing', measure: 'ai_assisted_practice_estimate', feedback_ready: 2, tasks_total: 2, estimate_low: 6, estimate_high: 7, tasks_unanswered: 0, time_used_seconds: 3000 },
+            { skill: 'speaking', measure: 'ai_assisted_practice_estimate', feedback_ready: 8, tasks_total: 8, estimate_low: 5, estimate_high: 6, tasks_unanswered: 1, time_used_seconds: 800 },
           ],
           overall_score: null,
+          time_used_seconds_total: 9100,
+          tasks_unanswered_total: 1,
+          strongest_skill: 'writing',
+          needs_attention_skill: 'speaking',
+          recommended_next_steps: [
+            { skill: 'speaking', reason: 'Speaking had this attempt’s lowest practice signal.', destination: '/practice/speaking' },
+          ],
           disclaimer: 'Unofficial practice results only.',
         }),
     })
@@ -251,6 +307,9 @@ describe('Mock workspace results', () => {
     expect(screen.getByRole('heading', { name: 'Speaking' })).toBeInTheDocument()
     expect(screen.getByText(/12\/18/)).toBeInTheDocument()
     expect(screen.getByText(/≈ 6–7/)).toBeInTheDocument()
+    expect(screen.getByText(/1 task\(s\) unanswered/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /recommended next steps/i })).toBeInTheDocument()
+    expect(screen.getByText(/lowest practice signal/i)).toBeInTheDocument()
   })
 })
 
@@ -326,5 +385,47 @@ describe('Mock reopened submitted task', () => {
     )
     expect(advanceCall).toBeTruthy()
     expect(JSON.parse(String(advanceCall?.[1]?.body))).toEqual({ expected_order: 1 })
+  })
+})
+
+describe('Mock preflight device check', () => {
+  it('keeps Start mock unavailable until every check and the rules checkbox pass', async () => {
+    const user = userEvent.setup()
+    installRouteFetch({
+      ...authBootstrap,
+      'GET /mocks/': () => jsonResponse({ count: 0, results: [] }),
+      'POST /mocks/': () => jsonResponse(makeAttempt(), 201),
+      [`GET /mocks/${attemptId}/`]: () => jsonResponse(makeAttempt()),
+    })
+    renderApp('/mock')
+
+    await user.click(await screen.findByRole('button', { name: /full simulation/i }))
+    expect(await screen.findByRole('heading', { name: /device check/i })).toBeInTheDocument()
+    // No "Start mock" button exists before the preflight is cleared.
+    expect(screen.queryByRole('button', { name: /^start mock$/i })).not.toBeInTheDocument()
+
+    await clearPreflight(user)
+    expect(await screen.findByRole('button', { name: /^start mock$/i })).toBeInTheDocument()
+  })
+
+  it('offers a retry after microphone permission is denied', async () => {
+    const user = userEvent.setup()
+    installRouteFetch({
+      ...authBootstrap,
+      'GET /mocks/': () => jsonResponse({ count: 0, results: [] }),
+      'POST /mocks/': () => jsonResponse(makeAttempt(), 201),
+      [`GET /mocks/${attemptId}/`]: () => jsonResponse(makeAttempt()),
+    })
+    renderApp('/mock')
+    await user.click(await screen.findByRole('button', { name: /compact mock/i }))
+
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: vi.fn().mockRejectedValue(new Error('denied')) },
+    })
+    await user.click(await screen.findByRole('button', { name: /test microphone/i }))
+
+    expect(await screen.findByText(/microphone permission was not granted/i)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument()
   })
 })
