@@ -18,7 +18,7 @@ export function SkillEstimates({ skills }: { skills: Progress['skills'] }) {
           const summary = skills.find((item) => item.skill === skill)
           const measure =
             summary?.accuracy_percent !== null && summary?.accuracy_percent !== undefined
-              ? `${summary.accuracy_percent}% accuracy`
+              ? `${summary.accuracy_percent}% practice accuracy`
               : summary?.estimate_low !== null && summary?.estimate_low !== undefined
                 ? `Estimated ${summary.estimate_low}–${summary.estimate_high}`
                 : '—'
