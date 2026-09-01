@@ -561,7 +561,73 @@ Cross-skill comparison uses a per-skill **practice planning signal**, normalised
 
 Unpractised skills are reported as **needs-attention** with the basis "No practice recorded yet", and are never silently scored zero. Among practised skills, the strongest signal becomes the *strongest* card and the weakest the *needs-attention* card; an unpractised skill otherwise takes precedence for needs-attention. Objective accuracy and AI estimates remain distinct measures and are never combined into a single skill number.
 
-## 16. Architecture decisions and risks
+## 16. Full-exam simulation expansion
+
+The current Phase 8 mock remains available as a compact task-family simulation. It is useful for
+short practice and regression testing, but it must not be described as a complete live-test
+replacement while Listening and Reading contain fewer objective questions than the current
+CELPIP-General test. The expansion below is deliberately split into two reviewable phases.
+
+### Phase 11 — Full-length content and scoring-ready assembly
+
+**Status:** planned.
+
+Goal: expand the compact mock into a complete-length, format-versioned simulation using only
+original, human-reviewed content.
+
+Deliverables:
+
+- Expand Listening to the current full question counts: 8 / 5 / 6 / 5 / 8 / 6 across its six parts.
+- Expand Reading to the current full question counts: 11 / 8 / 9 / 10 across its four parts.
+- Keep one Writing Email task, one Writing Survey task, and all eight Speaking tasks in the official order.
+- Assemble enough reviewed content variants that repeated mock attempts do not reuse the same complete test unnecessarily.
+- Activate simulated unscored Listening and Reading items where the active format version calls for them. They must be indistinguishable from scored items during the attempt and excluded from objective results after submission.
+- Preserve immutable snapshots of the selected content, format version, scoring policy, and simulated-unscored flags for every attempt.
+- Keep raw practice results separate from official CELPIP scoring. Do not invent a raw-score-to-level conversion.
+- Add content-quality gates for full mocks: coverage, difficulty balance, duplicate detection, answer-key validity, explanation completeness, audio/transcript fidelity, and human approval.
+
+Learning: content assembly at scale, test blueprints, format versioning, item exposure policy,
+scoring boundaries, and editorial quality control.
+
+Tests: exact full-count assembly, variant selection, no duplicate item leakage within an attempt,
+unscored-item exclusion, immutable snapshots, answer-key protection, format-version migration,
+and raw-result accuracy.
+
+Exit: a learner can complete a full-length original mock with the current official task counts,
+and the result clearly reports practice performance without claiming to be an official CELPIP score.
+
+### Phase 12 — Realistic exam-day experience and validation
+
+**Status:** planned.
+
+Goal: make the full-length simulation behave and feel like a real computer-delivered CELPIP
+session, while remaining honest about what an independent platform cannot reproduce.
+
+Deliverables:
+
+- Add a preflight screen covering device/audio checks, microphone permission, volume, browser compatibility, timing rules, and the no-corrections-until-completion policy.
+- Reproduce official section order, section transitions, preparation/response countdowns, sequential task flow, and server-authoritative deadlines.
+- Match Listening behavior: one-playback timed mode, note-taking area, answer-choice/question presentation, and section-specific navigation rules.
+- Match Reading behavior: full passage/question flow, visible progress, question navigation rules, and section deadline handling.
+- Match Writing behavior: two consecutive timed tasks, persistent word count, autosave status, final-submit confirmation, and immutable submissions.
+- Match Speaking behavior: preparation countdown, response countdown, recording state, microphone recovery, playback confirmation, and automatic transition to the next task.
+- Add robust refresh, reconnect, timeout, browser-close, and resume handling without granting extra time.
+- Add a completion review showing time used, unanswered items, task-family performance, and targeted next steps—not a fake overall level.
+- Add an explicit “Full simulation” label and retain the compact mock as a faster alternative.
+- Validate the experience with supported-browser, mobile-width, keyboard, screen-reader, reduced-motion, and real-device audio testing.
+
+Learning: exam-mode UX, resilient timed workflows, browser media constraints, accessibility, and
+realistic test-day preparation.
+
+Tests: Playwright full-exam journey, fake-clock section expiry, reconnect/resume, browser refresh,
+microphone denial/retry, one-playback enforcement, no early feedback, keyboard-only operation,
+screen-reader timer announcements, and mobile reflow.
+
+Exit: the full simulation is reliable enough for exam rehearsal, users understand its limits before
+starting, and the app never suggests that its content, AI feedback, or results are official CELPIP
+material or scoring.
+
+## 17. Architecture decisions and risks
 
 ### Accepted decisions
 
@@ -597,7 +663,7 @@ Unpractised skills are reported as **needs-attention** with the basis "No practi
 | Guest/account merge complexity | Do not implement local/server bidirectional sync in v1 |
 | Seven-item mobile navigation becomes crowded | Four primary items plus More overflow |
 
-## 17. Proposed next slice for review
+## 18. Proposed next slice for review
 
 After this architecture is approved, implement only Phase 1A: repository foundation and the static responsive shell. Authentication can be the following slice so the learner can review Django concepts before a large change.
 

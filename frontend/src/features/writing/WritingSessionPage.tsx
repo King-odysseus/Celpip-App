@@ -55,6 +55,7 @@ export function WritingSessionPage() {
   const [submitting, setSubmitting] = useState(false)
   const [confirmingSubmit, setConfirmingSubmit] = useState(false)
   const [review, setReview] = useState<WritingReview | null>(null)
+  const [checklist, setChecklist] = useState<Record<string, boolean>>({})
 
   // Mutable refs keep the autosave loop free of stale closures and let it
   // serialize concurrent saves so a slow response can never clobber newer text.
@@ -358,6 +359,14 @@ export function WritingSessionPage() {
             <p className="mt-1 text-xs text-muted">
               Aim for {target.min}–{target.max} words. Your draft saves automatically as you write.
             </p>
+            <WritingChecklist
+              requestedPoints={stimulus.requested_points}
+              targetMin={target.min}
+              targetMax={target.max}
+              wordCount={wordCount}
+              values={checklist}
+              onChange={(key, checked) => setChecklist((current) => ({ ...current, [key]: checked }))}
+            />
             <textarea
               id="writing-response"
               value={text}
@@ -431,6 +440,54 @@ export function WritingSessionPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+function WritingChecklist({
+  requestedPoints,
+  targetMin,
+  targetMax,
+  wordCount,
+  values,
+  onChange,
+}: {
+  requestedPoints: string[]
+  targetMin: number
+  targetMax: number
+  wordCount: number
+  values: Record<string, boolean>
+  onChange: (key: string, checked: boolean) => void
+}) {
+  const checks = [
+    ...requestedPoints.map((point, index) => ({ key: `point-${index}`, label: `Answered: ${point}` })),
+    { key: 'clear-structure', label: 'My opening and main purpose are clear.' },
+    { key: 'supporting-detail', label: 'I included specific supporting details.' },
+    { key: 'tone', label: 'My tone matches the audience and situation.' },
+    { key: 'edit', label: 'I checked grammar, spelling, and sentence clarity.' },
+  ]
+  const checkedCount = checks.filter((item) => values[item.key]).length
+  const inRange = wordCount >= targetMin && wordCount <= targetMax
+  return (
+    <fieldset className="mt-4 rounded-input border border-line bg-surface-secondary/60 p-3">
+      <legend className="px-1 text-xs font-bold uppercase tracking-wider text-muted">Before submitting</legend>
+      <p className="mt-1 text-xs text-muted">Self-check your response; these reminders do not replace official scoring.</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {checks.map((item) => (
+          <label key={item.key} className="flex cursor-pointer items-start gap-2 rounded-input p-2 text-sm text-ink hover:bg-surface">
+            <input
+              type="checkbox"
+              checked={Boolean(values[item.key])}
+              onChange={(event) => onChange(item.key, event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-brand"
+            />
+            <span>{item.label}</span>
+          </label>
+        ))}
+      </div>
+      <p className={`mt-2 text-xs font-semibold ${inRange ? 'text-good' : 'text-warn'}`}>
+        {checkedCount}/{checks.length} checks complete · {inRange ? 'Word count is in range.' : `Aim for ${targetMin}–${targetMax} words.`}
+      </p>
+    </fieldset>
   )
 }
 

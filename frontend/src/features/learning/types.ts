@@ -50,6 +50,7 @@ export type Mistake = {
   first_seen_at: string
   last_seen_at: string
   resolved_at: string | null
+  destination?: string
 }
 
 export type StudyTask = {

@@ -13,6 +13,7 @@ from apps.content.models import (
     TaskType,
     TestFormatVersion,
 )
+from apps.content.mock_full_length_filler_data import READING_FILLER_SETS
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
 from apps.content.practice_bank_expansion import expand_practice_bank
 from apps.content.reading_seed_data_v2 import READING_SETS as READING_SETS_V2
@@ -22,7 +23,8 @@ from apps.content.seed_data import TASK_TYPES
 from apps.content.services import publish, submit_for_review
 
 READING_SOURCE_SETS = READING_SETS_BASE + READING_SETS_V2 + READING_SETS_V3
-READING_SETS = expand_practice_bank(READING_SOURCE_SETS, skill="reading")
+# Filler sets are not stage-expanded; see mock_full_length_filler_data.py.
+READING_SETS = expand_practice_bank(READING_SOURCE_SETS, skill="reading") + READING_FILLER_SETS
 
 
 class Command(BaseCommand):

@@ -50,6 +50,11 @@ def _mistake_payload(mistake: MistakeRecord) -> dict:
         "skill": mistake.skill,
         "task_type": mistake.task_type_id,
         "task_title": mistake.task_type.title,
+        "destination": (
+            "/practice"
+            if mistake.skill == "reading"
+            else f"/practice/{mistake.skill}"
+        ) + f"?lesson={mistake.question.content_version.item.slug}",
         "stem": mistake.stem_snapshot,
         "selected": mistake.selected_snapshot,
         "correct": mistake.correct_snapshot,
@@ -109,7 +114,9 @@ class MistakeListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        queryset = MistakeRecord.objects.filter(user=request.user).select_related("task_type")
+        queryset = MistakeRecord.objects.filter(user=request.user).select_related(
+            "task_type", "question__content_version__item"
+        )
         state_filter = request.query_params.get("state")
         skill_filter = request.query_params.get("skill")
         if state_filter in MistakeState.values:

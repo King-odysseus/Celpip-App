@@ -5,6 +5,7 @@ import { Card, Meter } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import type { Progress, Skill } from './types'
+import { ProgressTrendSummary } from './ProgressTrendSummary'
 
 const labels: Record<Skill, string> = { listening: 'Listening', reading: 'Reading', writing: 'Writing', speaking: 'Speaking' }
 
@@ -40,6 +41,7 @@ export function ProgressPage() {
             </div>
           </Card>
         )}
+        <ProgressTrendSummary progress={progress} />
         <div className="grid gap-4 sm:grid-cols-2">
           {progress.skills.map((skill) => {
             const value = skill.accuracy_percent ?? (skill.estimate_high ? skill.estimate_high / 12 * 100 : 0)

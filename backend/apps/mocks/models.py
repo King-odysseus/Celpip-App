@@ -79,8 +79,16 @@ class MockTask(models.Model):
             models.UniqueConstraint(
                 fields=["attempt", "order"], name="mocks_unique_attempt_task_order"
             ),
+            # The compact mock has exactly one MockTask per task_type. The
+            # full-length mock (see mocks.services.OFFICIAL_COUNTS) instead
+            # combines several distinct content versions of the same
+            # task_type to reach the official question count, so task_type
+            # alone can no longer be unique per attempt. Duplicate content is
+            # still prevented: the same content_version can never appear
+            # twice in one attempt, under any scope.
             models.UniqueConstraint(
-                fields=["attempt", "task_type"], name="mocks_unique_attempt_task_type"
+                fields=["attempt", "content_version"],
+                name="mocks_unique_attempt_content_version",
             ),
         ]
 

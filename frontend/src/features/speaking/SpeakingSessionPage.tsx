@@ -341,9 +341,12 @@ export function SpeakingSessionPage() {
           )}
 
           {phase === 'ready' && (
-            <Button className="mt-6 w-full" onClick={() => void begin()}>
-              <Mic2 size={18} /> Allow microphone and start preparation
-            </Button>
+            <>
+              <SpeakingPreflight />
+              <Button className="mt-6 w-full" onClick={() => void begin()}>
+                <Mic2 size={18} /> Allow microphone and start preparation
+              </Button>
+            </>
           )}
           {phase === 'preparing' && (
             <div role="status" className="mt-6 rounded-card bg-brand-soft p-6 text-center text-brand">
@@ -397,6 +400,28 @@ export function SpeakingSessionPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+function SpeakingPreflight() {
+  const browserReady = Boolean(
+    typeof window !== 'undefined'
+      && typeof navigator.mediaDevices?.getUserMedia === 'function'
+      && typeof MediaRecorder !== 'undefined'
+      && preferredMimeType(),
+  )
+  return (
+    <aside className="mt-5 rounded-input border border-line bg-surface-secondary/60 p-4" aria-label="Speaking preflight checklist">
+      <h3 className="text-sm font-bold text-ink">Before you start</h3>
+      <ul className="mt-3 space-y-2 text-sm">
+        <li className="flex items-start gap-2">
+          {browserReady ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-good" aria-hidden /> : <AlertTriangle size={17} className="mt-0.5 shrink-0 text-warn" aria-hidden />}
+          <span className="text-muted">{browserReady ? 'This browser supports private recording.' : 'Use a current browser with microphone recording support.'}</span>
+        </li>
+        <li className="flex items-start gap-2"><CheckCircle2 size={17} className="mt-0.5 shrink-0 text-good" aria-hidden /><span className="text-muted">Choose a quiet space and speak at a natural volume.</span></li>
+        <li className="flex items-start gap-2"><CheckCircle2 size={17} className="mt-0.5 shrink-0 text-good" aria-hidden /><span className="text-muted">Use preparation time to plan; recording starts automatically when it ends.</span></li>
+      </ul>
+    </aside>
   )
 }
 

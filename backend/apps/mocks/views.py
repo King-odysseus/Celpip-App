@@ -6,6 +6,8 @@ from rest_framework.views import APIView
 
 from .models import MockAttempt
 from .services import (
+    COMPACT_SCOPE,
+    FULL_LENGTH_SCOPE,
     InvalidTransition,
     MockError,
     ResultsEmbargoed,
@@ -30,6 +32,11 @@ def _error(exc: MockError) -> Response:
 class MockListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
+    class CreateSerializer(serializers.Serializer):
+        scope = serializers.ChoiceField(
+            choices=[COMPACT_SCOPE, FULL_LENGTH_SCOPE], default=COMPACT_SCOPE, required=False
+        )
+
     def get(self, request):
         attempts = MockAttempt.objects.filter(user=request.user).prefetch_related("tasks")
         return Response(
@@ -40,8 +47,10 @@ class MockListCreateView(APIView):
         )
 
     def post(self, request):
+        serializer = self.CreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         try:
-            attempt = create_attempt(request.user)
+            attempt = create_attempt(request.user, scope=serializer.validated_data["scope"])
         except MockError as exc:
             return _error(exc)
         return Response(attempt_payload(attempt), status=status.HTTP_201_CREATED)
@@ -75,7 +84,12 @@ class MockAdvanceView(APIView):
     permission_classes = [IsAuthenticated]
 
     class InputSerializer(serializers.Serializer):
-        expected_order = serializers.IntegerField(min_value=1, max_value=20)
+        # The compact mock has exactly 20 tasks; the full-length simulation
+        # assembles more (a section may combine several content versions to
+        # reach its official question count). This is only an input sanity
+        # bound — real order validation happens against the attempt's actual
+        # task list in advance_attempt().
+        expected_order = serializers.IntegerField(min_value=1, max_value=200)
 
     def post(self, request, attempt_id):
         serializer = self.InputSerializer(data=request.data)

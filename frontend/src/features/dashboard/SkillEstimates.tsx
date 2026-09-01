@@ -37,6 +37,12 @@ export function SkillEstimates({ skills }: { skills: Progress['skills'] }) {
                   ? `${summary.attempts} completed attempt${summary.attempts === 1 ? '' : 's'}.`
                   : 'No practice recorded yet.'}
               </p>
+              <p className="mt-1 text-xs text-muted">
+                Target: <span className="font-semibold text-ink">CELPIP {summary?.target ?? '—'}</span>
+                {summary && summary.estimate_high !== null && summary.estimate_high !== undefined && summary.target > summary.estimate_high
+                  ? ` · ${summary.target - summary.estimate_high} level${summary.target - summary.estimate_high === 1 ? '' : 's'} below target range`
+                  : ''}
+              </p>
             </Card>
           )
         })}

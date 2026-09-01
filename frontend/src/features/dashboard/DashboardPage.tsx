@@ -14,6 +14,8 @@ import { SkillSignals } from './SkillSignals'
 import { RecentResults } from './RecentResults'
 import { ReadinessIndicator } from './ReadinessIndicator'
 import { FeedbackHistory } from './FeedbackHistory'
+import { NextBestSession } from './NextBestSession'
+import { BaselineAssessment } from './BaselineAssessment'
 
 function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
   const days = profile ? daysUntilExam(profile.exam_date, profile.timezone) : null
@@ -141,7 +143,11 @@ export function DashboardPage() {
       )}
 
       {isAuthed && dashboard && (
-        <ReadinessIndicator readiness={dashboard.readiness} />
+        <>
+          <BaselineAssessment skills={dashboard.skills} />
+          <NextBestSession dashboard={dashboard} />
+          <ReadinessIndicator readiness={dashboard.readiness} />
+        </>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import random
 from datetime import date, timedelta
 
 from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 
 from apps.ai_services.models import AIFeedback
@@ -57,12 +59,37 @@ OFFICIAL_COUNTS = {
     "speaking_opinions": 1,
     "speaking_unusual": 1,
 }
+COMPACT_SCOPE = "compact_task_family_mock"
+FULL_LENGTH_SCOPE = "full_length_simulation"
+
 LIMITATION = (
     "This compact task-family mock covers every current CELPIP-General task family and "
     "uses official component time boxes. Its original starter bank has fewer objective "
     "questions than the live test, so question volume and practice accuracy are not an "
     "official test simulation or score conversion."
 )
+
+FULL_LENGTH_LIMITATION = (
+    "Full simulation — unofficial. This mock uses the current official Listening and "
+    "Reading question counts and all eight Speaking tasks, assembled from original, "
+    "human-reviewed content in the official section order and official time boxes. It "
+    "reproduces official test STRUCTURE only: content, audio, and scoring are original "
+    "to this project, not an official CELPIP test, and raw practice accuracy is never "
+    "converted to an official CELPIP score or level. Some Listening/Reading items may be "
+    "simulated unscored development content, indistinguishable during the attempt, "
+    "exactly as CELPIP describes for its own live test."
+)
+
+# Content authored for progressive Guided/Independent/Challenge practice stages
+# (see content.practice_bank_expansion) reuses the same reviewed scenario with
+# only difficulty relabelling, so combining several stages of one scenario
+# inside a single mock attempt would feel repetitive rather than varied. Full
+# mock assembly draws only from the original, non-stage-expanded tier.
+_STAGE_SLUG_SUFFIXES = ("-guided-stage", "-independent-stage", "-challenge-stage")
+
+
+def _is_full_length_eligible(item_slug: str) -> bool:
+    return not item_slug.endswith(_STAGE_SLUG_SUFFIXES)
 
 
 class MockError(Exception):
@@ -112,7 +139,20 @@ def ensure_format() -> TestFormatVersion:
 
 
 @transaction.atomic
-def create_attempt(user) -> MockAttempt:
+def create_attempt(user, *, scope: str = COMPACT_SCOPE) -> MockAttempt:
+    """Assemble a frozen mock attempt.
+
+    ``scope=COMPACT_SCOPE`` (default) keeps the original one-item-per-task-type
+    simulation. ``scope=FULL_LENGTH_SCOPE`` assembles each Listening/Reading
+    section to the current official question count from several distinct
+    content versions; see ``_create_full_length_attempt``.
+    """
+    if scope == FULL_LENGTH_SCOPE:
+        return _create_full_length_attempt(user)
+    return _create_compact_attempt(user)
+
+
+def _create_compact_attempt(user) -> MockAttempt:
     format_version = ensure_format()
     expected = list(
         TaskType.objects.filter(code__in=OFFICIAL_COUNTS, is_active=True).prefetch_related(
@@ -164,6 +204,145 @@ def create_attempt(user) -> MockAttempt:
             session=session,
             snapshot=frozen,
         )
+    return attempt
+
+
+def _exact_sum_combo(
+    sized_versions: list[tuple[ContentVersion, int]], target: int
+) -> list[tuple[ContentVersion, int]] | None:
+    """Backtrack to a distinct subset whose question counts sum exactly to ``target``.
+
+    ``sized_versions`` should already be shuffled by the caller: backtracking
+    returns the first exact match it finds, so shuffle order is what makes
+    repeated calls prefer different combinations. The pool per task type is
+    small (roughly 5-9 versions), so this is fast despite being exponential
+    in the worst case.
+    """
+
+    def backtrack(index: int, remaining: int) -> list[tuple[ContentVersion, int]] | None:
+        if remaining == 0:
+            return []
+        if remaining < 0 or index >= len(sized_versions):
+            return None
+        version, qcount = sized_versions[index]
+        if qcount <= remaining:
+            rest = backtrack(index + 1, remaining - qcount)
+            if rest is not None:
+                return [(version, qcount)] + rest
+        return backtrack(index + 1, remaining)
+
+    return backtrack(0, target)
+
+
+def _eligible_versions(task_type: TaskType) -> list[ContentVersion]:
+    versions = list(
+        ContentVersion.objects.filter(
+            item__task_type=task_type, status=PublicationStatus.PUBLISHED
+        )
+        .select_related("item__task_type")
+        .prefetch_related("questions__choices")
+        .annotate(qcount=Count("questions"))
+    )
+    return [version for version in versions if _is_full_length_eligible(version.item.slug)]
+
+
+def _select_objective_combo(
+    task_type: TaskType, target: int, recent_ids: set[int]
+) -> list[tuple[ContentVersion, int]]:
+    """Pick distinct, published, non-stage content versions summing to ``target``.
+
+    Versions used by this user's recent full-length attempts for this task
+    type are tried first as an excluded pool, so a repeated mock tends toward
+    a different combination; if no exact combination avoids them, reuse is
+    allowed rather than failing the whole attempt.
+    """
+    versions = _eligible_versions(task_type)
+    sized = [(version, version.qcount) for version in versions if version.qcount]
+    random.shuffle(sized)
+    fresh = [pair for pair in sized if pair[0].id not in recent_ids]
+    combo = _exact_sum_combo(fresh, target) or _exact_sum_combo(sized, target)
+    if combo is None:
+        raise MockUnavailable(
+            f"No combination of reviewed {task_type.title} content reaches the official "
+            f"{target}-question count."
+        )
+    return combo
+
+
+def _pick_single_version(task_type: TaskType, recent_ids: set[int]) -> ContentVersion:
+    versions = _eligible_versions(task_type)
+    if not versions:
+        raise MockUnavailable(f"No reviewed prompt is available for {task_type.title}.")
+    random.shuffle(versions)
+    fresh = [version for version in versions if version.id not in recent_ids]
+    return fresh[0] if fresh else versions[0]
+
+
+def _create_full_length_attempt(user) -> MockAttempt:
+    format_version = ensure_format()
+    expected = list(TaskType.objects.filter(code__in=OFFICIAL_COUNTS, is_active=True))
+    expected.sort(key=lambda task: (COMPONENT_ORDER.index(task.skill), task.part_number))
+    if len(expected) != 20:
+        raise MockUnavailable("All 20 CELPIP-General task families must be available.")
+
+    recent_ids = set(
+        MockTask.objects.filter(
+            attempt__user=user, attempt__scope=FULL_LENGTH_SCOPE
+        ).values_list("content_version_id", flat=True)
+    )
+
+    # (task_type, [(version, qcount), ...], unscored_version_ids)
+    selections: list[tuple[TaskType, list[tuple[ContentVersion, int]], set[int]]] = []
+    for task_type in expected:
+        target = OFFICIAL_COUNTS[task_type.code]
+        if task_type.skill in (Skill.WRITING, Skill.SPEAKING):
+            version = _pick_single_version(task_type, recent_ids)
+            selections.append((task_type, [(version, 0)], set()))
+            continue
+        combo = _select_objective_combo(task_type, target, recent_ids)
+        unscored_ids: set[int] = set()
+        # A section assembled from more than two distinct sets needed extra
+        # content beyond a natural pairing to reach the exact official count.
+        # That extra, smallest set becomes the simulated-unscored item —
+        # indistinguishable during the attempt, excluded from raw scoring.
+        if len(combo) > 2:
+            smallest = min(combo, key=lambda pair: pair[1])
+            unscored_ids = {smallest[0].id}
+        selections.append((task_type, combo, unscored_ids))
+
+    format_snapshot = {
+        "code": format_version.code,
+        "verified_on": format_version.verified_on.isoformat(),
+        "official_source_urls": format_version.official_source_urls,
+        "component_order": COMPONENT_ORDER,
+        "component_timings": COMPONENT_TIMINGS,
+        "task_structure": format_version.task_structure,
+        "scope": FULL_LENGTH_SCOPE,
+        "limitation": FULL_LENGTH_LIMITATION,
+    }
+    attempt = MockAttempt.objects.create(
+        user=user, scope=FULL_LENGTH_SCOPE, format_version=format_version,
+        format_snapshot=format_snapshot,
+    )
+    order = 0
+    for task_type, combo, unscored_ids in selections:
+        for version, _qcount in sorted(combo, key=lambda pair: pair[0].id):
+            order += 1
+            frozen = _snapshot(version)
+            session = AssessmentSession.objects.create(user=user, mode=SessionMode.MOCK)
+            SessionItem.objects.create(
+                session=session, content_version=version, order=1, snapshot=frozen
+            )
+            MockTask.objects.create(
+                attempt=attempt,
+                order=order,
+                section=task_type.skill,
+                task_type=task_type.code,
+                content_version=version,
+                session=session,
+                snapshot=frozen,
+                is_simulated_unscored=version.id in unscored_ids,
+            )
     return attempt
 
 
@@ -359,11 +538,11 @@ def attempt_payload(attempt: MockAttempt, *, include_tasks: bool = True) -> dict
             "completed": attempt.tasks.filter(
                 state__in=[MockTaskState.SUBMITTED, MockTaskState.SKIPPED]
             ).count(),
-            "total": 20,
+            "total": attempt.tasks.count(),
         },
         "rules": exam_rules(attempt),
         "format": attempt.format_snapshot,
-        "disclaimer": LIMITATION,
+        "disclaimer": attempt.format_snapshot.get("limitation", LIMITATION),
     }
     if include_tasks:
         payload["tasks"] = [
@@ -388,8 +567,11 @@ def results_payload(attempt: MockAttempt) -> dict:
     for skill in COMPONENT_ORDER:
         tasks = list(attempt.tasks.filter(section=skill).select_related("session"))
         if skill in (Skill.LISTENING, Skill.READING):
+            # Simulated-unscored items stay indistinguishable to the learner
+            # during the attempt but never contribute to raw accuracy.
+            scored_tasks = [task for task in tasks if not task.is_simulated_unscored]
             results = ObjectiveResult.objects.filter(
-                session_id__in=[task.session_id for task in tasks]
+                session_id__in=[task.session_id for task in scored_tasks]
             )
             correct = sum(result.raw_correct for result in results)
             possible = sum(result.raw_possible for result in results)
@@ -400,6 +582,8 @@ def results_payload(attempt: MockAttempt) -> dict:
                     "raw_correct": correct,
                     "raw_possible": possible,
                     "accuracy_percent": round(100 * correct / possible) if possible else None,
+                    "items_attempted": len(tasks),
+                    "items_scored": len(scored_tasks),
                 }
             )
         else:
