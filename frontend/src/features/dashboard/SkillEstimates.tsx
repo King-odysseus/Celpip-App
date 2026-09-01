@@ -32,6 +32,13 @@ export function SkillEstimates({ skills }: { skills: Progress['skills'] }) {
                 <span className="text-sm tabular-nums text-muted">{measure}</span>
               </div>
               <Meter value={meterValue} label={`${SKILL_LABELS[skill]}: ${measure}`} />
+              {summary?.practice_range_low != null && summary.practice_range_high != null && (
+                <p className="mt-2 text-xs leading-5 text-muted">
+                  Indicative practice range:{' '}
+                  <span className="font-semibold text-ink">CELPIP {summary.practice_range_low}–{summary.practice_range_high}</span>
+                  <br />Based on {summary.questions_total} objective questions · unofficial
+                </p>
+              )}
               <p className="mt-2 text-sm text-muted">
                 {summary?.attempts
                   ? `${summary.attempts} completed attempt${summary.attempts === 1 ? '' : 's'}.`

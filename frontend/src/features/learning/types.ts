@@ -7,6 +7,8 @@ export type Progress = {
     questions_correct: number
     questions_total: number
     accuracy_percent: number | null
+    practice_range_low?: number | null
+    practice_range_high?: number | null
     estimate_low: number | null
     estimate_high: number | null
     target: number

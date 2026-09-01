@@ -38,6 +38,26 @@ PLAN_ALGORITHM_VERSION = 2
 # Number of most-recent results shown on the dashboard. Small and privacy-safe:
 # only the learner's own submitted/estimated outcomes, with no prompt text.
 RECENT_RESULTS_LIMIT = 5
+OBJECTIVE_RANGE_MIN_QUESTIONS = 20
+
+
+def _indicative_objective_range(skill: str, accuracy: int | None, questions_total: int) -> tuple[int, int] | None:
+    """Return a deliberately broad practice band, never an official score."""
+    if skill not in (Skill.LISTENING, Skill.READING) or accuracy is None or questions_total < OBJECTIVE_RANGE_MIN_QUESTIONS:
+        return None
+    if accuracy < 40:
+        return (1, 4)
+    if accuracy < 55:
+        return (5, 6)
+    if accuracy < 70:
+        return (7, 8)
+    if accuracy < 85:
+        return (8, 9)
+    if accuracy < 93:
+        return (9, 10)
+    if accuracy < 97:
+        return (10, 11)
+    return (11, 12)
 
 
 def diagnostic_payload(user) -> dict:
@@ -169,6 +189,8 @@ def progress_payload(user) -> dict:
             "questions_correct": 0,
             "questions_total": 0,
             "accuracy_percent": None,
+            "practice_range_low": None,
+            "practice_range_high": None,
             "estimate_low": None,
             "estimate_high": None,
             "target": profile.target_for(skill),
@@ -245,6 +267,11 @@ def progress_payload(user) -> dict:
         total = summary["questions_total"]
         if total:
             summary["accuracy_percent"] = round(100 * summary["questions_correct"] / total)
+            practice_range = _indicative_objective_range(
+                skill, summary["accuracy_percent"], total
+            )
+            if practice_range:
+                summary["practice_range_low"], summary["practice_range_high"] = practice_range
         ranges = feedback_ranges.get(skill, [])[-5:]
         if ranges:
             summary["estimate_low"] = round(sum(low for low, _ in ranges) / len(ranges), 1)
