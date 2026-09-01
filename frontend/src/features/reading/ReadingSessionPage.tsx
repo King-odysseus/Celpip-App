@@ -5,6 +5,7 @@ import {
   Clock3,
   Flag,
   Headphones,
+  NotebookPen,
   Pause,
   Play,
   RotateCcw,
@@ -192,6 +193,26 @@ export function ReadingSessionPage() {
         label={`Question ${index + 1} of ${session.content.questions.length}`}
       />
 
+      <nav aria-label={`${isListening ? 'Listening' : 'Reading'} questions`} className="mt-3 flex flex-wrap items-center gap-2 rounded-card border border-line bg-surface p-3">
+        <span className="mr-1 text-xs font-bold uppercase tracking-wider text-muted">Jump to</span>
+        {session.content.questions.map((candidate, questionIndex) => {
+          const answered = session.responses.some((response) => response.question_id === candidate.id && response.selected_choice_id)
+          return (
+            <button
+              key={candidate.id}
+              type="button"
+              aria-label={`Question ${questionIndex + 1}${answered ? ', answered' : ', unanswered'}`}
+              aria-current={questionIndex === index ? 'step' : undefined}
+              onClick={() => setIndex(questionIndex)}
+              className={`flex h-9 w-9 items-center justify-center rounded-full border text-sm font-bold transition focus-visible:outline-2 focus-visible:outline-brand ${questionIndex === index ? 'border-brand bg-brand text-white' : answered ? 'border-good/40 bg-good-soft text-good' : 'border-line bg-surface text-muted hover:border-brand'}`}
+            >
+              {questionIndex + 1}
+            </button>
+          )
+        })}
+        <span className="ml-auto text-xs font-semibold text-muted">{session.content.questions.length - answeredCount} unanswered</span>
+      </nav>
+
       <div className="mt-4">
         <StudyTaskAction taskId={studyTaskId} />
       </div>
@@ -202,7 +223,10 @@ export function ReadingSessionPage() {
           <p className="mt-2 text-sm font-medium text-muted">{session.content.instructions}</p>
           <div className="mt-5">
             {isListening && session.audio ? (
-              <AudioPlayer session={session} />
+              <>
+                <AudioPlayer session={session} />
+                <ListeningNotes sessionId={session.id} />
+              </>
             ) : (
               <Stimulus stimulus={session.content.stimulus} />
             )}
@@ -293,6 +317,35 @@ export function ReadingSessionPage() {
         </Card>
       </div>
     </div>
+  )
+}
+
+function ListeningNotes({ sessionId }: { sessionId: string }) {
+  const key = `celpip-listening-notes-${sessionId}`
+  const [notes, setNotes] = useState(() => {
+    try { return localStorage.getItem(key) ?? '' } catch { return '' }
+  })
+  function update(value: string) {
+    setNotes(value)
+    try { localStorage.setItem(key, value) } catch { /* Storage may be blocked; notes still work in this session. */ }
+  }
+  return (
+    <section className="mt-4 rounded-input border border-line bg-surface-secondary p-4" aria-label="Listening notes">
+      <div className="flex items-center gap-2">
+        <NotebookPen size={18} className="text-accent" aria-hidden="true" />
+        <h2 className="font-bold text-ink">Notes</h2>
+        <span className="ml-auto text-xs text-muted">Private to this browser</span>
+      </div>
+      <textarea
+        value={notes}
+        onChange={(event) => update(event.target.value)}
+        rows={5}
+        className="mt-3 w-full resize-y rounded-input border border-line bg-surface p-3 text-sm leading-6 text-ink focus-visible:outline-2 focus-visible:outline-brand"
+        placeholder="Jot down names, numbers, changes, and key details…"
+        aria-label="Listening notes"
+      />
+      <p className="mt-2 text-xs leading-5 text-muted">Notes are not submitted or graded. They remain available if you refresh this session in the same browser.</p>
+    </section>
   )
 }
 
