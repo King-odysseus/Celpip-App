@@ -21,7 +21,7 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
   const days = profile ? daysUntilExam(profile.exam_date, profile.timezone) : null
 
   return (
-    <Card>
+    <Card className="!p-4">
       <div className="flex items-start gap-3">
         <CalendarClock size={22} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0">
@@ -52,7 +52,7 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
 
 function TargetCard({ profile }: { profile: LearnerProfile | null }) {
   return (
-    <Card>
+    <Card className="!p-4">
       <div className="flex items-start gap-3">
         <Target size={22} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div>
@@ -144,16 +144,33 @@ export function DashboardPage() {
 
       {isAuthed && dashboard && (
         <>
-          <BaselineAssessment skills={dashboard.skills} />
           <NextBestSession dashboard={dashboard} />
+          <BaselineAssessment skills={dashboard.skills} />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <CountdownCard profile={profile} />
+            <TargetCard profile={profile} />
+            <DashboardStats
+              streakDays={dashboard.streak.days}
+              totalQuestions={dashboard.totals.objective_questions_completed}
+              completedAttempts={dashboard.totals.completed_attempts}
+            />
+          </div>
+          <TodayTasks
+            date={dashboard.today.date}
+            tasks={dashboard.today.tasks}
+            nextUpcoming={dashboard.next_upcoming_task}
+          />
+          <SkillEstimates skills={dashboard.skills} />
           <ReadinessIndicator readiness={dashboard.readiness} />
         </>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <CountdownCard profile={profile} />
-        <TargetCard profile={profile} />
-      </div>
+      {!isAuthed && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CountdownCard profile={profile} />
+          <TargetCard profile={profile} />
+        </div>
+      )}
 
       {isAuthed &&
         (error ? (
@@ -166,17 +183,6 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
-            <DashboardStats
-              streakDays={dashboard.streak.days}
-              totalQuestions={dashboard.totals.objective_questions_completed}
-              completedAttempts={dashboard.totals.completed_attempts}
-            />
-            <TodayTasks
-              date={dashboard.today.date}
-              tasks={dashboard.today.tasks}
-              nextUpcoming={dashboard.next_upcoming_task}
-            />
-            <SkillEstimates skills={dashboard.skills} />
             <SkillSignals signals={dashboard.signals} />
             <RecentResults results={dashboard.recent_results} />
             <FeedbackHistory />

@@ -41,7 +41,9 @@ export function ReadinessIndicator({ readiness }: { readiness: Readiness }) {
 
           <p className="mt-3 text-xs tabular-nums text-muted">{readiness.formula}</p>
 
-          <dl className="mt-3 space-y-2">
+          <details className="mt-3 rounded-lg border border-line">
+            <summary className="cursor-pointer px-3 py-2 text-sm font-semibold text-brand focus-visible:outline-2 focus-visible:outline-brand">Show calculation details</summary>
+          <dl className="space-y-2 border-t border-line p-3">
             {readiness.components.map((component) => (
               <div
                 key={component.key}
@@ -61,6 +63,7 @@ export function ReadinessIndicator({ readiness }: { readiness: Readiness }) {
               </div>
             ))}
           </dl>
+          </details>
 
           <p className="mt-3 text-xs leading-5 text-muted">{readiness.disclaimer}</p>
           <Link to="/progress" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline">

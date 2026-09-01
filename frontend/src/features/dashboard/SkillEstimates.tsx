@@ -13,7 +13,7 @@ export function SkillEstimates({ skills }: { skills: Progress['skills'] }) {
       >
         Skill estimates
       </h2>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {SKILLS.map((skill) => {
           const summary = skills.find((item) => item.skill === skill)
           const measure =
@@ -26,7 +26,7 @@ export function SkillEstimates({ skills }: { skills: Progress['skills'] }) {
             summary?.accuracy_percent ??
             (summary?.estimate_high ? (summary.estimate_high / 12) * 100 : 0)
           return (
-            <Card key={skill}>
+            <Card key={skill} className="!p-4">
               <div className="mb-2 flex items-center justify-between">
                 <CardTitle>{SKILL_LABELS[skill]}</CardTitle>
                 <span className="text-sm tabular-nums text-muted">{measure}</span>

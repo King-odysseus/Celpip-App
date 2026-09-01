@@ -33,9 +33,9 @@ export function DashboardStats({
   ]
 
   return (
-    <div className="grid gap-4 sm:grid-cols-3">
+    <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3 lg:col-span-3">
       {stats.map(({ icon: Icon, label, value, hint }) => (
-        <Card key={label} className="flex items-center gap-3">
+        <Card key={label} className="!p-4 flex items-center gap-3">
           <Icon size={22} className="shrink-0 text-accent" aria-hidden />
           <div className="min-w-0">
             <p className="text-2xl font-semibold tabular-nums text-ink">{value}</p>
