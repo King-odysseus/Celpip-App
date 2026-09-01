@@ -168,6 +168,7 @@ class StudyPlanView(APIView):
         name = serializers.CharField(max_length=120, allow_blank=True, required=False)
         mock_interval_days = serializers.IntegerField(min_value=1, max_value=30, required=False)
         mock_weekdays = serializers.ListField(child=serializers.IntegerField(), required=False)
+        mock_schedule_mode = serializers.ChoiceField(choices=("interval", "weekdays"), required=False)
 
         def validate_mock_weekdays(self, value):
             if not isinstance(value, list) or not value or any(
@@ -229,6 +230,12 @@ class StudyPlanView(APIView):
             profile.mock_weekdays = serializer.validated_data["mock_weekdays"]
             profile.save(update_fields=["mock_weekdays"])
             plan.reason_summary["mock_weekdays"] = profile.mock_weekdays
+            plan.save(update_fields=["reason_summary"])
+        if "mock_schedule_mode" in serializer.validated_data:
+            profile, _ = LearnerProfile.objects.get_or_create(user=request.user)
+            profile.mock_schedule_mode = serializer.validated_data["mock_schedule_mode"]
+            profile.save(update_fields=["mock_schedule_mode"])
+            plan.reason_summary["mock_schedule_mode"] = profile.mock_schedule_mode
             plan.save(update_fields=["reason_summary"])
         if "difficulty_preference" in serializer.validated_data:
             preference = serializer.validated_data["difficulty_preference"]

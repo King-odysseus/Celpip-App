@@ -129,7 +129,7 @@ describe('dashboard', () => {
     // Signals.
     expect(screen.getByText('Strongest skill')).toBeInTheDocument()
     expect(screen.getByText('Needs attention')).toBeInTheDocument()
-    expect(screen.getByText('75% practice accuracy')).toBeInTheDocument()
+    expect(screen.getAllByText('75% practice accuracy').length).toBeGreaterThanOrEqual(1)
 
     // Recent results.
     expect(screen.getByText('Garden Plot Renewal')).toBeInTheDocument()

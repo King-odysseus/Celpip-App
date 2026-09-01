@@ -21,6 +21,7 @@ export type LearnerProfile = {
   target_speaking: number | null
   daily_minutes: number
   mock_interval_days?: number
+  mock_schedule_mode?: 'interval' | 'weekdays'
   mock_weekdays?: number[]
   preferred_weekdays: number[]
   timezone: string

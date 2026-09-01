@@ -38,7 +38,7 @@ PLAN_ALGORITHM_VERSION = 2
 # Number of most-recent results shown on the dashboard. Small and privacy-safe:
 # only the learner's own submitted/estimated outcomes, with no prompt text.
 RECENT_RESULTS_LIMIT = 5
-OBJECTIVE_RANGE_MIN_QUESTIONS = 20
+OBJECTIVE_RANGE_MIN_QUESTIONS = 8
 
 
 def _indicative_objective_range(skill: str, accuracy: int | None, questions_total: int) -> tuple[int, int] | None:
@@ -474,6 +474,7 @@ def regenerate_plan(user) -> StudyPlan:
             "rule": "Unpractised and weaker skills come first; every skill remains in rotation.",
             "source_attempts": sum(item["attempts"] for item in progress["skills"]),
             "mock_interval_days": profile.mock_interval_days,
+            "mock_schedule_mode": profile.mock_schedule_mode,
             "mock_weekdays": profile.mock_weekdays,
             "difficulty_preference": difficulty_preference,
             "difficulty_by_skill": difficulty_by_skill,
@@ -660,6 +661,7 @@ def plan_payload(plan: StudyPlan) -> dict:
     completed_lessons = _completed_lesson_slugs(plan.user_id)
     tasks = list(plan.tasks.select_related("task_type"))
     interval = max(1, int(plan.reason_summary.get("mock_interval_days", 7)))
+    schedule_mode = plan.reason_summary.get("mock_schedule_mode", "interval")
     mock_weekdays = set(plan.reason_summary.get("mock_weekdays", [6, 7])) or {6, 7}
     mock_checkpoints = []
     if tasks:
@@ -667,23 +669,30 @@ def plan_payload(plan: StudyPlan) -> dict:
         # Always expose at least the next chosen checkpoint, even when the
         # interval extends beyond the short rolling lesson window.
         last_date = max(tasks[-1].scheduled_date, checkpoint_date)
-        while checkpoint_date <= last_date:
-            while checkpoint_date.isoweekday() not in mock_weekdays:
+        if schedule_mode == "weekdays":
+            checkpoint_date = tasks[0].scheduled_date
+            while checkpoint_date <= last_date:
+                if checkpoint_date.isoweekday() in mock_weekdays:
+                    mock_checkpoints.append(
+                        {
+                            "date": checkpoint_date,
+                            "title": "Full mock checkpoint",
+                            "reason": "Scheduled on your selected mock-test day(s) to measure progress across Listening, Reading, Writing, and Speaking.",
+                            "destination": "/mock",
+                        }
+                    )
                 checkpoint_date += timedelta(days=1)
-            if checkpoint_date > last_date:
-                break
-            mock_checkpoints.append(
-                {
-                    "date": checkpoint_date,
-                    "title": "Full mock checkpoint",
-                    "reason": (
-                        f"Scheduled every {interval} days on the selected mock-test day(s) to measure progress across "
-                        "Listening, Reading, Writing, and Speaking."
-                    ),
-                    "destination": "/mock",
-                }
-            )
-            checkpoint_date += timedelta(days=interval)
+        else:
+            while checkpoint_date <= last_date:
+                mock_checkpoints.append(
+                    {
+                        "date": checkpoint_date,
+                        "title": "Full mock checkpoint",
+                        "reason": f"Scheduled every {interval} days to measure progress across Listening, Reading, Writing, and Speaking.",
+                        "destination": "/mock",
+                    }
+                )
+                checkpoint_date += timedelta(days=interval)
     return {
         "id": plan.pk,
         "version": plan.version,

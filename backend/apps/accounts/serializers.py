@@ -122,6 +122,7 @@ class LearnerProfileSerializer(serializers.ModelSerializer):
             "target_speaking",
             "daily_minutes",
             "mock_interval_days",
+            "mock_schedule_mode",
             "preferred_weekdays",
             "mock_weekdays",
             "timezone",

@@ -259,6 +259,7 @@ function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan:
   const [value, setValue] = useState(String(plan.reason_summary.mock_interval_days ?? 7))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const active = (plan.reason_summary.mock_schedule_mode ?? 'interval') === 'interval'
 
   useEffect(() => setValue(String(plan.reason_summary.mock_interval_days ?? 7)), [plan.reason_summary.mock_interval_days])
 
@@ -284,14 +285,14 @@ function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan:
       <label htmlFor="mock-interval" className="text-xs font-semibold uppercase tracking-wider text-muted">
         Mock/review interval
       </label>
-      <div className="mt-1 flex items-center gap-2">
+      <div className={`mt-1 flex items-center gap-2 ${active ? '' : 'opacity-50'}`}>
         <input
           id="mock-interval"
           type="number"
           min={1}
           max={30}
           value={value}
-          disabled={saving}
+          disabled={saving || !active}
           onChange={(event) => setValue(event.target.value)}
           onBlur={() => void persist()}
           onKeyDown={(event) => {
@@ -306,8 +307,34 @@ function MockIntervalInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan:
   )
 }
 
+function MockScheduleModeInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: StudyPlan) => void }) {
+  const mode = plan.reason_summary.mock_schedule_mode ?? 'interval'
+  const [saving, setSaving] = useState(false)
+  async function choose(next: 'interval' | 'weekdays') {
+    if (next === mode) return
+    setSaving(true)
+    try { onSaved(await api.patch<StudyPlan>('/me/study-plan/', { mock_schedule_mode: next })) }
+    finally { setSaving(false) }
+  }
+  return (
+    <fieldset className="min-w-0 w-full sm:col-span-2 lg:col-span-1">
+      <legend className="text-xs font-semibold uppercase tracking-wider text-muted">Mock schedule</legend>
+      <div className="mt-1 grid gap-2">
+        {(['interval', 'weekdays'] as const).map((value) => (
+          <label key={value} className="flex min-h-10 cursor-pointer items-center gap-2 rounded-input border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink">
+            <input type="radio" name="mock-schedule-mode" value={value} checked={mode === value} disabled={saving} onChange={() => void choose(value)} className="h-4 w-4 accent-brand" />
+            {value === 'interval' ? 'Every X days' : 'Specific days'}
+          </label>
+        ))}
+      </div>
+      <p className="mt-1 text-xs text-muted">Choose one scheduling method.</p>
+    </fieldset>
+  )
+}
+
 function MockDaysInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: StudyPlan) => void }) {
   const selected = plan.reason_summary.mock_weekdays ?? [6, 7]
+  const enabled = (plan.reason_summary.mock_schedule_mode ?? 'interval') === 'weekdays'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -335,13 +362,13 @@ function MockDaysInput({ plan, onSaved }: { plan: StudyPlan; onSaved: (plan: Stu
         {MOCK_WEEKDAYS.map((day) => {
           const active = selected.includes(day.iso)
           return (
-            <button key={day.iso} type="button" aria-pressed={active} disabled={saving} onClick={() => void toggle(day.iso)} className={`min-h-10 rounded-input border px-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-brand ${active ? 'border-brand bg-brand-soft text-brand' : 'border-line text-muted hover:border-brand'}`}>
+            <button key={day.iso} type="button" aria-pressed={active} disabled={saving || !enabled} onClick={() => void toggle(day.iso)} className={`min-h-10 rounded-input border px-3 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-brand ${active ? 'border-brand bg-brand-soft text-brand' : 'border-line text-muted hover:border-brand'} ${!enabled ? 'opacity-50' : ''}`}>
               {day.label}
             </button>
           )
         })}
       </div>
-      <p className="mt-1 text-xs text-muted">Schedule full mocks on Saturday, Sunday, or both.</p>
+      <p className="mt-1 text-xs text-muted">Active only with Specific days.</p>
       {error && <p role="alert" className="mt-1 text-xs text-bad">{error}</p>}
     </fieldset>
   )
@@ -516,7 +543,9 @@ export function StudyPlanPage() {
               <div className="mt-3 grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <PlanNameInput plan={plan} onSaved={setPlan} />
                 <DifficultyInput plan={plan} onSaved={setPlan} />
+                <MockScheduleModeInput plan={plan} onSaved={setPlan} />
                 <MockIntervalInput plan={plan} onSaved={setPlan} />
+                <MockDaysInput plan={plan} onSaved={setPlan} />
                 <MockDaysInput plan={plan} onSaved={setPlan} />
               </div>
             </div>

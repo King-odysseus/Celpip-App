@@ -163,6 +163,11 @@ class PreferredAudioProvider(models.TextChoices):
     LOCAL = "local", "Local"
 
 
+class MockScheduleMode(models.TextChoices):
+    INTERVAL = "interval", "Every X days"
+    WEEKDAYS = "weekdays", "Specific days"
+
+
 def default_preferred_weekdays() -> list[int]:
     """Weekdays a learner plans to study, as ISO integers (Mon=1 … Sun=7)."""
     return [1, 2, 3, 4, 5]
@@ -220,6 +225,12 @@ class LearnerProfile(models.Model):
         default=7,
         validators=[MinValueValidator(1), MaxValueValidator(30)],
         help_text="Days between full mock-test checkpoints.",
+    )
+    mock_schedule_mode = models.CharField(
+        max_length=10,
+        choices=MockScheduleMode.choices,
+        default=MockScheduleMode.INTERVAL,
+        help_text="Whether full mocks are scheduled by interval or selected weekdays.",
     )
     preferred_weekdays = models.JSONField(
         default=default_preferred_weekdays,
