@@ -3,6 +3,7 @@ import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from './renderApp'
 import { installRouteFetch, jsonResponse, errorResponse } from './mockFetch'
+import { makeDashboard } from './fixtures/dashboard'
 
 const PROFILE = {
   identifier: 'learner',
@@ -95,6 +96,10 @@ describe('authenticated bootstrap', () => {
       'POST /auth/refresh/': () => jsonResponse({ access: 'access-token' }),
       'GET /me/': () => jsonResponse(USER),
       'GET /me/profile/': () => jsonResponse({ ...PROFILE, exam_date: '2026-10-10' }),
+      // CountdownCard (which renders "Exam date:") only appears once the
+      // dashboard fetch itself resolves — see DashboardPage's `isAuthed &&
+      // dashboard` gate.
+      'GET /me/dashboard/': () => jsonResponse(makeDashboard()),
     })
 
     renderApp('/')
@@ -103,7 +108,8 @@ describe('authenticated bootstrap', () => {
     await waitFor(() =>
       expect(screen.getAllByText('learner').length).toBeGreaterThan(0),
     )
-    expect(screen.getByText(/exam date:/i)).toBeInTheDocument()
+    // The dashboard's own profile-dependent render lands on a later tick.
+    await waitFor(() => expect(screen.getByText(/exam date:/i)).toBeInTheDocument())
   })
 
   it('drops the in-memory account when another tab signs in as a different user', async () => {

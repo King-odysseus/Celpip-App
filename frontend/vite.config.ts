@@ -17,5 +17,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     css: true,
+    // Playwright's own specs (frontend/e2e/**) use @playwright/test's test()/
+    // expect(), not Vitest's — collecting them here fails outright. They run
+    // via `npx playwright test`, configured separately in playwright.config.ts.
+    exclude: ['**/node_modules/**', '**/e2e/**'],
   },
 })

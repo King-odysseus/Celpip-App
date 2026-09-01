@@ -410,17 +410,22 @@ function AudioPlayer({ session }: { session: ReadingSession }) {
       )
       setCurrentTime(0)
       setEnded(false)
-      setUrl(access.url)
       const media = element.current
       if (!media) throw new Error('Audio player is unavailable.')
 
-      // React applies the new `src` on its next render. Assign it to the media
-      // element immediately as well, then play without a timer so the browser
-      // can associate playback with this button click. Deferring with
-      // setTimeout caused mobile browsers to reject the first play attempt as
-      // autoplay, forcing learners to click twice.
+      // `src` is always assigned imperatively (never via a JSX prop — see the
+      // <audio> element below) and play() is called without a timer, so the
+      // browser can associate playback with this button click. Deferring
+      // with setTimeout caused mobile browsers to reject the first play
+      // attempt as autoplay, forcing learners to click twice. Re-assigning
+      // `src` to the *same* value later — which a JSX-bound src would do on
+      // the next render once `url` state updates — restarts the HTML5 media
+      // load algorithm per spec regardless of whether the value changed,
+      // aborting an in-flight play(); `url` is kept only as a "source is
+      // loaded" flag for the resume-play branch above, never fed to the DOM.
       media.src = access.url
       await media.play()
+      setUrl(access.url)
     } catch (reason) {
       setError(
         reason instanceof ApiError
@@ -450,7 +455,6 @@ function AudioPlayer({ session }: { session: ReadingSession }) {
       </div>
       <audio
         ref={element}
-        src={url || undefined}
         preload="none"
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
