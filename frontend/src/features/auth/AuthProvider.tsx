@@ -115,18 +115,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     broadcastAccountChange(me.id)
   }, [loadProfile])
 
-  // Run the refresh-on-load bootstrap exactly once.
+  // Run the refresh-on-load bootstrap exactly once. `bootstrapped` already
+  // guarantees the async work below starts at most once for this provider's
+  // lifetime — including under StrictMode's dev-only mount/cleanup/remount
+  // dry run, which does not reset refs. A locally-scoped `active` flag looks
+  // like the right way to also ignore a stale response after unmount, but it
+  // is not: StrictMode's synthetic cleanup fires (and used to flip `active`
+  // false) for the *first* mount before that mount's own awaits resolve, so
+  // a response fast enough to land in that window — any local network call,
+  // not just a mocked one — permanently stranded the app on "Checking your
+  // session…". AuthProvider wraps the whole app and is never really
+  // unmounted mid-session, so there is no genuine stale-unmount case here to
+  // guard against.
   const bootstrapped = useRef(false)
   useEffect(() => {
     if (bootstrapped.current) return
     bootstrapped.current = true
 
     setRefreshHandler(refresh)
-    let active = true
     ;(async () => {
       await ensureCsrfToken()
       const refreshed = await refresh()
-      if (!active) return
       if (!refreshed) {
         setStatus('anonymous')
         return
@@ -134,12 +143,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await establishSession()
       } catch {
-        if (active) setStatus('anonymous')
+        setStatus('anonymous')
       }
     })()
 
     return () => {
-      active = false
       setRefreshHandler(null)
     }
   }, [refresh, establishSession])
