@@ -29,6 +29,15 @@ def c(text, correct, explanation):
 
 
 def _set(slug, task_type, title, topic, difficulty, level, intro, transcript, questions):
+    # Filler prompts are original text-only additions used to reach the live
+    # question counts. Reuse an existing bundled WAV for their media asset so
+    # a fresh deployment does not require a separate audio-generation job.
+    source_audio = {
+        "listening_daily_conversation": "pottery-class-change",
+        "listening_information": "river-trail-volunteer-orientation",
+        "listening_news": "mobile-health-clinic-news",
+        "listening_viewpoints": "vacant-lots-community-talk",
+    }[task_type]
     return {
         "slug": slug,
         "task_type": task_type,
@@ -39,6 +48,7 @@ def _set(slug, task_type, title, topic, difficulty, level, intro, transcript, qu
         "instructions": "Listen once and follow the conversation for meaning and purpose.",
         "intro": intro,
         "transcript": transcript,
+        "source_slug": source_audio,
         "questions": questions,
     }
 
