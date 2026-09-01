@@ -21,7 +21,7 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
   const days = profile ? daysUntilExam(profile.exam_date, profile.timezone) : null
 
   return (
-    <Card className="!p-2.5 h-fit self-start">
+    <Card className="!p-2.5 h-full">
       <div className="flex items-start gap-2">
         <CalendarClock size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0">
@@ -52,7 +52,7 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
 
 function TargetCard({ profile }: { profile: LearnerProfile | null }) {
   return (
-    <Card className="!p-2.5 h-fit self-start">
+    <Card className="!p-2.5 h-full">
       <div className="flex items-start gap-2">
         <Target size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0">
