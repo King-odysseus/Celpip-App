@@ -178,7 +178,7 @@ export function ReadingSessionPage() {
         </Button>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-wider text-accent">
-            {isListening ? 'Listening' : 'Reading'} · {isMock ? 'Mock component' : session.mode === 'learn' ? 'Learn mode' : 'Timed practice'}
+            {isListening ? 'Listening' : 'Reading'} · {isMock ? 'Mock component' : session.mode === 'learn' ? 'Learn mode' : session.mode === 'diagnostic' ? 'Baseline assessment' : 'Timed practice'}
           </p>
           <h1 className="truncate font-bold text-ink">{session.content.title}</h1>
         </div>

@@ -28,6 +28,7 @@ function durationLabel(taskCode: string): string {
 }
 
 export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
+  const diagnostic = new URLSearchParams(window.location.search).get('diagnostic') === '1'
   const navigate = useNavigate()
   const { status: authStatus } = useAuth()
   const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
@@ -85,7 +86,7 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
     try {
       const session = await api.post<StartedWritingSession>('/sessions/', {
         content_slug: item.slug,
-        mode,
+        mode: diagnostic ? 'diagnostic' : mode,
         time_limit_seconds: DURATION_SECONDS[item.task_type] ?? 27 * 60,
       })
       if (session.guest_token) {

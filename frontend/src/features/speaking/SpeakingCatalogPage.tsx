@@ -26,6 +26,7 @@ const timings: Record<string, { prep: string; total: number; response: number }>
 }
 
 export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
+  const diagnostic = new URLSearchParams(window.location.search).get('diagnostic') === '1'
   const navigate = useNavigate()
   const { status: authStatus } = useAuth()
   const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
@@ -86,7 +87,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
       const format = timings[item.task_type] ?? { total: 120 }
       const session = await api.post<StartedSpeakingSession>('/sessions/', {
         content_slug: item.slug,
-        mode,
+        mode: diagnostic ? 'diagnostic' : mode,
         // Includes a private-upload grace period; the recorder itself uses the
         // exact official preparation and speaking countdowns.
         time_limit_seconds: format.total + 300,

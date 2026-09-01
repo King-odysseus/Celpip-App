@@ -12,6 +12,7 @@ class StartSessionSerializer(serializers.Serializer):
         choices=[
             (SessionMode.LEARN, "Learn"),
             (SessionMode.PRACTICE, "Practice"),
+            (SessionMode.DIAGNOSTIC, "Diagnostic"),
         ],
     )
     time_limit_seconds = serializers.IntegerField(

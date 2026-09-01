@@ -17,6 +17,7 @@ from .models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
 from .services import (
     PLAN_ALGORITHM_VERSION,
     dashboard_payload,
+    diagnostic_payload,
     plan_payload,
     progress_payload,
     regenerate_plan,
@@ -87,6 +88,13 @@ class DashboardView(APIView):
 
     def get(self, request):
         return Response(dashboard_payload(request.user))
+
+
+class DiagnosticView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(diagnostic_payload(request.user))
 
 
 class AnalyticsView(APIView):

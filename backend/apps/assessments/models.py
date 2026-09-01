@@ -17,6 +17,7 @@ class SessionMode(models.TextChoices):
     LEARN = "learn", "Learn"
     PRACTICE = "practice", "Practice"
     MOCK = "mock", "Mock"
+    DIAGNOSTIC = "diagnostic", "Diagnostic"
 
 
 class SessionState(models.TextChoices):

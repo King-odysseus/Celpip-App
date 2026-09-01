@@ -43,7 +43,7 @@ export type SavedResponse = {
   saved_at: string
 }
 
-export type SessionMode = 'learn' | 'practice' | 'mock'
+export type SessionMode = 'learn' | 'practice' | 'mock' | 'diagnostic'
 
 /** Context attached to a session that belongs to a full four-component mock. */
 export type MockContext = {

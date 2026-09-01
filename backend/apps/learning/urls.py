@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     AnalyticsView,
     DashboardView,
+    DiagnosticView,
     HistoryView,
     MistakeDetailView,
     MistakeListView,
@@ -16,6 +17,7 @@ app_name = "learning"
 
 urlpatterns = [
     path("me/dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("me/diagnostic/", DiagnosticView.as_view(), name="diagnostic"),
     path("me/analytics/", AnalyticsView.as_view(), name="analytics"),
     path("me/history/", HistoryView.as_view(), name="history"),
     path("me/recommendation/", RecommendationView.as_view(), name="recommendation"),

@@ -20,6 +20,7 @@ import { ProgressPage } from '../features/learning/ProgressPage'
 import { StudyPlanPage } from '../features/learning/StudyPlanPage'
 import { StudyHubPage } from '../pages/StudyHubPage'
 import { ReviewHubPage } from '../pages/ReviewHubPage'
+import { DiagnosticPage } from '../features/dashboard/DiagnosticPage'
 
 /**
  * All destinations nested inside the shell. Sample pages (Learn, Practice, …)
@@ -31,6 +32,7 @@ export const routes = [
     element: <AppShell />,
     children: [
       { index: true, element: <DashboardPage /> },
+      { path: 'diagnostic', element: <DiagnosticPage /> },
       { path: 'study', element: <StudyHubPage /> },
       { path: 'learn', element: <ReadingCatalogPage mode="learn" /> },
       { path: 'learn/listening', element: <ReadingCatalogPage mode="learn" skill="listening" /> },

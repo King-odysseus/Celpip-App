@@ -15,9 +15,9 @@ from apps.accounts.models import LearnerProfile
 from apps.ai_services.models import AIFeedback
 from apps.assessments.models import (
     AssessmentSession,
-    ObjectiveResult,
     SessionMode,
     SessionState,
+    ObjectiveResult,
     SpeakingSubmission,
     WritingSubmission,
 )
@@ -38,6 +38,47 @@ PLAN_ALGORITHM_VERSION = 2
 # Number of most-recent results shown on the dashboard. Small and privacy-safe:
 # only the learner's own submitted/estimated outcomes, with no prompt text.
 RECENT_RESULTS_LIMIT = 5
+
+
+def diagnostic_payload(user) -> dict:
+    """Return the learner's latest explicitly diagnostic attempt per skill."""
+    sessions = (
+        AssessmentSession.objects.filter(user=user, mode=SessionMode.DIAGNOSTIC)
+        .prefetch_related("items__content_version__item__task_type", "items__writing_submission", "items__speaking_submission")
+        .select_related("objective_result")
+        .order_by("-started_at")
+    )
+    latest = {}
+    for session in sessions:
+        item = next(iter(session.items.all()), None)
+        if item is None:
+            continue
+        skill = item.content_version.item.task_type.skill
+        if skill in latest:
+            continue
+        writing = getattr(item, "writing_submission", None)
+        speaking = getattr(item, "speaking_submission", None)
+        completed = session.state == SessionState.SUBMITTED or bool(
+            (writing and writing.submitted_at) or (speaking and speaking.submitted_at)
+        )
+        result = getattr(session, "objective_result", None)
+        latest[skill] = {
+            "skill": skill,
+            "status": "completed" if completed else "in_progress",
+            "session_id": str(session.pk),
+            "started_at": session.started_at,
+            "completed_at": session.submitted_at if completed else None,
+            "title": item.content_version.item.title,
+            "accuracy_percent": round(result.raw_correct * 100 / result.raw_possible, 1) if result and result.raw_possible else None,
+        }
+    results = [latest[skill] for skill in SKILLS if skill in latest]
+    return {
+        "skills": results,
+        "completed": sum(item["status"] == "completed" for item in results),
+        "total": len(SKILLS),
+        "is_complete": len(results) == len(SKILLS) and all(item["status"] == "completed" for item in results),
+        "disclaimer": "Diagnostic results are learning guidance, not an official CELPIP score.",
+    }
 
 STREAK_RULE = (
     "Unique submitted/completed activity dates in the learner's profile timezone. "

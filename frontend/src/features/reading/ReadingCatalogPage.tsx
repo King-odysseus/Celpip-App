@@ -27,6 +27,7 @@ export function ReadingCatalogPage({
   const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
   const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
   const requestedTaskId = new URLSearchParams(window.location.search).get('study_task')
+  const diagnostic = new URLSearchParams(window.location.search).get('diagnostic') === '1'
   const [taskTypes, setTaskTypes] = useState<ReadingTaskType[]>([])
   const [items, setItems] = useState<ReadingCatalogItem[]>([])
   const [taskFilter, setTaskFilter] = useState('all')
@@ -85,7 +86,7 @@ export function ReadingCatalogPage({
     try {
       const session = await api.post<ReadingSession>('/sessions/', {
         content_slug: item.slug,
-        mode,
+        mode: diagnostic ? 'diagnostic' : mode,
         time_limit_seconds: 900,
       })
       if (session.guest_token) {

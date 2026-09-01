@@ -20,9 +20,6 @@ export function BaselineAssessment({ skills }: { skills: Dashboard['skills'] }) 
   const completed = skills.filter((item) => item.attempts > 0).length
   if (completed === skills.length) return null
 
-  const next = skills.find((item) => item.attempts === 0)
-  if (!next) return null
-
   return (
     <Card className="border-accent/30 bg-accent-soft/20">
       <div className="flex flex-wrap items-start justify-between gap-5">
@@ -56,8 +53,8 @@ export function BaselineAssessment({ skills }: { skills: Dashboard['skills'] }) 
         })}
       </div>
 
-      <Link to={pathFor(next.skill)} className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline">
-        Start with {SKILL_LABELS[next.skill]} <ArrowRight size={16} aria-hidden="true" />
+      <Link to="/diagnostic" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand hover:underline">
+        Open baseline assessment <ArrowRight size={16} aria-hidden="true" />
       </Link>
     </Card>
   )
