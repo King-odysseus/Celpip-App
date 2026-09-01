@@ -34,6 +34,7 @@ type DiagnosticReport = {
   completed: number
   total: number
   is_complete: boolean
+  recommendation: { skill: Skill | null; title: string; reason: string; destination: string }
   disclaimer: string
 }
 
@@ -80,6 +81,16 @@ export function DiagnosticPage() {
         </div>
         {report?.is_complete && <p className="mt-3 text-sm leading-6 text-muted">Your baseline is ready. Review the evidence below, then use your dashboard for a targeted study recommendation.</p>}
       </Card>
+      {report?.recommendation && (
+        <Card className="border-brand/30 bg-brand-soft/30 p-5">
+          <p className="eyebrow">Recommended next step</p>
+          <CardTitle className="mt-1">{report.recommendation.title}</CardTitle>
+          <p className="mt-2 text-sm leading-6 text-muted">{report.recommendation.reason}</p>
+          <Link to={report.recommendation.destination} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white hover:opacity-90">
+            {report.recommendation.destination === '/study-plan' ? 'Open study plan' : 'Continue baseline'} <ArrowRight size={16} aria-hidden="true" />
+          </Link>
+        </Card>
+      )}
       <section aria-labelledby="baseline-skills-title">
         <h2 id="baseline-skills-title" className="text-2xl font-bold text-ink">Choose your first baseline</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">

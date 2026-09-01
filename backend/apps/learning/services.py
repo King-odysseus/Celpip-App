@@ -72,11 +72,37 @@ def diagnostic_payload(user) -> dict:
             "accuracy_percent": round(result.raw_correct * 100 / result.raw_possible, 1) if result and result.raw_possible else None,
         }
     results = [latest[skill] for skill in SKILLS if skill in latest]
+    missing = [skill for skill in SKILLS if skill not in latest or latest[skill]["status"] != "completed"]
+    objective = [item for item in results if item["status"] == "completed" and item["accuracy_percent"] is not None]
+    priority = next((item["skill"] for item in sorted(objective, key=lambda item: item["accuracy_percent"])), None)
+    recommended_skill = missing[0] if missing else priority
+    if recommended_skill is None:
+        recommendation = {
+            "skill": None,
+            "title": "Review your study plan",
+            "reason": "Your four-skill baseline is complete. Your study plan now reflects the evidence collected.",
+            "destination": "/study-plan",
+        }
+    elif recommended_skill in missing:
+        recommendation = {
+            "skill": recommended_skill,
+            "title": f"Complete your {SKILL_LABELS[recommended_skill]} baseline",
+            "reason": "Finish this skill to give your study plan a complete four-skill picture.",
+            "destination": "/practice" if recommended_skill == Skill.READING else f"/practice/{recommended_skill}",
+        }
+    else:
+        recommendation = {
+            "skill": recommended_skill,
+            "title": f"Prioritise {SKILL_LABELS[recommended_skill]}",
+            "reason": "This is currently your lowest objective baseline result. Start with a focused task, then review your study plan.",
+            "destination": "/study-plan",
+        }
     return {
         "skills": results,
         "completed": sum(item["status"] == "completed" for item in results),
         "total": len(SKILLS),
         "is_complete": len(results) == len(SKILLS) and all(item["status"] == "completed" for item in results),
+        "recommendation": recommendation,
         "disclaimer": "Diagnostic results are learning guidance, not an official CELPIP score.",
     }
 
