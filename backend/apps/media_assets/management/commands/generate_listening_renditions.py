@@ -49,6 +49,8 @@ REMOTE_PROVIDERS = {"openai": OpenAIVoiceProvider, "azure": AzureVoiceProvider}
 
 def build_rendition_provider(name: str):
     """Instantiate exactly one requested remote provider; never a local fallback."""
+    if name == "azure":
+        raise SynthesisError("Azure TTS is disabled. Use OpenAI or local audio.")
     if name not in REMOTE_PROVIDERS:
         raise SynthesisError(f"Unsupported rendition provider: {name}")
     return REMOTE_PROVIDERS[name]()
@@ -205,7 +207,7 @@ class Command(BaseCommand):
         for chunk in raw:
             requested.extend(name.strip() for name in chunk.split(",") if name.strip())
         if not requested:
-            raise CommandError("Provide at least one --provider (openai or azure).")
+            raise CommandError("Provide at least one --provider (openai only).")
         unknown = [name for name in requested if name not in REMOTE_PROVIDERS]
         if unknown:
             raise CommandError(

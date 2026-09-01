@@ -543,6 +543,8 @@ def build_default_providers(
     for name in order:
         if name not in PROVIDER_NAMES:
             raise SynthesisError(f"Unknown listening TTS provider: {name}")
+        if name == "azure":
+            raise SynthesisError("Azure TTS is disabled. Use OpenAI or local audio.")
         if name == "local":
             providers.append(
                 LocalRetainProvider(

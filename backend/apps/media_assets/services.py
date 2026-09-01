@@ -212,6 +212,10 @@ def select_audio_source(
     # with the canonical local recording always the terminal fallback.
     fallback: list[str] = []
     for provider in settings.LISTENING_TTS_PROVIDER_ORDER:
+        # Azure is intentionally disabled: the production cost boundary is
+        # OpenAI plus Railway. Existing Azure renditions must not be served.
+        if provider == PreferredAudioProvider.AZURE:
+            continue
         if provider != PreferredAudioProvider.LOCAL and provider not in fallback:
             fallback.append(provider)
     fallback.append(PreferredAudioProvider.LOCAL)
@@ -220,6 +224,8 @@ def select_audio_source(
             order.append(provider)
 
     for provider in order:
+        if provider == PreferredAudioProvider.AZURE:
+            continue
         source = _candidate_source(asset, provider)
         if source is not None:
             return source

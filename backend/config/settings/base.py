@@ -345,7 +345,7 @@ AI_JOB_POLL_SECONDS = float(os.environ.get("AI_JOB_POLL_SECONDS", "2"))
 # the terminal fallback that retains the existing validated recording so a
 # working file is never destroyed when every upstream provider fails.
 LISTENING_TTS_PROVIDER_ORDER = env_list(
-    "LISTENING_TTS_PROVIDER_ORDER", default="openai,azure,local"
+    "LISTENING_TTS_PROVIDER_ORDER", default="openai,local"
 )
 # Two distinct OpenAI voices give dialogue scripts two clean speakers — a female
 # (coral) and male (ash) voice so conversations sound like natural mixed speech

@@ -252,7 +252,7 @@ python manage.py validate_content --published-only
 python manage.py seed_listening_content
 
 # To upgrade to natural voices, regenerate through the provider order
-# (openai → azure → local; see LISTENING_TTS_PROVIDER_ORDER in .env.example).
+# (openai → local; see LISTENING_TTS_PROVIDER_ORDER in .env.example).
 # This is independent of AI_PROVIDER, only replaces a file after strict WAV
 # validation, and never destroys a working recording if every provider fails.
 # Old stored WAVs stay in use until you run this:
@@ -263,7 +263,7 @@ python manage.py regenerate_listening_audio --force            # all sets
 # Separate per-provider renditions never touch the canonical WAV above; each is
 # written to its own private path (listening_renditions/{provider}/{id}.wav).
 python manage.py generate_listening_renditions --provider openai --dry-run
-python manage.py generate_listening_renditions --provider openai,azure --force
+python manage.py generate_listening_renditions --provider openai --force
 python manage.py generate_listening_renditions --provider openai --slug apartment-heating-plan
 
 # Writing and Speaking banks seed the same way; all seed commands are safe to
