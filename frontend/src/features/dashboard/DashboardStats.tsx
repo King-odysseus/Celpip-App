@@ -33,12 +33,12 @@ export function DashboardStats({
   ]
 
   return (
-    <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3 lg:col-span-3">
+    <div className="grid h-fit gap-3 self-start sm:col-span-2 sm:grid-cols-3 lg:col-span-3">
       {stats.map(({ icon: Icon, label, value, hint }) => (
-        <Card key={label} className="!p-4 min-h-[108px] flex items-start gap-2.5">
+        <Card key={label} className="!p-3 h-fit min-h-0 flex items-start gap-2">
           <Icon size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
           <div className="min-w-0">
-            <p className="text-xl font-semibold tabular-nums text-ink">{value}</p>
+            <p className="text-lg font-semibold tabular-nums text-ink">{value}</p>
             <p className="text-xs leading-4 text-muted">
               {label}
               {hint ? <span> · {hint}</span> : null}

@@ -21,8 +21,8 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
   const days = profile ? daysUntilExam(profile.exam_date, profile.timezone) : null
 
   return (
-    <Card className="!p-4 min-h-[108px]">
-      <div className="flex h-full items-start gap-2.5">
+    <Card className="!p-3 h-fit self-start">
+      <div className="flex items-start gap-2">
         <CalendarClock size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0">
           <CardTitle className="text-sm">Exam countdown</CardTitle>
@@ -36,7 +36,7 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
             </p>
           ) : (
             <>
-              <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-ink">
+              <p className="mt-1 text-xl font-semibold tracking-tight tabular-nums text-ink">
                 {countdownLabel(days)}
               </p>
               <p className="mt-0.5 text-sm text-muted">
@@ -52,14 +52,14 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
 
 function TargetCard({ profile }: { profile: LearnerProfile | null }) {
   return (
-    <Card className="!p-4 min-h-[108px]">
-      <div className="flex h-full items-start gap-2.5">
+    <Card className="!p-3 h-fit self-start">
+      <div className="flex items-start gap-2">
         <Target size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0">
           <CardTitle className="text-sm">Your target</CardTitle>
           {profile ? (
             <>
-              <p className="mt-1 text-xl font-semibold tracking-tight text-ink">CELPIP {profile.target_level}</p>
+              <p className="mt-1 text-lg font-semibold tracking-tight text-ink">CELPIP {profile.target_level}</p>
               <p className="mt-0.5 text-xs text-muted">
               Default across all skills ·{' '}
               <Link to="/account" className="font-semibold text-brand hover:underline">
