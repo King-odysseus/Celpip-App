@@ -8,11 +8,14 @@ four-skill **CELPIP-General test used for immigration**.
 > identify the test being prepared for. No official practice content is
 > reproduced.
 
-The current bank contains **704 practice activities**: 160 Reading sets, 168
+The current bank contains **712 practice activities**: 163 Reading sets, 173
 Listening sets, 152 Writing prompts, and 224 Speaking prompts. Reading and
-Listening contain 1,312 objective questions in total. Every reviewed source
+Listening contain 1,325 objective questions in total. Every reviewed source
 activity is available as Guided (Foundation), Independent (Developing), and
-Challenge stages so support decreases and cognitive demand rises progressively.
+Challenge stages so support decreases and cognitive demand rises progressively
+— except the 8 small full-length-mock filler sets (see Phase 11 below), which
+exist only to let a mock section reach its exact official question count and
+are single-stage by design.
 
 This repository is a monorepo. Architecture is governed by
 [`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md).
@@ -186,6 +189,25 @@ Phase 10 completes the authenticated candidate Dashboard:
 The Dashboard is split into cohesive, accessible subcomponents (stats, today's
 tasks, skill estimates, practice signals, recent results, readiness) with
 loading, error, empty, and anonymous states.
+
+Phase 11 adds a full-length mock (backend; see
+[`docs/CELPIP_PLATFORM_PLAN.md`](docs/CELPIP_PLATFORM_PLAN.md#phase-11--full-length-content-and-scoring-ready-assembly)):
+
+- `POST /api/v1/mocks/` accepts `{"scope": "full_length_simulation"}` to
+  assemble each Listening/Reading section to the current official question
+  count (8/5/6/5/8/6 and 11/8/9/10) from several distinct, published content
+  versions, while the default (`compact_task_family_mock`) keeps working
+  exactly as before.
+- Original filler content
+  (`backend/apps/content/mock_full_length_filler_data.py`) closes the gaps a
+  4-question-only bank can't reach on its own, so every section hits its exact
+  target with no duplicated content in one attempt.
+- Some sections legitimately need an extra set beyond the natural 4+4
+  pairing; that set is flagged simulated-unscored — indistinguishable during
+  the attempt, excluded from raw accuracy after submission, exactly as
+  CELPIP describes its own live test.
+- No frontend UI yet requests the full-length scope; the mock workspace still
+  drives the compact mock by default.
 
 ## Layout
 

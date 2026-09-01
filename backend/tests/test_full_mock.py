@@ -239,11 +239,15 @@ def test_full_length_raw_accuracy_reflects_only_scored_correct_answers(user):
 
 
 def test_full_length_raises_when_a_task_type_cannot_reach_its_official_count(user):
-    from apps.content.models import ContentItem, TaskType
+    from apps.content.models import ContentItem
+    from apps.media_assets.models import MediaAsset
 
-    # Delete every published Listening Information item so that section can no
-    # longer reach its official 6-question target.
-    ContentItem.objects.filter(task_type_id="listening_information").delete()
+    # Delete every published Listening Information item (and its private audio
+    # metadata, which otherwise protects the content from deletion) so that
+    # section can no longer reach its official 6-question target.
+    items = ContentItem.objects.filter(task_type_id="listening_information")
+    MediaAsset.objects.filter(content_version__item__in=items).delete()
+    items.delete()
     with pytest.raises(MockUnavailable):
         create_attempt(user, scope=FULL_LENGTH_SCOPE)
 

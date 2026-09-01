@@ -570,28 +570,42 @@ CELPIP-General test. The expansion below is deliberately split into two reviewab
 
 ### Phase 11 — Full-length content and scoring-ready assembly
 
-**Status:** planned.
+**Status:** implemented (backend). The frontend mock UI still defaults to the compact scope; nothing
+in Phase 12 depends on a frontend affordance to request `full_length_simulation` existing yet.
 
 Goal: expand the compact mock into a complete-length, format-versioned simulation using only
 original, human-reviewed content.
 
+Every existing Listening/Reading set has exactly 4 embedded questions. `4+4=8` reaches three of the
+ten section targets directly, but none of the others are reachable by summing only 4s. Rather than
+change the one-item-per-session invariant that every skill's session UI depends on, `mocks.services`
+combines several distinct, already-published content versions — via `create_attempt(user,
+scope=FULL_LENGTH_SCOPE)` — into one section, one `MockTask` per version, all sharing the section's
+`task_type`. New small original filler sets
+(`apps/content/mock_full_length_filler_data.py`) close the remaining gaps: one 1-, 2-, or 3-question
+set per affected task type, chosen so `4 (+ 4) + filler = target` exactly. `_exact_sum_combo`
+backtracks over a shuffled candidate pool to pick a distinct, exact-sum combination, preferring
+content this user has not used in a recent full-length attempt.
+
 Deliverables:
 
-- Expand Listening to the current full question counts: 8 / 5 / 6 / 5 / 8 / 6 across its six parts.
-- Expand Reading to the current full question counts: 11 / 8 / 9 / 10 across its four parts.
-- Keep one Writing Email task, one Writing Survey task, and all eight Speaking tasks in the official order.
-- Assemble enough reviewed content variants that repeated mock attempts do not reuse the same complete test unnecessarily.
-- Activate simulated unscored Listening and Reading items where the active format version calls for them. They must be indistinguishable from scored items during the attempt and excluded from objective results after submission.
-- Preserve immutable snapshots of the selected content, format version, scoring policy, and simulated-unscored flags for every attempt.
-- Keep raw practice results separate from official CELPIP scoring. Do not invent a raw-score-to-level conversion.
-- Add content-quality gates for full mocks: coverage, difficulty balance, duplicate detection, answer-key validity, explanation completeness, audio/transcript fidelity, and human approval.
+- Expand Listening to the current full question counts: 8 / 5 / 6 / 5 / 8 / 6 across its six parts. ✅
+- Expand Reading to the current full question counts: 11 / 8 / 9 / 10 across its four parts. ✅
+- Keep one Writing Email task, one Writing Survey task, and all eight Speaking tasks in the official order. ✅ (unchanged single-version selection, now content-rotated)
+- Assemble enough reviewed content variants that repeated mock attempts do not reuse the same complete test unnecessarily. ✅ — sections built from 2 of N four-question sets vary combinatorially (up to C(10,2)=45 choices); sections needing an exact filler vary through which of the *other* sections change.
+- Activate simulated unscored Listening and Reading items where the active format version calls for them. They must be indistinguishable from scored items during the attempt and excluded from objective results after submission. ✅ — any section assembled from more than two distinct sets flags its smallest set `is_simulated_unscored`; `results_payload` excludes those sessions from `raw_correct`/`raw_possible` while the attempt UI never exposes the flag.
+- Preserve immutable snapshots of the selected content, format version, scoring policy, and simulated-unscored flags for every attempt. ✅ — `MockTask.save()` already guarded `is_simulated_unscored`/`snapshot`/`content_version` as immutable; unchanged by this phase.
+- Keep raw practice results separate from official CELPIP scoring. Do not invent a raw-score-to-level conversion. ✅ — unchanged; `results_payload["overall_score"]` stays `None`.
+- Add content-quality gates for full mocks: coverage, difficulty balance, duplicate detection, answer-key validity, explanation completeness, audio/transcript fidelity, and human approval. Partial — `_exact_sum_combo` guarantees no duplicate content per attempt (DB-enforced via `mocks_unique_attempt_content_version`) and reuses the existing `validate_content_version` answer-key/explanation gates; a dedicated full-mock coverage/difficulty-balance report is not yet built.
 
 Learning: content assembly at scale, test blueprints, format versioning, item exposure policy,
 scoring boundaries, and editorial quality control.
 
-Tests: exact full-count assembly, variant selection, no duplicate item leakage within an attempt,
-unscored-item exclusion, immutable snapshots, answer-key protection, format-version migration,
-and raw-result accuracy.
+Tests (`backend/tests/test_full_mock.py`, 12 tests, all passing): exact full-count assembly, variant
+selection, no duplicate item leakage within an attempt, unscored-item exclusion, immutable snapshots,
+answer-key protection, the `MockUnavailable` guard when a section cannot reach its target, and
+raw-result accuracy. The pre-existing compact-mock suite (`test_mocks.py`, `test_mock_rules.py`, 40
+tests) is unmodified and still passes, confirming `scope=COMPACT_SCOPE` behaves exactly as before.
 
 Exit: a learner can complete a full-length original mock with the current official task counts,
 and the result clearly reports practice performance without claiming to be an official CELPIP score.
