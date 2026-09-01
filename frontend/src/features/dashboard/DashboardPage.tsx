@@ -21,11 +21,11 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
   const days = profile ? daysUntilExam(profile.exam_date, profile.timezone) : null
 
   return (
-    <Card className="!p-4">
-      <div className="flex items-start gap-3">
-        <CalendarClock size={22} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+    <Card className="!p-4 min-h-[108px]">
+      <div className="flex h-full items-start gap-2.5">
+        <CalendarClock size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
         <div className="min-w-0">
-          <CardTitle>Exam countdown</CardTitle>
+          <CardTitle className="text-sm">Exam countdown</CardTitle>
           {days === null ? (
             <p className="mt-1 text-sm text-muted">
               No exam date set yet.{' '}
@@ -36,7 +36,7 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
             </p>
           ) : (
             <>
-              <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums text-ink">
+              <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-ink">
                 {countdownLabel(days)}
               </p>
               <p className="mt-0.5 text-sm text-muted">
@@ -52,21 +52,22 @@ function CountdownCard({ profile }: { profile: LearnerProfile | null }) {
 
 function TargetCard({ profile }: { profile: LearnerProfile | null }) {
   return (
-    <Card className="!p-4">
-      <div className="flex items-start gap-3">
-        <Target size={22} className="mt-0.5 shrink-0 text-accent" aria-hidden />
-        <div>
-          <CardTitle>Your target</CardTitle>
+    <Card className="!p-4 min-h-[108px]">
+      <div className="flex h-full items-start gap-2.5">
+        <Target size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
+        <div className="min-w-0">
+          <CardTitle className="text-sm">Your target</CardTitle>
           {profile ? (
-            <p className="mt-1 text-sm text-muted">
-              Default target{' '}
-              <span className="font-semibold text-ink">CELPIP {profile.target_level}</span>{' '}
-              across all skills. Adjust per-skill targets in your{' '}
+            <>
+              <p className="mt-1 text-xl font-semibold tracking-tight text-ink">CELPIP {profile.target_level}</p>
+              <p className="mt-0.5 text-xs text-muted">
+              Default across all skills ·{' '}
               <Link to="/account" className="font-semibold text-brand hover:underline">
-                account
+                Adjust in account
               </Link>
               .
-            </p>
+              </p>
+            </>
           ) : (
             <p className="mt-1 text-sm text-muted">
               Sign in and set a target level to track your readiness against a goal.

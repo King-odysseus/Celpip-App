@@ -35,13 +35,13 @@ export function DashboardStats({
   return (
     <div className="grid gap-3 sm:col-span-2 sm:grid-cols-3 lg:col-span-3">
       {stats.map(({ icon: Icon, label, value, hint }) => (
-        <Card key={label} className="!p-4 flex items-center gap-3">
-          <Icon size={22} className="shrink-0 text-accent" aria-hidden />
+        <Card key={label} className="!p-4 min-h-[108px] flex items-start gap-2.5">
+          <Icon size={19} className="mt-0.5 shrink-0 text-accent" aria-hidden />
           <div className="min-w-0">
-            <p className="text-2xl font-semibold tabular-nums text-ink">{value}</p>
-            <p className="text-sm text-muted">
+            <p className="text-xl font-semibold tabular-nums text-ink">{value}</p>
+            <p className="text-xs leading-4 text-muted">
               {label}
-              {hint ? <span className="text-xs"> · {hint}</span> : null}
+              {hint ? <span> · {hint}</span> : null}
             </p>
           </div>
         </Card>
