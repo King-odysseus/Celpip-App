@@ -660,6 +660,12 @@ def _task_payload(task: StudyTask, completed_lessons: set[str] | None = None) ->
 def plan_payload(plan: StudyPlan) -> dict:
     completed_lessons = _completed_lesson_slugs(plan.user_id)
     tasks = list(plan.tasks.select_related("task_type"))
+    profile = _profile_for(plan.user)
+    try:
+        zone = ZoneInfo(profile.timezone)
+    except Exception:
+        zone = ZoneInfo("UTC")
+    today = timezone.now().astimezone(zone).date()
     interval = max(1, int(plan.reason_summary.get("mock_interval_days", 7)))
     schedule_mode = plan.reason_summary.get("mock_schedule_mode", "interval")
     mock_weekdays = set(plan.reason_summary.get("mock_weekdays", [6, 7])) or {6, 7}
@@ -706,6 +712,13 @@ def plan_payload(plan: StudyPlan) -> dict:
             _task_payload(task, completed_lessons)
             for task in tasks
         ],
+        # A missed task stays pending and remains actionable; its date must
+        # never cause it to be marked complete automatically.
+        "overdue_tasks": [
+            _task_payload(task, completed_lessons)
+            for task in tasks
+            if task.scheduled_date < today and task.state == StudyTaskState.PENDING
+        ],
     }
 
 
@@ -730,6 +743,15 @@ def study_plan_consistency(user, days: int = 14) -> dict:
     for task in completed:
         day = task.completed_at.astimezone(zone).date()
         completions.setdefault(day, set()).add(task.skill)
+
+    scheduled_days = set(
+        StudyTask.objects.filter(
+            plan__user=user, scheduled_date__lt=today
+        ).values_list("scheduled_date", flat=True)
+    )
+    missed_days = sorted(
+        day.isoformat() for day in scheduled_days if day not in completions
+    )
 
     streak = study_streak({day for day, _ in completions.items()}, today)
 
@@ -767,6 +789,7 @@ def study_plan_consistency(user, days: int = 14) -> dict:
         "days": days_payload,
         "window_days": len(days_payload),
         "today": today.isoformat(),
+        "missed_days": missed_days,
     }
 
 

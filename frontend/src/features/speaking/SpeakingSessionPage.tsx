@@ -60,6 +60,9 @@ export function SpeakingSessionPage() {
   const recordingStartedRef = useRef(0)
   const recordedDurationRef = useRef(0)
   const localBlobRef = useRef<Blob | null>(null)
+  // A retry must replay the same upload if the server saved the file but the
+  // response was lost, rather than creating a second revision.
+  const uploadIdempotencyKeyRef = useRef('')
   const revisionRef = useRef(0)
   const objectUrlRef = useRef('')
   const mountedRef = useRef(true)
@@ -121,9 +124,12 @@ export function SpeakingSessionPage() {
     form.append('duration_ms', String(Math.max(100, Math.round(durationMs))))
     form.append('expected_revision', String(revisionRef.current))
     try {
+      if (!uploadIdempotencyKeyRef.current) {
+        uploadIdempotencyKeyRef.current = crypto.randomUUID()
+      }
       const saved = await api.put<SpeakingSaveResult>(path, form, {
         ...tokenHeaders(sessionId),
-        'Idempotency-Key': crypto.randomUUID(),
+        'Idempotency-Key': uploadIdempotencyKeyRef.current,
       })
       if (!mountedRef.current) return
       revisionRef.current = saved.revision
@@ -166,6 +172,7 @@ export function SpeakingSessionPage() {
       }
       recordedDurationRef.current = duration
       localBlobRef.current = blob
+      uploadIdempotencyKeyRef.current = crypto.randomUUID()
       replaceObjectUrl(blob)
       void uploadBlob(blob, duration)
     }

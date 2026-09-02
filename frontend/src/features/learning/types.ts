@@ -82,6 +82,7 @@ export type StudyConsistency = {
   }
   window_days: number
   today: string
+  missed_days?: string[]
   days: Array<{
     date: string
     skills: Record<Skill, boolean>
@@ -113,6 +114,7 @@ export type StudyPlan = {
     destination: string
   }>
   tasks: StudyTask[]
+  overdue_tasks?: StudyTask[]
   consistency: StudyConsistency
 }
 

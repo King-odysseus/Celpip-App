@@ -516,6 +516,21 @@ export function StudyPlanPage() {
         </p>
       ) : (
         <>
+          {plan.overdue_tasks?.length ? (
+            <Card className="border-warn/40 bg-warn-soft" role="alert">
+              <h2 className="font-bold text-ink">
+                You missed {plan.overdue_tasks.length === 1 ? 'a study task' : `${plan.overdue_tasks.length} study tasks`}
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                These tasks are still pending and were not marked complete automatically. Finish them when you can, then confirm completion.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {plan.overdue_tasks.slice(0, 3).map((task) => (
+                  <StudyTaskLaunch key={task.id} task={task} label={`Open ${SKILL_LABEL[task.skill]}`} />
+                ))}
+              </div>
+            </Card>
+          ) : null}
           <Card>
             <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
               <h2 className="flex min-w-0 items-center gap-2 text-xl font-bold text-ink">

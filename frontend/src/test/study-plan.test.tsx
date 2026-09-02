@@ -128,6 +128,23 @@ describe('study plan', () => {
     expect(screen.getByText('Speaking')).toBeInTheDocument()
   })
 
+  it('shows pending work from a missed day as overdue instead of done', async () => {
+    const overdueTask = {
+      ...makePlan().tasks[0],
+      id: 2,
+      scheduled_date: '2026-08-28',
+    }
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(makePlan({ overdue_tasks: [overdueTask] })),
+    })
+    renderApp('/study-plan')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/missed a study task/i)
+    expect(screen.getByText(/not marked complete automatically/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
+  })
+
   it('renames the plan and persists it on blur', async () => {
     const user = userEvent.setup()
     const patchName = vi.fn((init: RequestInit) => {
