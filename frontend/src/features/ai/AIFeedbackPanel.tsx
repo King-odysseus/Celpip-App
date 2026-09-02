@@ -52,8 +52,11 @@ export function AIFeedbackPanel({ sessionId }: { sessionId: string }) {
   }, [sessionId])
 
   if (unavailable) return <StatusCard title="AI-assisted feedback" message="Feedback is temporarily unavailable. Your submitted response remains safely stored." />
-  if (!feedback || ['queued', 'running', 'not_requested'].includes(feedback.status)) {
+  if (!feedback || ['queued', 'running'].includes(feedback.status)) {
     return <StatusCard loading title="AI-assisted feedback is being prepared" message="A versioned evaluator is reviewing this attempt. You can leave this page and return later." />
+  }
+  if (feedback.status === 'not_requested') {
+    return <StatusCard title="AI-assisted feedback is unavailable" message="This submitted attempt was not placed in the analysis queue. Please refresh the page or contact support if it continues." />
   }
   if (feedback.status === 'failed' || !feedback.assessment) {
     return <StatusCard title="AI-assisted feedback" message="The evaluator could not complete this attempt. Use the guided self-review above; no score was fabricated." />

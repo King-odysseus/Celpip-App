@@ -873,6 +873,23 @@ def _feedback_state(item: SessionItem) -> str:
         return "ready"
     job = AIJob.objects.filter(session_item=item).order_by("-created_at").first()
     if job is None:
+        # A submitted item should always have a job, but the on_commit enqueue
+        # callback can be lost during a deployment restart. Recover it when a
+        # learner opens the comparison instead of polling forever.
+        submission_relation = (
+            "speaking_submission"
+            if item.snapshot.get("skill") == Skill.SPEAKING
+            else "writing_submission"
+        )
+        submission = getattr(item, submission_relation, None)
+        if item.session.state == SessionState.SUBMITTED and submission and submission.is_submitted:
+            try:
+                from apps.ai_services.services import enqueue_feedback
+
+                enqueue_feedback(item)
+                return "pending"
+            except Exception:
+                return "failed"
         return "pending"
     if job.status == AIJobStatus.FAILED:
         return "failed"

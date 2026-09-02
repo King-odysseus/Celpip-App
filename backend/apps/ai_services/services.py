@@ -321,6 +321,28 @@ def feedback_payload(session_item) -> dict:
     except AIFeedback.DoesNotExist:
         job = session_item.ai_jobs.order_by("-created_at").first()
         if job is None:
+            # Recover jobs whose transaction callback was interrupted by a
+            # worker/web restart after the speaking or writing submission was
+            # committed. Without this, the UI can poll "not_requested"
+            # forever even though the attempt is already submitted.
+            submission_relation = (
+                "speaking_submission"
+                if session_item.snapshot.get("skill") == "speaking"
+                else "writing_submission"
+            )
+            submission = getattr(session_item, submission_relation, None)
+            if session_item.session.state == "submitted" and submission and submission.is_submitted:
+                try:
+                    job = enqueue_feedback(session_item)
+                except ValidationError:
+                    job = None
+            if job is not None:
+                return {
+                    "status": job.status,
+                    "job_id": str(job.pk),
+                    "attempts": job.attempts,
+                    "error": "",
+                }
             return {"status": "not_requested"}
         return {
             "status": job.status,

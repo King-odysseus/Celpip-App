@@ -666,6 +666,28 @@ def plan_payload(plan: StudyPlan) -> dict:
     except Exception:
         zone = ZoneInfo("UTC")
     today = timezone.now().astimezone(zone).date()
+    # Regeneration creates a new active plan beginning today, but pending
+    # tasks from older plan versions are still valid missed work. Keep them in
+    # the calendar so a learner can open and complete the original task.
+    historical_candidates = list(
+        StudyTask.objects.filter(
+            plan__user=plan.user,
+            scheduled_date__lt=today,
+            state=StudyTaskState.PENDING,
+        )
+        .exclude(plan=plan)
+        .select_related("task_type")
+        .order_by("-plan__version", "scheduled_date", "order", "pk")
+    )
+    existing_task_keys = {(task.scheduled_date, task.skill) for task in tasks}
+    historical_pending = []
+    for task in historical_candidates:
+        task_key = (task.scheduled_date, task.skill)
+        if task_key not in existing_task_keys:
+            existing_task_keys.add(task_key)
+            historical_pending.append(task)
+    tasks.extend(historical_pending)
+    tasks.sort(key=lambda task: (task.scheduled_date, task.order, task.pk))
     interval = max(1, int(plan.reason_summary.get("mock_interval_days", 7)))
     schedule_mode = plan.reason_summary.get("mock_schedule_mode", "interval")
     mock_weekdays = set(plan.reason_summary.get("mock_weekdays", [6, 7])) or {6, 7}
