@@ -78,7 +78,9 @@ export type StudyConsistency = {
   streak: {
     days: number
     active_today: boolean
-    anchor: 'today' | 'yesterday' | null
+    anchor: 'today' | 'yesterday' | 'earlier' | null
+    at_risk: boolean
+    grace_days_remaining: number | null
   }
   window_days: number
   today: string
@@ -167,7 +169,9 @@ export type Dashboard = {
   streak: {
     days: number
     active_today: boolean
-    anchor: 'today' | 'yesterday' | null
+    anchor: 'today' | 'yesterday' | 'earlier' | null
+    at_risk: boolean
+    grace_days_remaining: number | null
     timezone: string
     rule: string
   }

@@ -148,6 +148,21 @@ function StreakBar({
             : ' Anchored on the last completed day.'
           : ' Complete a task to start a streak.'}
       </p>
+      {streak.at_risk && streak.grace_days_remaining !== null && (
+        <p
+          role="alert"
+          className={`mt-2 flex items-center gap-2 rounded-input border px-3 py-2 text-sm font-semibold ${
+            streak.grace_days_remaining === 0
+              ? 'border-bad/40 bg-bad-soft text-bad'
+              : 'border-warn/40 bg-warn-bg text-ink'
+          }`}
+        >
+          <Flame size={16} className="shrink-0" aria-hidden />
+          {streak.grace_days_remaining === 0
+            ? `Complete a task today or you'll lose your ${streak.days}-day streak.`
+            : `Your ${streak.days}-day streak is at risk. Complete a task within ${streak.grace_days_remaining} day${streak.grace_days_remaining === 1 ? '' : 's'} to keep it.`}
+        </p>
+      )}
       <section className="mt-5 w-full" aria-label={monthLabel}>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-ink">{monthLabel}</h3>

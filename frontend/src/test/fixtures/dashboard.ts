@@ -34,7 +34,7 @@ export function makeDashboard(overrides: Partial<Dashboard> = {}): Dashboard {
     coverage: { practised_skills: 2, total_skills: 4 },
     totals: { objective_questions_completed: 8, completed_attempts: 3 },
     streak: {
-      days: 4, active_today: true, anchor: 'today',
+      days: 4, active_today: true, anchor: 'today', at_risk: false, grace_days_remaining: null,
       timezone: 'America/Toronto', rule: 'Unique submitted/completed activity dates.',
     },
     recent_results: [

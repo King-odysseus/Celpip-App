@@ -865,28 +865,55 @@ def _activity_dates(user, zone: ZoneInfo) -> set:
     return dates
 
 
-def study_streak(activity_dates: set, today) -> dict:
-    """Count consecutive activity days ending today or yesterday.
+STREAK_GRACE_DAYS = 2
 
-    The anchor is today when today has activity, otherwise yesterday. Future
-    dates are ignored. A learner with no recent activity has a zero-day streak.
+
+def study_streak(activity_dates: set, today, grace_days: int = STREAK_GRACE_DAYS) -> dict:
+    """Count consecutive activity days, tolerating a short gap since the last one.
+
+    The anchor is the most recent date with activity, searched back from today
+    through `grace_days` days of grace — so missing up to `grace_days`
+    consecutive days does not reset the streak, only missing more than that
+    does. Future dates are ignored. A learner with no activity within the
+    grace window has a zero-day streak.
+
+    `at_risk`/`grace_days_remaining` tell the UI when to warn: they are set
+    whenever the streak is alive but not active today, counting down to 0 on
+    the last day it can still be saved.
     """
     active = {day for day in activity_dates if day <= today}
-    if today in active:
-        anchor = today
-        anchor_label = "today"
-    elif today - timedelta(days=1) in active:
-        anchor = today - timedelta(days=1)
-        anchor_label = "yesterday"
-    else:
-        return {"days": 0, "active_today": False, "anchor": None}
+    anchor = None
+    offset = None
+    for candidate_offset in range(grace_days + 1):
+        candidate = today - timedelta(days=candidate_offset)
+        if candidate in active:
+            anchor = candidate
+            offset = candidate_offset
+            break
 
+    if anchor is None:
+        return {
+            "days": 0,
+            "active_today": False,
+            "anchor": None,
+            "at_risk": False,
+            "grace_days_remaining": None,
+        }
+
+    anchor_label = "today" if offset == 0 else "yesterday" if offset == 1 else "earlier"
     days = 0
     cursor = anchor
     while cursor in active:
         days += 1
         cursor -= timedelta(days=1)
-    return {"days": days, "active_today": anchor == today, "anchor": anchor_label}
+    active_today = offset == 0
+    return {
+        "days": days,
+        "active_today": active_today,
+        "anchor": anchor_label,
+        "at_risk": not active_today,
+        "grace_days_remaining": None if active_today else grace_days - offset,
+    }
 
 
 def _recent_results(user) -> list[dict]:

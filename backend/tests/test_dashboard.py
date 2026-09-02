@@ -169,14 +169,20 @@ def _submitted_constructed_session(
 def test_study_streak_anchors_today_when_active_today():
     today = date(2026, 8, 29)
     streak = study_streak({today, today - timedelta(days=1), today - timedelta(days=2)}, today)
-    assert streak == {"days": 3, "active_today": True, "anchor": "today"}
+    assert streak == {
+        "days": 3, "active_today": True, "anchor": "today",
+        "at_risk": False, "grace_days_remaining": None,
+    }
 
 
 def test_study_streak_anchors_yesterday_when_today_inactive():
     today = date(2026, 8, 29)
     yesterday = today - timedelta(days=1)
     streak = study_streak({yesterday, yesterday - timedelta(days=1)}, today)
-    assert streak == {"days": 2, "active_today": False, "anchor": "yesterday"}
+    assert streak == {
+        "days": 2, "active_today": False, "anchor": "yesterday",
+        "at_risk": True, "grace_days_remaining": 1,
+    }
 
 
 def test_study_streak_ignores_future_dates():
@@ -191,9 +197,27 @@ def test_study_streak_breaks_on_gap():
     assert study_streak(dates, today)["days"] == 2
 
 
+def test_study_streak_survives_a_two_day_grace_window():
+    """Missing up to STREAK_GRACE_DAYS (2) consecutive days does not reset the
+    streak, but the learner is flagged at_risk with a countdown so the UI can
+    remind them before it's too late."""
+    today = date(2026, 8, 29)
+
+    one_day_missed = study_streak({today - timedelta(days=1)}, today)
+    assert one_day_missed["days"] == 1
+    assert one_day_missed["at_risk"] is True
+    assert one_day_missed["grace_days_remaining"] == 1
+
+    two_days_missed = study_streak({today - timedelta(days=2)}, today)
+    assert two_days_missed["days"] == 1
+    assert two_days_missed["at_risk"] is True
+    assert two_days_missed["grace_days_remaining"] == 0  # last chance today
+
+
 def test_study_streak_zero_when_no_recent_activity():
     today = date(2026, 8, 29)
-    assert study_streak({today - timedelta(days=2)}, today)["days"] == 0
+    # A third consecutive missed day is outside the 2-day grace window.
+    assert study_streak({today - timedelta(days=3)}, today)["days"] == 0
     assert study_streak(set(), today)["days"] == 0
 
 

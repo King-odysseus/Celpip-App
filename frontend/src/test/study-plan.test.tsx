@@ -47,6 +47,8 @@ function makeConsistency(completedDays: number): StudyConsistency {
       days: completedDays >= 1 ? 1 : 0,
       active_today: completedDays >= 1,
       anchor: completedDays >= 1 ? 'today' : null,
+      at_risk: false,
+      grace_days_remaining: null,
     },
     window_days: 14,
     today: '2026-08-29',

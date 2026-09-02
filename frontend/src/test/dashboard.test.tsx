@@ -90,7 +90,7 @@ describe('dashboard', () => {
             skills: baseSkills.map((skill) => ({ ...skill, attempts: 0, questions_correct: 0, questions_total: 0, accuracy_percent: null, estimate_low: null, estimate_high: null })),
             coverage: { practised_skills: 0, total_skills: 4 },
             totals: { objective_questions_completed: 0, completed_attempts: 0 },
-            streak: { days: 0, active_today: false, anchor: null, timezone: 'America/Toronto', rule: '…' },
+            streak: { days: 0, active_today: false, anchor: null, at_risk: false, grace_days_remaining: null, timezone: 'America/Toronto', rule: '…' },
             recent_results: [],
             signals: { strongest: null, needs_attention: { skill: 'listening', measure: null, value: null, planning_signal: null, attempts: 0, basis: 'No practice recorded yet' }, note: '…' },
             readiness: {

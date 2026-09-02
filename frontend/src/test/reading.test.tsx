@@ -185,3 +185,79 @@ describe('Reading player', () => {
     })
   })
 })
+
+describe('Study plan completion inside a session', () => {
+  const authBootstrap = {
+    'GET /auth/csrf/': () => jsonResponse({ detail: 'ok' }),
+    'POST /auth/refresh/': () => jsonResponse({ access: 'access-token' }),
+    'GET /me/': () => jsonResponse({ id: 1, identifier: 'learner', email: '', date_joined: '2026-08-29T00:00:00Z' }),
+    'GET /me/profile/': () => jsonResponse({
+      identifier: 'learner', exam_date: null, target_level: 9, target_listening: null,
+      target_reading: null, target_writing: null, target_speaking: null, daily_minutes: 30,
+      preferred_weekdays: [1], timezone: 'America/Toronto', practice_narration_voice: 'automatic',
+      updated_at: '2026-08-29T00:00:00Z',
+    }),
+    [`GET /sessions/${session.id}/`]: () => jsonResponse(session),
+  }
+
+  const otherPendingTask = {
+    id: 9, scheduled_date: '2026-08-29', order: 2, skill: 'writing', task_type: 'writing_email',
+    title: 'Practise Writing an Email', minutes: 30, reason: 'Writing is next.',
+    destination: '/practice/writing', state: 'pending', completed_at: null,
+  }
+  const thisTask = {
+    id: 8, scheduled_date: '2026-08-29', order: 1, skill: 'reading', task_type: 'reading_correspondence',
+    title: 'Practise Reading Correspondence', minutes: 30, reason: 'Reading is a priority.',
+    destination: '/practice', state: 'pending', completed_at: null,
+  }
+
+  it('offers the next lesson when another task is still pending today', async () => {
+    const user = userEvent.setup()
+    installRouteFetch({
+      ...authBootstrap,
+      'PATCH /me/study-plan/tasks/8/': () => jsonResponse({ id: 8, state: 'completed', completed_at: '2026-08-29T12:00:00Z' }),
+      'GET /me/study-plan/': () => jsonResponse({
+        id: 2, version: 4, generated_at: '2026-08-29T00:00:00Z', name: '',
+        reason_summary: { priorities: {}, rule: '', source_attempts: 1 },
+        tasks: [{ ...thisTask, state: 'completed', completed_at: '2026-08-29T12:00:00Z' }, otherPendingTask],
+        consistency: {
+          streak: { days: 1, active_today: true, anchor: 'today', at_risk: false, grace_days_remaining: null },
+          window_days: 1, today: '2026-08-29', days: [],
+        },
+      }),
+    })
+    renderApp(`/reading/session/${session.id}?study_task=8`)
+
+    await user.click(await screen.findByRole('button', { name: 'Mark as complete' }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, I understand' }))
+
+    expect(await screen.findByText(/one more to go today/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next lesson' })).toBeInTheDocument()
+    expect(screen.queryByText(/study plan is complete/i)).not.toBeInTheDocument()
+  })
+
+  it('celebrates the day as complete once no other task is pending today', async () => {
+    const user = userEvent.setup()
+    installRouteFetch({
+      ...authBootstrap,
+      'PATCH /me/study-plan/tasks/8/': () => jsonResponse({ id: 8, state: 'completed', completed_at: '2026-08-29T12:00:00Z' }),
+      'GET /me/study-plan/': () => jsonResponse({
+        id: 2, version: 4, generated_at: '2026-08-29T00:00:00Z', name: '',
+        reason_summary: { priorities: {}, rule: '', source_attempts: 1 },
+        tasks: [{ ...thisTask, state: 'completed', completed_at: '2026-08-29T12:00:00Z' }],
+        consistency: {
+          streak: { days: 5, active_today: true, anchor: 'today', at_risk: false, grace_days_remaining: null },
+          window_days: 1, today: '2026-08-29', days: [],
+        },
+      }),
+    })
+    renderApp(`/reading/session/${session.id}?study_task=8`)
+
+    await user.click(await screen.findByRole('button', { name: 'Mark as complete' }))
+    await user.click(await screen.findByRole('button', { name: 'Yes, I understand' }))
+
+    expect(await screen.findByText(/study plan is complete/i)).toBeInTheDocument()
+    expect(screen.getByText('5-day streak')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next lesson' })).not.toBeInTheDocument()
+  })
+})
