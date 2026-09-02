@@ -153,6 +153,8 @@ describe('study plan', () => {
       scheduled_date: '2026-08-28',
       title: 'Practise Listening Summary',
       skill: 'listening' as const,
+      state: 'completed' as const,
+      completed_at: '2026-08-28T12:00:00Z',
     }
     installRouteFetch({
       ...authenticatedBootstrap,
@@ -162,7 +164,7 @@ describe('study plan', () => {
 
     expect(await screen.findByText('Practise Reading Correspondence')).toBeInTheDocument()
     expect(screen.queryByText('Practise Listening Summary')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: '2026-08-28' }))
+    await user.click(screen.getByRole('button', { name: /2026-08-28, view scheduled work/ }))
     expect(screen.getByText('Practise Listening Summary')).toBeInTheDocument()
     expect(screen.queryByText('Practise Reading Correspondence')).not.toBeInTheDocument()
   })

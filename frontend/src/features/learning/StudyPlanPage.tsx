@@ -100,6 +100,13 @@ function StreakBar({
     ? new Date(`${visibleDays[0].date}T12:00:00`).getDay()
     : 0
   const mockDates = new Set((plan.mock_checkpoints ?? []).map((checkpoint) => checkpoint.date))
+  const tasksByDate = new Map<string, StudyTask[]>()
+  for (const task of plan.tasks) {
+    tasksByDate.set(task.scheduled_date, [
+      ...(tasksByDate.get(task.scheduled_date) ?? []),
+      task,
+    ])
+  }
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -155,14 +162,19 @@ function StreakBar({
           {visibleDays.map((day) => {
                   const { day: dayNum } = dayParts(day.date)
                   const isToday = day.date === today
+                  const dayTasks = tasksByDate.get(day.date) ?? []
+                  const hasMissedTasks = dayTasks.some(
+                    (task) => task.state === 'pending' && day.date < today,
+                  )
                   return (
                     <button
                       type="button"
                       key={day.date}
-                      aria-label={`${day.date}${day.completed ? ', completed' : ''}`}
+                      aria-label={`${day.date}${day.completed ? ', completed' : ''}${hasMissedTasks ? ', missed tasks' : ''}, view scheduled work`}
                       aria-pressed={selectedDate === day.date}
                       onClick={() => onSelectDate(day.date)}
-                      className={`flex min-h-16 flex-col items-center rounded border bg-surface px-1 pt-2 transition hover:border-brand focus-visible:outline-2 focus-visible:outline-brand ${selectedDate === day.date ? 'border-brand ring-2 ring-brand/20' : 'border-line-light'}`}
+                      title="View scheduled work for this day"
+                      className={`flex min-h-16 cursor-pointer flex-col items-center rounded border bg-surface px-1 pt-2 transition hover:border-brand focus-visible:outline-2 focus-visible:outline-brand ${selectedDate === day.date ? 'border-brand ring-2 ring-brand/20' : 'border-line-light'}`}
                     >
                       <span
                         className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums ${
@@ -478,7 +490,11 @@ export function StudyPlanPage() {
     if (selectedDate) return groups.filter(([date]) => date === selectedDate)
     const today = plan.consistency.today
     const missedDates = new Set(
-      (plan.overdue_tasks ?? []).map((task) => task.scheduled_date),
+      groups
+        .filter(([date, day]) =>
+          date < today && day.tasks.some((task) => task.state === 'pending'),
+        )
+        .map(([date]) => date),
     )
     return groups.filter(([date]) => date === today || missedDates.has(date))
   }, [groups, plan, selectedDate, showAllTasks])
