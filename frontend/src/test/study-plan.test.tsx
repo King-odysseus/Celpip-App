@@ -145,6 +145,28 @@ describe('study plan', () => {
     expect(screen.getByRole('button', { name: 'Mark complete' })).toBeInTheDocument()
   })
 
+  it('reveals a selected day while keeping other scheduled days collapsed', async () => {
+    const user = userEvent.setup()
+    const futureTask = {
+      ...makePlan().tasks[0],
+      id: 3,
+      scheduled_date: '2026-08-28',
+      title: 'Practise Listening Summary',
+      skill: 'listening' as const,
+    }
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(makePlan({ tasks: [...makePlan().tasks, futureTask] })),
+    })
+    renderApp('/study-plan')
+
+    expect(await screen.findByText('Practise Reading Correspondence')).toBeInTheDocument()
+    expect(screen.queryByText('Practise Listening Summary')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '2026-08-28' }))
+    expect(screen.getByText('Practise Listening Summary')).toBeInTheDocument()
+    expect(screen.queryByText('Practise Reading Correspondence')).not.toBeInTheDocument()
+  })
+
   it('renames the plan and persists it on blur', async () => {
     const user = userEvent.setup()
     const patchName = vi.fn((init: RequestInit) => {

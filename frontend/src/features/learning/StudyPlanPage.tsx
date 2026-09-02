@@ -61,7 +61,15 @@ function dayParts(date: string): { day: string } {
 }
 
 /** Calendar showing which skills were completed on each day + the streak. */
-function StreakBar({ plan }: { plan: StudyPlan }) {
+function StreakBar({
+  plan,
+  selectedDate,
+  onSelectDate,
+}: {
+  plan: StudyPlan
+  selectedDate: string | null
+  onSelectDate: (date: string) => void
+}) {
   const { streak, days } = plan.consistency
   // Older cached plan payloads may not include the consistency strip's
   // `today` field; use the latest supplied day so the page remains usable.
@@ -148,10 +156,13 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
                   const { day: dayNum } = dayParts(day.date)
                   const isToday = day.date === today
                   return (
-                    <div
+                    <button
+                      type="button"
                       key={day.date}
                       aria-label={`${day.date}${day.completed ? ', completed' : ''}`}
-                      className="flex min-h-16 flex-col items-center rounded border border-line-light bg-surface px-1 pt-2"
+                      aria-pressed={selectedDate === day.date}
+                      onClick={() => onSelectDate(day.date)}
+                      className={`flex min-h-16 flex-col items-center rounded border bg-surface px-1 pt-2 transition hover:border-brand focus-visible:outline-2 focus-visible:outline-brand ${selectedDate === day.date ? 'border-brand ring-2 ring-brand/20' : 'border-line-light'}`}
                     >
                       <span
                         className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums ${
@@ -180,7 +191,7 @@ function StreakBar({ plan }: { plan: StudyPlan }) {
                           <Timer size={10} aria-hidden /> Mock
                         </span>
                       )}
-                    </div>
+                    </button>
                   )
           })}
         </div>
@@ -430,6 +441,8 @@ export function StudyPlanPage() {
   const [error, setError] = useState('')
   const [regenerating, setRegenerating] = useState(false)
   const [confirmingTaskId, setConfirmingTaskId] = useState<number | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [showAllTasks, setShowAllTasks] = useState(false)
 
   useEffect(() => {
     if (status !== 'authenticated') {
@@ -458,6 +471,17 @@ export function StudyPlanPage() {
     }
     return [...result.entries()].sort(([left], [right]) => left.localeCompare(right))
   }, [plan])
+
+  const visibleGroups = useMemo(() => {
+    if (!plan) return []
+    if (showAllTasks) return groups
+    if (selectedDate) return groups.filter(([date]) => date === selectedDate)
+    const today = plan.consistency.today
+    const missedDates = new Set(
+      (plan.overdue_tasks ?? []).map((task) => task.scheduled_date),
+    )
+    return groups.filter(([date]) => date === today || missedDates.has(date))
+  }, [groups, plan, selectedDate, showAllTasks])
 
   async function setState(task: StudyTask, state: StudyTask['state']) {
     try {
@@ -566,10 +590,35 @@ export function StudyPlanPage() {
             </div>
           </Card>
 
-          <StreakBar plan={plan} />
+          <StreakBar
+            plan={plan}
+            selectedDate={selectedDate}
+            onSelectDate={(date) => {
+              setSelectedDate(date)
+              setShowAllTasks(false)
+            }}
+          />
 
           <div className="space-y-6">
-            {groups.map(([date, day]) => (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted">
+                {selectedDate
+                  ? `Showing the schedule for ${new Date(`${selectedDate}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}.`
+                  : showAllTasks
+                    ? 'Showing every scheduled lesson and test.'
+                    : 'Today and missed lessons are shown. Click a calendar day to view its schedule.'}
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowAllTasks((current) => !current)
+                  setSelectedDate(null)
+                }}
+              >
+                {showAllTasks ? 'Collapse all scheduled work' : 'View all scheduled work'}
+              </Button>
+            </div>
+            {visibleGroups.map(([date, day]) => (
               <section key={date}>
                 <h2 className="text-xl font-bold text-ink">
                   {new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
