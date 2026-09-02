@@ -292,4 +292,43 @@ describe('study plan', () => {
     expect(screen.getByRole('heading', { name: 'Full mock checkpoint' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open mock tests' })).toHaveAttribute('href', '/mock')
   })
+
+  it('is honest that catch-up work finished today is credited to today, not the missed day it is filed under', async () => {
+    const user = userEvent.setup()
+    // Scheduled for a day that already passed, but actually completed today —
+    // the streak/calendar already credit the real completion date; the task
+    // card must say so too, or a bare checkmark under the old date reads as
+    // if that old day were retroactively marked done.
+    const caughtUpTask = {
+      ...makePlan().tasks[0],
+      id: 4,
+      scheduled_date: '2026-08-27',
+      title: 'Practise Listening Catch-up',
+      skill: 'listening' as const,
+      state: 'completed' as const,
+      completed_at: '2026-08-29T15:00:00Z', // "today" in this fixture's fixed clock
+    }
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(makePlan({ tasks: [caughtUpTask] })),
+    })
+    renderApp('/study-plan')
+
+    await user.click(await screen.findByRole('button', { name: /2026-08-27, view scheduled work/ }))
+    expect(await screen.findByText('Practise Listening Catch-up')).toBeInTheDocument()
+    // Locale-agnostic: assert the caveat and the actual day number, not the
+    // exact month/day ordering (which varies by locale).
+    expect(screen.getByText(/not on the originally scheduled day/i)).toHaveTextContent(/29/)
+  })
+
+  it('shows no completion-date caveat when a task is finished on its own scheduled day', async () => {
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(completedPlan()),
+    })
+    renderApp('/study-plan')
+
+    expect(await screen.findByText('Practise Reading Correspondence')).toBeInTheDocument()
+    expect(screen.queryByText(/not on the originally scheduled day/i)).not.toBeInTheDocument()
+  })
 })

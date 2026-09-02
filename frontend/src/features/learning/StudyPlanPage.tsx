@@ -60,6 +60,28 @@ function dayParts(date: string): { day: string } {
   }
 }
 
+/**
+ * A task can be opened and finished from any day it's shown on — catch-up
+ * work stays reachable from its original scheduled date so nothing missed
+ * is ever hidden. Completing it always credits the real day it happened
+ * (streak/calendar accounting already uses `completed_at`, never
+ * `scheduled_date`), so the card says so explicitly whenever that differs
+ * from the section it's filed under — otherwise a bare checkmark under an
+ * old date reads as if that old day were retroactively credited.
+ */
+function completionDateLabel(completedAtIso: string, scheduledDate: string): string | null {
+  const completedDate = new Date(completedAtIso)
+  // Build the local-calendar-date string by hand: `.toISOString()` converts
+  // to UTC first, which silently shifts the date by a day for any timezone
+  // east of UTC (e.g. midnight local on the 29th is still the 28th in UTC).
+  const year = completedDate.getFullYear()
+  const month = String(completedDate.getMonth() + 1).padStart(2, '0')
+  const day = String(completedDate.getDate()).padStart(2, '0')
+  const completedLocalDate = `${year}-${month}-${day}`
+  if (completedLocalDate === scheduledDate) return null
+  return `Completed ${completedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}, not on the originally scheduled day.`
+}
+
 /** Calendar showing which skills were completed on each day + the streak. */
 function StreakBar({
   plan,
@@ -488,7 +510,11 @@ export function StudyPlanPage() {
     if (!plan) return []
     if (showAllTasks) return groups
     if (selectedDate) return groups.filter(([date]) => date === selectedDate)
-    const today = plan.consistency.today
+    // Same fallback as StreakBar: an older/cached plan payload can omit
+    // `consistency.today` entirely. Without a fallback, `today` is
+    // `undefined`, `date === today` never matches, and every task silently
+    // disappears from the default view instead of showing today's work.
+    const today = plan.consistency.today ?? groups.at(-1)?.[0] ?? new Date().toISOString().slice(0, 10)
     const missedDates = new Set(
       groups
         .filter(([date, day]) =>
@@ -685,6 +711,11 @@ export function StudyPlanPage() {
                           <CheckCircle2 className="text-good" size={22} aria-label="Completed" />
                         )}
                       </div>
+                      {task.state === 'completed' && task.completed_at && (
+                        <p className="mt-1 text-xs font-semibold text-good">
+                          {completionDateLabel(task.completed_at, date)}
+                        </p>
+                      )}
                       <p className="mt-3 text-sm leading-6 text-muted">{task.reason}</p>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <StudyTaskLaunch task={task} />
