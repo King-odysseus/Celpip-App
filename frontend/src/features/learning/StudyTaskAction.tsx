@@ -1,6 +1,6 @@
 import { CheckCircle2 } from 'lucide-react'
 import { useState } from 'react'
-import { Button } from '../../components/ui'
+import { Button, ButtonLink } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 
@@ -29,9 +29,14 @@ export function StudyTaskAction({ taskId }: { taskId: string | null }) {
   return (
     <div className="rounded-input border border-brand/30 bg-brand-soft p-4">
       {completed ? (
-        <p className="flex items-center gap-2 text-sm font-semibold text-good">
-          <CheckCircle2 size={18} /> Study Plan task completed
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="flex items-center gap-2 text-sm font-semibold text-good">
+            <CheckCircle2 size={18} /> Study Plan task completed
+          </p>
+          <ButtonLink to="/study-plan" variant="secondary">
+            Return to Study Plan
+          </ButtonLink>
+        </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
