@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { Card } from '../components/ui'
 
 const reviewLinks = [
-  { to: '/mistakes', title: 'Review mistakes', description: 'Turn repeated errors into focused follow-up practice.', icon: ListChecks },
   { to: '/progress', title: 'My progress', description: 'See accuracy, activity, and skill-by-skill signals.', icon: BarChart3 },
+  { to: '/mistakes', title: 'Review mistakes', description: 'Turn repeated errors into focused follow-up practice.', icon: ListChecks },
 ]
 
 export function ReviewHubPage() {

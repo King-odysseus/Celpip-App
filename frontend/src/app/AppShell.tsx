@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, GraduationCap, LayoutDashboard, ListChecks, LogIn, MoreHorizontal, Timer, UserPlus, UserRound, X } from 'lucide-react'
 import {
   mobilePrimaryNav,
+  mobilePrimaryPaths,
 } from './navigation'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { AccountControl } from '../components/AccountControl'
@@ -124,22 +125,27 @@ function MoreMenu({
                 {group.label}
               </h3>
               <ul className="space-y-1">
-                <li>
-                  <NavLink
-                    to={group.to}
-                    onClick={onClose}
-                    className={({ isActive }) =>
-                      `flex min-h-12 items-center gap-3 rounded-2xl px-3 py-2.5 text-base font-semibold transition-colors ${
-                        isActive
-                          ? 'bg-brand-soft text-brand'
-                          : 'text-ink hover:bg-surface-secondary'
-                      }`
-                    }
-                  >
-                    <span className="flex-1">{group.label}</span>
-                    <ChevronRight size={18} className="text-muted" aria-hidden="true" />
-                  </NavLink>
-                </li>
+                {/* Skip the group's own hub link when it's already one tap away
+                    on the bottom bar (Practice, Review) — only Study lacks a
+                    primary-tab shortcut, so only it needs this entry here. */}
+                {!mobilePrimaryPaths.includes(group.to) && (
+                  <li>
+                    <NavLink
+                      to={group.to}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        `flex min-h-12 items-center gap-3 rounded-2xl px-3 py-2.5 text-base font-semibold transition-colors ${
+                          isActive
+                            ? 'bg-brand-soft text-brand'
+                            : 'text-ink hover:bg-surface-secondary'
+                        }`
+                      }
+                    >
+                      <span className="flex-1">{group.label}</span>
+                      <ChevronRight size={18} className="text-muted" aria-hidden="true" />
+                    </NavLink>
+                  </li>
+                )}
                 {group.items.map((item) => (
                   <li key={item.to}>
                     <NavLink
@@ -244,8 +250,8 @@ const desktopGroups = [
     icon: BookOpen,
     items: [
       { to: '/study-plan', label: 'Study Plan' },
-      { to: '/learn', label: 'Reading Learn' },
       { to: '/learn/listening', label: 'Listening Learn' },
+      { to: '/learn', label: 'Reading Learn' },
       { to: '/learn/writing', label: 'Writing Learn' },
       { to: '/learn/speaking', label: 'Speaking Learn' },
     ],
@@ -255,8 +261,8 @@ const desktopGroups = [
     to: '/practice',
     icon: ClipboardList,
     items: [
-      { to: '/practice', label: 'Reading Practice' },
       { to: '/practice/listening', label: 'Listening Practice' },
+      { to: '/practice', label: 'Reading Practice' },
       { to: '/practice/writing', label: 'Writing Practice' },
       { to: '/practice/speaking', label: 'Speaking Practice' },
     ],
@@ -406,14 +412,20 @@ export function AppShell() {
               <LayoutDashboard size={18} strokeWidth={1.9} />
               Dashboard
             </NavLink>
-            {desktopGroups.map((group) => (
-              <DesktopNavGroup
-                key={group.to}
-                group={group}
-                open={desktopMenu === group.to}
-                onToggle={() => setDesktopMenu((current) => (current === group.to ? null : group.to))}
-              />
-            ))}
+            {/* Study and Practice come before the timed Mock Test; Review — which
+                covers results from both — comes after it, matching the mobile
+                tab order (Practice → Mock → Review) and the learn-practice-test-
+                review flow the app is built around. */}
+            {desktopGroups
+              .filter((group) => group.label !== 'Review')
+              .map((group) => (
+                <DesktopNavGroup
+                  key={group.to}
+                  group={group}
+                  open={desktopMenu === group.to}
+                  onToggle={() => setDesktopMenu((current) => (current === group.to ? null : group.to))}
+                />
+              ))}
             <NavLink
               to="/mock"
               className={({ isActive }) =>
@@ -423,6 +435,16 @@ export function AppShell() {
               <Timer size={18} strokeWidth={1.9} />
               Mock Test
             </NavLink>
+            {desktopGroups
+              .filter((group) => group.label === 'Review')
+              .map((group) => (
+                <DesktopNavGroup
+                  key={group.to}
+                  group={group}
+                  open={desktopMenu === group.to}
+                  onToggle={() => setDesktopMenu((current) => (current === group.to ? null : group.to))}
+                />
+              ))}
           </nav>
 
           <div className="ml-auto flex items-center gap-1 lg:ml-2">
