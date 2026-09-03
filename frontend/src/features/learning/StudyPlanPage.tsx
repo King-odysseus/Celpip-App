@@ -1,9 +1,11 @@
 import {
+  CalendarClock,
   CalendarRange,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Flame,
+  ListChecks,
   RefreshCcw,
   Timer,
 } from 'lucide-react'
@@ -58,6 +60,23 @@ function dayParts(date: string): { day: string } {
   return {
     day: value.toLocaleDateString(undefined, { day: 'numeric' }),
   }
+}
+
+function localDateLabel(date: string): string {
+  return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function addLocalDays(date: string, amount: number): string {
+  const value = new Date(`${date}T12:00:00`)
+  value.setDate(value.getDate() + amount)
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 /**
@@ -129,6 +148,35 @@ function StreakBar({
       task,
     ])
   }
+  const focusDate = selectedDate ?? today
+  const focusTasks = tasksByDate.get(focusDate) ?? []
+  const focusMocks = (plan.mock_checkpoints ?? []).filter((checkpoint) => checkpoint.date === focusDate)
+  const pendingFocusTasks = focusTasks.filter((task) => task.state === 'pending')
+  const focusMinutes = focusTasks.reduce((total, task) => total + task.minutes, 0)
+  const completedFocusTasks = focusTasks.filter((task) => task.state === 'completed').length
+  const nextMock =
+    [...(plan.mock_checkpoints ?? [])]
+      .filter((checkpoint) => checkpoint.date >= today)
+      .sort((left, right) => left.date.localeCompare(right.date))[0] ?? null
+  const nextMockInDays = nextMock
+    ? Math.round(
+        (new Date(`${nextMock.date}T12:00:00`).getTime() -
+          new Date(`${today}T12:00:00`).getTime()) /
+          86400000,
+      )
+    : null
+  const sevenDayEnd = addLocalDays(today, 6)
+  const sevenDayTasks = plan.tasks.filter(
+    (task) => task.scheduled_date >= today && task.scheduled_date <= sevenDayEnd,
+  )
+  const sevenDayMinutes = sevenDayTasks.reduce((total, task) => total + task.minutes, 0)
+  const sevenDaySkillLoad = Object.fromEntries(
+    SKILLS.map((skill) => [
+      skill,
+      sevenDayTasks.filter((task) => task.skill === skill).length,
+    ]),
+  ) as Record<Skill, number>
+  const maxSevenDaySkillLoad = Math.max(1, ...Object.values(sevenDaySkillLoad))
   return (
     <Card>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -163,7 +211,8 @@ function StreakBar({
             : `Your ${streak.days}-day streak is at risk. Complete a task within ${streak.grace_days_remaining} day${streak.grace_days_remaining === 1 ? '' : 's'} to keep it.`}
         </p>
       )}
-      <section className="mt-5 w-full max-w-md" aria-label={monthLabel}>
+      <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(320px,1.1fr)] lg:items-start">
+        <section className="w-full max-w-md" aria-label={monthLabel}>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-ink">{monthLabel}</h3>
           <div className="flex gap-1">
@@ -258,7 +307,77 @@ function StreakBar({
                   )
           })}
         </div>
-      </section>
+        </section>
+        <aside className="grid gap-3 lg:grid-cols-2 lg:content-start">
+          <div className="rounded-input border border-line-light bg-surface-secondary/45 p-4">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
+              <ListChecks size={15} aria-hidden />
+              {selectedDate ? 'Selected day' : 'Today'}
+            </div>
+            <p className="mt-2 text-xs font-semibold text-muted">{localDateLabel(focusDate)}</p>
+            <div className="mt-3 flex items-end gap-2">
+              <span className="text-3xl font-bold leading-none tabular-nums text-ink">
+                {pendingFocusTasks.length}
+              </span>
+              <span className="pb-0.5 text-sm text-muted">
+                task{pendingFocusTasks.length === 1 ? '' : 's'} left
+              </span>
+            </div>
+            <p className="mt-3 text-sm text-muted">
+              {focusMocks.length ? 'Mock checkpoint scheduled.' : `${focusMinutes} planned minutes.`}
+            </p>
+            {focusTasks.length > 0 && (
+              <p className="mt-2 text-xs text-muted">
+                {completedFocusTasks} of {focusTasks.length} task
+                {focusTasks.length === 1 ? '' : 's'} complete.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-input border border-line-light bg-surface-secondary/45 p-4">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted">
+              <CalendarClock size={15} aria-hidden />
+              Next mock
+            </div>
+            {nextMock ? (
+              <>
+                <p className="mt-2 text-sm font-semibold text-ink">{localDateLabel(nextMock.date)}</p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  {nextMockInDays === 0
+                    ? 'Scheduled today.'
+                    : `In ${nextMockInDays} day${nextMockInDays === 1 ? '' : 's'}.`}
+                </p>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-muted">No future checkpoint in this plan.</p>
+            )}
+          </div>
+
+          <div className="rounded-input border border-line-light bg-surface-secondary/45 p-4 lg:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted">Next 7 days</p>
+              <span className="text-sm font-semibold tabular-nums text-ink">
+                {sevenDayTasks.length} tasks · {sevenDayMinutes} min
+              </span>
+            </div>
+            <div className="mt-3 flex gap-2" aria-label="Scheduled tasks by skill over the next seven days">
+              {SKILLS.map((skill) => (
+                <div key={skill} className="min-w-0 flex-1">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-line-light">
+                    <div
+                      className={`h-full rounded-full ${SKILL_DOT[skill]}`}
+                      style={{ width: `${(sevenDaySkillLoad[skill] / maxSevenDaySkillLoad) * 100}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-center text-[10px] font-bold tabular-nums text-muted">
+                    {sevenDaySkillLoad[skill]}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+      </div>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
         {SKILLS.map((skill) => (
           <span key={skill} className="flex items-center gap-1.5 text-xs text-muted">
