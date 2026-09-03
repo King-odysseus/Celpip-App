@@ -673,7 +673,7 @@ def plan_payload(plan: StudyPlan) -> dict:
         StudyTask.objects.filter(
             plan__user=plan.user,
             scheduled_date__lt=today,
-            state=StudyTaskState.PENDING,
+            state__in=(StudyTaskState.PENDING, StudyTaskState.COMPLETED),
         )
         .exclude(plan=plan)
         .select_related("task_type")
@@ -734,8 +734,10 @@ def plan_payload(plan: StudyPlan) -> dict:
             _task_payload(task, completed_lessons)
             for task in tasks
         ],
-        # A missed task stays pending and remains actionable; its date must
-        # never cause it to be marked complete automatically.
+    # A missed task stays pending and remains actionable; its date must
+    # never cause it to be marked complete automatically. Completed
+    # historical tasks remain in the payload too, so a manual completion is
+    # still visible after the page refetches the active plan.
         "overdue_tasks": [
             _task_payload(task, completed_lessons)
             for task in tasks

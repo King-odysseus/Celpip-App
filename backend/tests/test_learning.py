@@ -263,6 +263,42 @@ def test_plan_completions_survive_auto_regeneration(learner):
     assert second.tasks.exclude(pk=carried.pk).filter(state=StudyTaskState.COMPLETED).count() == 0
 
 
+def test_completed_historical_task_remains_visible_after_plan_refetch(api_client, learner):
+    _all_skill_task_types()
+    active = regenerate_plan(learner)
+    task_type = active.tasks.first().task_type
+    historical_plan = StudyPlan.objects.create(
+        user=learner,
+        version=active.version + 1,
+        is_active=False,
+        reason_summary={"algorithm_version": "test"},
+    )
+    historical = historical_plan.tasks.create(
+        scheduled_date=timezone.localdate() - timedelta(days=1),
+        order=1,
+        skill=task_type.skill,
+        task_type=task_type,
+        title="Practise historical lesson",
+        minutes=10,
+        reason="Historical missed lesson.",
+        destination="/practice",
+    )
+
+    # A later request may have a newer active plan, but the old missed task
+    # must remain visible after the learner marks it complete.
+    response = api_client.patch(
+        f"/api/v1/me/study-plan/tasks/{historical.pk}/",
+        {"state": StudyTaskState.COMPLETED},
+        format="json",
+    )
+    assert response.status_code == 200
+
+    payload = api_client.get("/api/v1/me/study-plan/").json()
+    visible = {item["id"]: item for item in payload["tasks"]}
+    assert visible[historical.pk]["state"] == StudyTaskState.COMPLETED
+    assert not any(item["id"] == historical.pk for item in payload["overdue_tasks"])
+
+
 def test_plan_name_persists_across_regeneration(learner):
     call_command("seed_reading_content", verbosity=0, stdout=StringIO())
     first = regenerate_plan(learner)
