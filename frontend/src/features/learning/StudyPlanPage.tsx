@@ -163,7 +163,7 @@ function StreakBar({
             : `Your ${streak.days}-day streak is at risk. Complete a task within ${streak.grace_days_remaining} day${streak.grace_days_remaining === 1 ? '' : 's'} to keep it.`}
         </p>
       )}
-      <section className="mt-5 w-full" aria-label={monthLabel}>
+      <section className="mt-5 w-full max-w-md" aria-label={monthLabel}>
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-sm font-bold text-ink">{monthLabel}</h3>
           <div className="flex gap-1">
@@ -187,9 +187,9 @@ function StreakBar({
             </Button>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-7 gap-1.5 text-center sm:gap-2">
+        <div className="mt-3 grid grid-cols-7 gap-1 text-center sm:gap-1.5">
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday, index) => (
-            <span key={`${weekday}-${index}`} className="rounded-input border border-line-light bg-surface-secondary py-1.5 text-[10px] font-bold uppercase text-muted sm:py-2">
+            <span key={`${weekday}-${index}`} className="rounded-input border border-line-light bg-surface-secondary py-1.5 text-[10px] font-bold uppercase text-muted sm:py-1.5">
               {weekday}
             </span>
           ))}
@@ -213,7 +213,7 @@ function StreakBar({
                       aria-pressed={isSelected}
                       onClick={() => onSelectDate(day.date)}
                       title="View scheduled work for this day"
-                      className={`relative flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-input border-2 p-1 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                      className={`relative flex aspect-square cursor-pointer flex-col items-center justify-center gap-0.5 rounded-input border-2 p-0.5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
                         isSelected
                           ? 'border-brand bg-brand-soft shadow-card-hover'
                           : isToday
