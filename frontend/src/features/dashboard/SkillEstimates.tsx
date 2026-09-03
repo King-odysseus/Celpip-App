@@ -27,7 +27,7 @@ export function SkillEstimates({ skills }: { skills: Progress['skills'] }) {
             (summary?.estimate_high ? (summary.estimate_high / 12) * 100 : 0)
           return (
             <Card key={skill} className="!p-4">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-2 gap-y-0.5">
                 <CardTitle>{SKILL_LABELS[skill]}</CardTitle>
                 <span className="text-sm tabular-nums text-muted">{measure}</span>
               </div>
