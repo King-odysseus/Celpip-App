@@ -333,4 +333,34 @@ describe('study plan', () => {
     expect(await screen.findByText('Practise Reading Correspondence')).toBeInTheDocument()
     expect(screen.queryByText(/not on the originally scheduled day/i)).not.toBeInTheDocument()
   })
+
+  it('renders exactly one mock-test days control and persists a weekday toggle', async () => {
+    const user = userEvent.setup()
+    const patchWeekdays = vi.fn((init: RequestInit) => {
+      const body = JSON.parse(String(init.body))
+      return jsonResponse(makePlan({
+        reason_summary: { ...makePlan().reason_summary, mock_schedule_mode: 'weekdays', mock_weekdays: body.mock_weekdays },
+      }))
+    })
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/study-plan/': () => jsonResponse(makePlan({
+        reason_summary: { ...makePlan().reason_summary, mock_schedule_mode: 'weekdays', mock_weekdays: [6, 7] },
+      })),
+      'PATCH /me/study-plan/': patchWeekdays,
+    })
+    renderApp('/study-plan')
+
+    await screen.findByRole('heading', { name: 'Study Plan v3' })
+    // A duplicated control previously rendered two identical "Mock-test days"
+    // fieldsets; guard against that regression.
+    expect(screen.getAllByText('Mock-test days')).toHaveLength(1)
+
+    const sundayButton = screen.getByRole('button', { name: 'Sun' })
+    expect(sundayButton).toHaveAttribute('aria-pressed', 'true')
+    await user.click(sundayButton)
+
+    await waitFor(() => expect(patchWeekdays).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(String(patchWeekdays.mock.calls[0][0].body))).toEqual({ mock_weekdays: [6] })
+  })
 })

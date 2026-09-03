@@ -187,44 +187,63 @@ function StreakBar({
             </Button>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-7 gap-1 text-center">
+        <div className="mt-3 grid grid-cols-7 gap-1.5 text-center sm:gap-2">
           {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((weekday, index) => (
-            <span key={`${weekday}-${index}`} className="rounded border border-line-light bg-surface-secondary py-2 text-[10px] font-bold uppercase text-muted">
+            <span key={`${weekday}-${index}`} className="rounded-input border border-line-light bg-surface-secondary py-1.5 text-[10px] font-bold uppercase text-muted sm:py-2">
               {weekday}
             </span>
           ))}
           {Array.from({ length: firstWeekday }, (_, index) => (
-            <span key={`empty-${index}`} className="min-h-16 rounded border border-line-light bg-surface" aria-hidden />
+            <span key={`empty-${index}`} className="aspect-square rounded-input border border-dashed border-line-light/70 bg-surface-secondary/30" aria-hidden />
           ))}
           {visibleDays.map((day) => {
                   const { day: dayNum } = dayParts(day.date)
                   const isToday = day.date === today
+                  const isSelected = selectedDate === day.date
                   const dayTasks = tasksByDate.get(day.date) ?? []
                   const hasMissedTasks = dayTasks.some(
                     (task) => task.state === 'pending' && day.date < today,
                   )
+                  const isMock = mockDates.has(day.date)
                   return (
                     <button
                       type="button"
                       key={day.date}
                       aria-label={`${day.date}${day.completed ? ', completed' : ''}${hasMissedTasks ? ', missed tasks' : ''}, view scheduled work`}
-                      aria-pressed={selectedDate === day.date}
+                      aria-pressed={isSelected}
                       onClick={() => onSelectDate(day.date)}
                       title="View scheduled work for this day"
-                      className={`flex min-h-16 cursor-pointer flex-col items-center rounded border bg-surface px-1 pt-2 transition hover:border-brand focus-visible:outline-2 focus-visible:outline-brand ${selectedDate === day.date ? 'border-brand ring-2 ring-brand/20' : 'border-line-light'}`}
+                      className={`relative flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-input border-2 p-1 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-card-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                        isSelected
+                          ? 'border-brand bg-brand-soft shadow-card-hover'
+                          : isToday
+                            ? 'border-accent/50 bg-surface hover:border-brand'
+                            : 'border-line-light bg-surface hover:border-brand/60'
+                      }`}
                     >
+                      {isMock && (
+                        <span
+                          aria-hidden
+                          title="Mock-test day"
+                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent-fill text-white shadow-card"
+                        >
+                          <Timer size={9} aria-hidden />
+                        </span>
+                      )}
                       <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-bold tabular-nums ${
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-bold tabular-nums sm:h-8 sm:w-8 ${
                           isToday
                             ? 'border-brand bg-brand text-white'
                             : day.completed
                               ? 'border-good bg-good-soft text-good'
-                              : 'border-line-light bg-surface-secondary text-ink'
+                              : isSelected
+                                ? 'border-brand/40 bg-surface text-brand'
+                                : 'border-line-light bg-surface-secondary text-ink'
                         }`}
                       >
                         {dayNum}
                       </span>
-                      <div className="mt-1.5 flex h-1.5 justify-center gap-[3px]">
+                      <div className="flex h-1.5 justify-center gap-[3px]">
                         {SKILLS.map((skill) => (
                           <span
                             key={skill}
@@ -235,11 +254,6 @@ function StreakBar({
                           />
                         ))}
                       </div>
-                      {mockDates.has(day.date) && (
-                        <span className="mt-1 flex items-center gap-0.5 text-[9px] font-bold uppercase text-accent">
-                          <Timer size={10} aria-hidden /> Mock
-                        </span>
-                      )}
                     </button>
                   )
           })}
@@ -641,7 +655,6 @@ export function StudyPlanPage() {
                 <DifficultyInput plan={plan} onSaved={setPlan} />
                 <MockScheduleModeInput plan={plan} onSaved={setPlan} />
                 <MockIntervalInput plan={plan} onSaved={setPlan} />
-                <MockDaysInput plan={plan} onSaved={setPlan} />
                 <MockDaysInput plan={plan} onSaved={setPlan} />
               </div>
             </div>

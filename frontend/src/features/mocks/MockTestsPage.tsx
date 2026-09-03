@@ -253,7 +253,7 @@ function MockHub() {
                     </div>
                     <p className="mt-2 text-sm text-muted">
                       {attempt.state === 'completed'
-                        ? 'All four components finished.'
+                        ? `All four components finished${attempt.completed_at ? ` · ${formatDate(attempt.completed_at)}` : ''}.`
                         : attempt.state === 'active'
                           ? `Task ${attempt.current_order} of ${attempt.progress.total} · ${attempt.progress.completed} complete`
                           : `${attempt.progress.total} tasks · Listening → Reading → Writing → Speaking`}
