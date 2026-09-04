@@ -3,7 +3,6 @@ import { useState } from 'react'
 import { ButtonLink, Button } from '../../components/ui'
 import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
-import { StudyTaskLaunch } from './StudyTaskLaunch'
 import type { StudyPlan, StudyTask } from './types'
 
 type CompletionOutcome =
@@ -32,7 +31,9 @@ export function StudyTaskAction({ taskId }: { taskId: string | null }) {
       const thisTask = plan.tasks.find((task) => String(task.id) === taskId)
       const scheduledDate = thisTask?.scheduled_date
       const remainingToday = scheduledDate
-        ? plan.tasks.filter((task) => task.scheduled_date === scheduledDate && task.state === 'pending')
+        ? plan.tasks
+            .filter((task) => task.scheduled_date === scheduledDate && task.state === 'pending')
+            .sort((left, right) => left.order - right.order || left.id - right.id)
         : []
       setOutcome(
         remainingToday.length > 0
@@ -94,12 +95,16 @@ function CompletionOutcomeView({ outcome }: { outcome: CompletionOutcome | null 
 
   if (outcome.kind === 'more_today') {
     return (
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="flex items-center gap-2 text-sm font-semibold text-good">
-          <CheckCircle2 size={18} /> Lesson complete — one more to go today.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="flex items-center gap-2 text-sm font-semibold text-good">
+            <CheckCircle2 size={18} /> Lesson complete
+          </p>
+          <p className="mt-2 text-xs font-bold uppercase tracking-wider text-muted">Next in today&rsquo;s Study Plan</p>
+          <p className="mt-1 font-bold text-ink">{outcome.next.title}</p>
+        </div>
         <div className="flex flex-wrap gap-2">
-          <StudyTaskLaunch task={outcome.next} label="Next lesson" />
+          <ButtonLink to={outcome.next.destination}>Next question</ButtonLink>
           <ButtonLink to="/study-plan" variant="secondary">Study Plan</ButtonLink>
         </div>
       </div>

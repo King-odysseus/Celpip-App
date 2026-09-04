@@ -211,7 +211,7 @@ describe('Study plan completion inside a session', () => {
     destination: '/practice', state: 'pending', completed_at: null,
   }
 
-  it('offers the next lesson when another task is still pending today', async () => {
+  it('shows and directly links to the next question when another task is still pending that day', async () => {
     const user = userEvent.setup()
     installRouteFetch({
       ...authBootstrap,
@@ -231,8 +231,10 @@ describe('Study plan completion inside a session', () => {
     await user.click(await screen.findByRole('button', { name: 'Mark as complete' }))
     await user.click(await screen.findByRole('button', { name: 'Yes, I understand' }))
 
-    expect(await screen.findByText(/one more to go today/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Next lesson' })).toBeInTheDocument()
+    expect(await screen.findByText("Next in today’s Study Plan")).toBeInTheDocument()
+    expect(screen.getByText(otherPendingTask.title)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Next question' })).toHaveAttribute('href', otherPendingTask.destination)
+    expect(screen.queryByRole('dialog', { name: 'Your improvement recap' })).not.toBeInTheDocument()
     expect(screen.queryByText(/study plan is complete/i)).not.toBeInTheDocument()
   })
 
@@ -258,6 +260,7 @@ describe('Study plan completion inside a session', () => {
 
     expect(await screen.findByText(/study plan is complete/i)).toBeInTheDocument()
     expect(screen.getByText('5-day streak')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Next lesson' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Next question' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Return to Study Plan' })).toHaveAttribute('href', '/study-plan')
   })
 })
