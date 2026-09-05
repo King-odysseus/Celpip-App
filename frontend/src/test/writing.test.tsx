@@ -140,6 +140,7 @@ describe('Writing catalog', () => {
 
     const cards = await screen.findAllByRole('button', { name: 'Start timed practice' })
     await user.click(cards[0])
+    await user.click(await screen.findByRole('button', { name: 'Start practice' }))
 
     expect(await screen.findByLabelText('Your response')).toBeInTheDocument()
     expect(sessionStorage.getItem(`celpip-guest-${sessionId}`)).toBe('guest-abc')

@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from .models import (
     AssessmentSession,
+    ContentIssue,
     ObjectiveResult,
     Response,
     SessionItem,
@@ -22,6 +23,14 @@ class AssessmentSessionAdmin(admin.ModelAdmin):
 admin.site.register(SessionItem)
 admin.site.register(Response)
 admin.site.register(ObjectiveResult)
+
+
+@admin.register(ContentIssue)
+class ContentIssueAdmin(admin.ModelAdmin):
+    list_display = ("content_version", "issue_type", "status", "reporter", "created_at")
+    list_filter = ("status", "issue_type")
+    search_fields = ("content_version__item__title", "detail", "reporter__identifier")
+    readonly_fields = ("session_item", "content_version", "reporter", "issue_type", "detail", "created_at")
 
 
 @admin.register(SpeakingRetry)

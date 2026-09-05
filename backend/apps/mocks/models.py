@@ -43,6 +43,11 @@ class MockAttempt(models.Model):
     section_deadline_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    scheduled_for = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Learner-selected local date for a full simulation, if scheduled.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     # {section: {"started_at": iso, "ended_at": iso | None}}, one entry per

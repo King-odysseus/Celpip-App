@@ -16,6 +16,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
+import { ReportContentIssue } from '../content/ReportContentIssue'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
 import { StudyTaskAction } from '../learning/StudyTaskAction'
@@ -635,7 +636,8 @@ function WritingReviewView({
         </Card>
       </section>
 
-      <AIFeedbackPanel sessionId={session.id} />
+      <AIFeedbackPanel sessionId={session.id} practiceHref={`/practice/writing?task_type=${encodeURIComponent(session.content.task_type)}&exclude=${encodeURIComponent(session.content.slug)}`} />
+      <ReportContentIssue sessionId={session.id} />
 
       <div className="flex flex-wrap gap-3">
         <Button onClick={onBack}>Choose another prompt</Button>

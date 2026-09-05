@@ -57,6 +57,7 @@ export type MockAttempt = {
   created_at: string
   started_at: string | null
   completed_at: string | null
+  scheduled_for?: string | null
   server_now: string
   section_started_at: string | null
   section_deadline_at: string | null
@@ -66,6 +67,13 @@ export type MockAttempt = {
   progress: { completed: number; total: number }
   format: MockFormat
   disclaimer: string
+  briefing?: {
+    approach: string
+    evidence: string
+    target: string
+    selection_summary: string
+    focus_mode: string
+  } | null
   /** Present on detail/create/start/advance responses; absent from the list. */
   tasks?: MockTask[]
   replayed?: boolean

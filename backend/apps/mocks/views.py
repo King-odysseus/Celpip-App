@@ -36,6 +36,34 @@ class MockListCreateView(APIView):
         scope = serializers.ChoiceField(
             choices=[COMPACT_SCOPE, FULL_LENGTH_SCOPE], default=COMPACT_SCOPE, required=False
         )
+        focus_mode = serializers.ChoiceField(
+            choices=("balanced", "recommended", "custom"), required=False
+        )
+        skills = serializers.ListField(
+            child=serializers.ChoiceField(choices=("listening", "reading", "writing", "speaking")),
+            required=False,
+            allow_empty=False,
+        )
+        task_types = serializers.ListField(
+            child=serializers.CharField(max_length=64), required=False, allow_empty=False
+        )
+        scheduled_for = serializers.DateField(required=False)
+
+        def validate(self, attrs):
+            if attrs["scope"] == FULL_LENGTH_SCOPE and (
+                any(key in attrs for key in ("skills", "task_types"))
+                or attrs.get("focus_mode") not in (None, "balanced")
+            ):
+                raise serializers.ValidationError(
+                    "Full simulations keep the fixed CELPIP-General structure; tailor a compact mock instead."
+                )
+            if attrs.get("focus_mode") == "custom" and not (
+                attrs.get("skills") or attrs.get("task_types")
+            ):
+                raise serializers.ValidationError("Choose one or more skills or task types.")
+            if attrs.get("scheduled_for") and attrs["scope"] != FULL_LENGTH_SCOPE:
+                raise serializers.ValidationError("Only a full simulation can be scheduled for a specific day.")
+            return attrs
 
     def get(self, request):
         attempts = MockAttempt.objects.filter(user=request.user).prefetch_related("tasks")
@@ -50,7 +78,20 @@ class MockListCreateView(APIView):
         serializer = self.CreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         try:
-            attempt = create_attempt(request.user, scope=serializer.validated_data["scope"])
+            data = serializer.validated_data
+            focus = None
+            if data["scope"] == COMPACT_SCOPE:
+                focus = {
+                    "mode": data.get("focus_mode", "balanced"),
+                    "skills": data.get("skills", []),
+                    "task_types": data.get("task_types", []),
+                }
+            attempt = create_attempt(
+                request.user,
+                scope=data["scope"],
+                focus=focus,
+                scheduled_for=data.get("scheduled_for"),
+            )
         except MockError as exc:
             return _error(exc)
         return Response(attempt_payload(attempt), status=status.HTTP_201_CREATED)
@@ -59,11 +100,27 @@ class MockListCreateView(APIView):
 class MockDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
+    class ScheduleSerializer(serializers.Serializer):
+        scheduled_for = serializers.DateField(allow_null=True)
+
     def get(self, request, attempt_id):
         try:
             attempt = refresh_attempt(attempt_id, request.user)
         except MockAttempt.DoesNotExist:
             attempt = get_object_or_404(MockAttempt, pk=attempt_id, user=request.user)
+        return Response(attempt_payload(attempt))
+
+    def patch(self, request, attempt_id):
+        serializer = self.ScheduleSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        attempt = get_object_or_404(MockAttempt, pk=attempt_id, user=request.user)
+        if attempt.scope != FULL_LENGTH_SCOPE or attempt.state != "ready":
+            return Response(
+                {"code": "schedule_locked", "message": "Only a ready full simulation can be rescheduled.", "fields": {}},
+                status=status.HTTP_409_CONFLICT,
+            )
+        attempt.scheduled_for = serializer.validated_data["scheduled_for"]
+        attempt.save(update_fields=["scheduled_for", "updated_at"])
         return Response(attempt_payload(attempt))
 
 

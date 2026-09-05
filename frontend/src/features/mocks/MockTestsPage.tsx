@@ -11,9 +11,9 @@ import {
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button, ButtonLink, Card } from '../../components/ui'
-import { ApiError } from '../../lib/api'
+import { ApiError, api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
-import { createMock, listMocks } from './api'
+import { createMock, listMocks, updateMockSchedule, type CompactFocus } from './api'
 import {
   COMPACT_SCOPE,
   COMPACT_SCOPE_LIMITATION,
@@ -148,6 +148,11 @@ function MockHub() {
   const [attempts, setAttempts] = useState<MockAttempt[]>([])
   const [loading, setLoading] = useState(true)
   const [creatingScope, setCreatingScope] = useState<string | null>(null)
+  const [compactMode, setCompactMode] = useState<CompactFocus['mode']>('recommended')
+  const [compactSkills, setCompactSkills] = useState<string[]>([])
+  const [taskTypes, setTaskTypes] = useState<Array<{ code: string; skill: string; title: string }>>([])
+  const [compactTaskTypes, setCompactTaskTypes] = useState<string[]>([])
+  const [fullMockDate, setFullMockDate] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -163,15 +168,30 @@ function MockHub() {
     }
   }, [])
 
-  async function create(scope: string) {
+  useEffect(() => {
+    Promise.all(['listening', 'reading', 'writing', 'speaking'].map((skill) =>
+      api.get<Array<{ code: string; skill: string; title: string }>>(`/content/task-types/?skill=${skill}`),
+    )).then((groups) => setTaskTypes(groups.flat())).catch(() => setTaskTypes([]))
+  }, [])
+
+  async function create(scope: string, focus?: CompactFocus, scheduledFor?: string) {
     setCreatingScope(scope)
     setError('')
     try {
-      const attempt = await createMock(scope)
+      const attempt = await createMock(scope, focus, scheduledFor)
       navigate(`/mock/${attempt.id}`)
     } catch (reason) {
       setError(reason instanceof ApiError ? reason.message : 'The mock could not be created.')
       setCreatingScope(null)
+    }
+  }
+
+  async function removeSchedule(attemptId: string) {
+    try {
+      const updated = await updateMockSchedule(attemptId, null)
+      setAttempts((current) => current.map((attempt) => attempt.id === attemptId ? updated : attempt))
+    } catch (reason) {
+      setError(reason instanceof ApiError ? reason.message : 'The schedule could not be changed.')
     }
   }
 
@@ -188,15 +208,52 @@ function MockHub() {
           <div className="rounded-input border border-line p-4">
             <p className="font-semibold text-ink">Compact mock</p>
             <p className="mt-1 text-sm text-muted">
-              All 20 task families, one prompt each. Faster — good for a quick rehearsal.
+              A focused, approximately one-hour rehearsal. Choose a balanced mix, let your recent mistakes guide it, or select skills yourself.
             </p>
+            <div className="mt-3 flex flex-wrap gap-2" aria-label="Compact mock focus">
+              {([
+                ['recommended', 'Recommended'],
+                ['balanced', 'Balanced'],
+                ['custom', 'Choose skills'],
+              ] as const).map(([mode, label]) => (
+                <button key={mode} type="button" onClick={() => setCompactMode(mode)} className={`rounded-full px-3 py-1.5 text-xs font-bold ${compactMode === mode ? 'bg-brand text-white' : 'bg-surface-secondary text-muted hover:bg-brand-soft'}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {compactMode === 'custom' && (
+              <div className="mt-3 space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2">
+                {(['listening', 'reading', 'writing', 'speaking'] as const).map((skill) => (
+                  <label key={skill} className="flex items-center gap-2 rounded-input border border-line px-2 py-2 capitalize">
+                    <input type="checkbox" checked={compactSkills.includes(skill)} onChange={() => { setCompactSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill]); setCompactTaskTypes([]) }} />
+                    {skill}
+                  </label>
+                ))}
+              </div>
+              {compactSkills.length > 0 && taskTypes.length > 0 && (
+                <details className="rounded-input border border-line p-3">
+                  <summary className="cursor-pointer font-semibold text-ink">Choose specific task types (optional)</summary>
+                  <p className="mt-2 text-xs text-muted">Selecting task types makes the compact mock use exactly those types.</p>
+                  <div className="mt-2 space-y-2">
+                    {taskTypes.filter((task) => compactSkills.includes(task.skill)).map((task) => (
+                      <label key={task.code} className="flex items-start gap-2">
+                        <input className="mt-1" type="checkbox" checked={compactTaskTypes.includes(task.code)} onChange={() => setCompactTaskTypes((current) => current.includes(task.code) ? current.filter((code) => code !== task.code) : [...current, task.code])} />
+                        <span>{task.title}</span>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              )}
+              </div>
+            )}
             <Button
               className="mt-3 w-full"
               variant="secondary"
-              disabled={creatingScope !== null}
-              onClick={() => void create(COMPACT_SCOPE)}
+              disabled={creatingScope !== null || (compactMode === 'custom' && compactSkills.length === 0)}
+              onClick={() => void create(COMPACT_SCOPE, { mode: compactMode, skills: compactMode === 'custom' ? compactSkills : undefined, task_types: compactMode === 'custom' && compactTaskTypes.length ? compactTaskTypes : undefined })}
             >
-              {creatingScope === COMPACT_SCOPE ? 'Creating…' : <><Play size={18} /> Compact mock</>}
+              {creatingScope === COMPACT_SCOPE ? 'Creating…' : <><Play size={18} /> Build compact mock</>}
             </Button>
           </div>
           <div className="rounded-input border border-brand/40 bg-brand-soft/30 p-4">
@@ -208,10 +265,14 @@ function MockHub() {
               Current official Listening/Reading question counts and every Speaking task —
               the full-length exam-day rehearsal.
             </p>
+            <label className="mt-3 block text-xs font-semibold text-ink">
+              Schedule for a specific day <span className="font-normal text-muted">(optional)</span>
+              <input type="date" value={fullMockDate} onChange={(event) => setFullMockDate(event.target.value)} className="mt-1 block w-full rounded-input border border-line bg-surface px-3 py-2 text-sm" />
+            </label>
             <Button
               className="mt-3 w-full"
               disabled={creatingScope !== null}
-              onClick={() => void create(FULL_LENGTH_SCOPE)}
+              onClick={() => void create(FULL_LENGTH_SCOPE, undefined, fullMockDate || undefined)}
             >
               {creatingScope === FULL_LENGTH_SCOPE ? 'Creating…' : <><Play size={18} /> Full simulation</>}
             </Button>
@@ -250,6 +311,9 @@ function MockHub() {
                           ? `Started ${formatDate(attempt.started_at)}`
                           : `Created ${formatDate(attempt.created_at)}`}
                       </span>
+                      {attempt.scheduled_for && attempt.state === 'ready' && (
+                        <span className="text-xs font-semibold text-brand">Scheduled for {formatDate(attempt.scheduled_for)}</span>
+                      )}
                     </div>
                     <p className="mt-2 text-sm text-muted">
                       {attempt.state === 'completed'
@@ -259,11 +323,11 @@ function MockHub() {
                           : `${attempt.progress.total} tasks · Listening → Reading → Writing → Speaking`}
                     </p>
                   </div>
-                  <Button
-                    variant={attempt.state === 'completed' ? 'secondary' : 'primary'}
-                    className="self-start sm:self-center"
-                    onClick={() => navigate(`/mock/${attempt.id}`)}
-                  >
+                  <div className="flex flex-wrap gap-2 self-start sm:self-center">
+                  {attempt.scheduled_for && attempt.state === 'ready' && (
+                    <Button variant="ghost" onClick={() => void removeSchedule(attempt.id)}>Remove date</Button>
+                  )}
+                  <Button variant={attempt.state === 'completed' ? 'secondary' : 'primary'} onClick={() => navigate(`/mock/${attempt.id}`)}>
                     {attempt.state === 'completed' ? (
                       <><CheckCircle2 size={17} /> View results</>
                     ) : attempt.state === 'active' || attempt.state === 'between_sections' ? (
@@ -272,6 +336,7 @@ function MockHub() {
                       <><ArrowRight size={17} /> Open</>
                     )}
                   </Button>
+                  </div>
                 </Card>
               </li>
             ))}

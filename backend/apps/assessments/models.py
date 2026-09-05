@@ -25,6 +25,19 @@ class SessionState(models.TextChoices):
     SUBMITTED = "submitted", "Submitted"
 
 
+class ContentIssueStatus(models.TextChoices):
+    OPEN = "open", "Open"
+    CONFIRMED = "confirmed", "Confirmed — exclude from new sessions"
+    DISMISSED = "dismissed", "Dismissed"
+
+
+class ContentIssueType(models.TextChoices):
+    AUDIO_MISMATCH = "audio_mismatch", "Audio does not match"
+    MISSING_TEXT = "missing_text", "Text is incomplete"
+    AMBIGUOUS_ANSWER = "ambiguous_answer", "Answer is ambiguous"
+    OTHER = "other", "Other"
+
+
 class AssessmentSession(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
@@ -101,6 +114,33 @@ class SessionItem(models.Model):
 
     def __str__(self) -> str:
         return f"{self.session_id}: item {self.order}"
+
+
+class ContentIssue(models.Model):
+    session_item = models.ForeignKey(
+        SessionItem, on_delete=models.CASCADE, related_name="content_issues"
+    )
+    content_version = models.ForeignKey(
+        ContentVersion, on_delete=models.PROTECT, related_name="quality_reports"
+    )
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="content_issue_reports",
+    )
+    issue_type = models.CharField(max_length=24, choices=ContentIssueType.choices)
+    detail = models.TextField(blank=True, max_length=1000)
+    status = models.CharField(
+        max_length=12, choices=ContentIssueStatus.choices, default=ContentIssueStatus.OPEN
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["content_version", "status"])]
 
 
 class Response(models.Model):

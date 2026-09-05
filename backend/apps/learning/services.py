@@ -22,6 +22,7 @@ from apps.assessments.models import (
     WritingSubmission,
 )
 from apps.content.models import ContentVersion, PublicationStatus, Question, Skill, TaskType
+from apps.mocks.models import MockAttempt, MockState
 
 from .models import (
     MistakeRecord,
@@ -777,7 +778,7 @@ def study_plan_consistency(user, days: int = 14) -> dict:
         day.isoformat() for day in scheduled_days if day not in completions
     )
 
-    streak = study_streak({day for day, _ in completions.items()}, today)
+    streak = study_streak(_qualifying_streak_dates(user, zone), today)
 
     start = today - timedelta(days=days - 1)
     active_plan = StudyPlan.objects.filter(user=user, is_active=True).first()
@@ -815,6 +816,32 @@ def study_plan_consistency(user, days: int = 14) -> dict:
         "today": today.isoformat(),
         "missed_days": missed_days,
     }
+
+
+def _qualifying_streak_dates(user, zone: ZoneInfo) -> set:
+    """Dates that earn a streak under the learner-facing daily rule.
+
+    A completed compact/full mock qualifies by itself. Lessons qualify only
+    when all four distinct skills were completed on the same local day.
+    """
+    dates = set()
+    completed_mocks = MockAttempt.objects.filter(
+        user=user,
+        state=MockState.COMPLETED,
+        completed_at__isnull=False,
+    ).values_list("completed_at", flat=True)
+    dates.update(value.astimezone(zone).date() for value in completed_mocks)
+
+    lesson_days: dict = {}
+    completed_tasks = StudyTask.objects.filter(
+        plan__user=user,
+        state=StudyTaskState.COMPLETED,
+        completed_at__isnull=False,
+    ).values_list("completed_at", "skill")
+    for completed_at, skill in completed_tasks:
+        lesson_days.setdefault(completed_at.astimezone(zone).date(), set()).add(skill)
+    dates.update(day for day, skills in lesson_days.items() if set(SKILLS).issubset(skills))
+    return dates
 
 
 @transaction.atomic
@@ -1292,7 +1319,7 @@ def dashboard_payload(user) -> dict:
     today = timezone.now().astimezone(zone).date()
 
     activity_dates = _activity_dates(user, zone)
-    streak = study_streak(activity_dates, today)
+    streak = study_streak(_qualifying_streak_dates(user, zone), today)
 
     skills = progress["skills"]
     strongest, needs_attention = _practice_signals(skills)
@@ -1304,6 +1331,26 @@ def dashboard_payload(user) -> dict:
         .first()
     )
     today_tasks, next_upcoming = _today_and_next(plan, today)
+    completed_today_skills = {
+        skill
+        for completed_at, skill in StudyTask.objects.filter(
+            plan__user=user,
+            state=StudyTaskState.COMPLETED,
+            completed_at__isnull=False,
+        ).values_list("completed_at", "skill")
+        if completed_at.astimezone(zone).date() == today
+    }
+    mock_completed_today = any(
+        completed_at.astimezone(zone).date() == today
+        for completed_at in MockAttempt.objects.filter(
+            user=user, state=MockState.COMPLETED, completed_at__isnull=False
+        ).values_list("completed_at", flat=True)
+    )
+    scheduled_mock = (
+        MockAttempt.objects.filter(user=user, state=MockState.READY, scheduled_for__gte=today)
+        .order_by("scheduled_for", "created_at")
+        .first()
+    )
 
     return {
         "skills": skills,
@@ -1332,6 +1379,17 @@ def dashboard_payload(user) -> dict:
             "date": today.isoformat(),
             "timezone": profile.timezone,
             "tasks": today_tasks,
+            "streak_progress": {
+                "lesson_skills_completed": len(completed_today_skills),
+                "lesson_skills_required": len(SKILLS),
+                "mock_completed": mock_completed_today,
+                "secured": streak["active_today"],
+            },
+            "scheduled_mock": (
+                {"id": str(scheduled_mock.id), "date": scheduled_mock.scheduled_for.isoformat()}
+                if scheduled_mock
+                else None
+            ),
         },
         "next_upcoming_task": next_upcoming,
         "disclaimer": "Practice analytics are not official CELPIP results.",

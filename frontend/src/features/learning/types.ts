@@ -178,7 +178,18 @@ export type Dashboard = {
   recent_results: RecentResult[]
   signals: { strongest: SkillSignal | null; needs_attention: SkillSignal | null; note: string }
   readiness: Readiness
-  today: { date: string; timezone: string; tasks: StudyTask[] }
+  today: {
+    date: string
+    timezone: string
+    tasks: StudyTask[]
+    streak_progress?: {
+      lesson_skills_completed: number
+      lesson_skills_required: number
+      mock_completed: boolean
+      secured: boolean
+    }
+    scheduled_mock?: { id: string; date: string } | null
+  }
   next_upcoming_task: StudyTask | null
   disclaimer: string
 }

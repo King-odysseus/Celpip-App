@@ -161,6 +161,7 @@ function ReadyView({
 
   return (
     <div className="space-y-5">
+      {attempt.briefing && <MockBriefing briefing={attempt.briefing} />}
       <Card className="text-center">
         <p className="eyebrow">Ready when you are</p>
         <h2 className="mt-2 text-2xl font-bold text-ink">Your mock is assembled</h2>
@@ -182,6 +183,19 @@ function ReadyView({
       <TaskProgress tasks={attempt.tasks ?? []} />
       <DisclaimerNote text={attempt.disclaimer} />
     </div>
+  )
+}
+
+function MockBriefing({ briefing }: { briefing: NonNullable<MockAttempt['briefing']> }) {
+  return (
+    <Card className="border-accent/40 bg-accent-soft/25">
+      <p className="eyebrow">Before you begin</p>
+      <h2 className="mt-1 text-xl font-bold text-ink">Your focus today</h2>
+      <p className="mt-3 text-sm leading-6 text-ink"><strong>Approach:</strong> {briefing.approach}</p>
+      <p className="mt-2 text-sm leading-6 text-ink"><strong>Your pattern:</strong> {briefing.evidence}</p>
+      <p className="mt-2 text-sm leading-6 text-ink"><strong>Today’s target:</strong> {briefing.target}</p>
+      <p className="mt-3 text-xs font-semibold text-muted">This briefing is outside the timed mock. {briefing.selection_summary}</p>
+    </Card>
   )
 }
 

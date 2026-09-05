@@ -2,6 +2,7 @@ import { Bot, Loader2, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Card } from '../../components/ui'
 import { api } from '../../lib/api'
+import { Link } from 'react-router-dom'
 import { DIMENSION_LABELS } from './dimensionLabels'
 
 type Dimension = { key: string; rating: number; evidence: string; next_step: string }
@@ -27,7 +28,7 @@ function tokenHeaders(sessionId: string): Record<string, string> {
   return token ? { 'X-Guest-Token': token } : {}
 }
 
-export function AIFeedbackPanel({ sessionId }: { sessionId: string }) {
+export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string; practiceHref?: string }) {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
   const [unavailable, setUnavailable] = useState(false)
 
@@ -83,6 +84,7 @@ export function AIFeedbackPanel({ sessionId }: { sessionId: string }) {
         ))}
       </div>
       {feedback.transcript && <details className="card p-5"><summary className="cursor-pointer font-bold text-ink">AI transcript used for feedback</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{feedback.transcript}</p></details>}
+      {practiceHref && <Card className="border-accent/30 bg-accent-soft/25"><p className="text-sm font-bold text-ink">Apply this feedback on a fresh prompt</p><p className="mt-1 text-sm text-muted">Try the same task type again so the app can compare your next response with this one.</p><Link to={practiceHref} className="mt-3 inline-flex min-h-10 items-center rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">Practise this next</Link></Card>}
       {feedback.audit && <details className="text-xs text-muted"><summary className="cursor-pointer font-semibold">Feedback audit details</summary><p className="mt-2">Provider: {feedback.audit.provider} · Model: {feedback.audit.model} · Prompt: {feedback.audit.prompt_version}</p></details>}
     </section>
   )

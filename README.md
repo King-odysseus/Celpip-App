@@ -8,7 +8,7 @@ four-skill **CELPIP-General test used for immigration**.
 > identify the test being prepared for. No official practice content is
 > reproduced.
 
-The current bank contains **712 practice activities**: 163 Reading sets, 173
+The current bank contains **727 practice activities**: 171 Reading sets, 180
 Listening sets, 152 Writing prompts, and 224 Speaking prompts. Reading and
 Listening contain 1,325 objective questions in total. Every reviewed source
 activity is available as Guided (Foundation), Independent (Developing), and

@@ -5,6 +5,7 @@ import { Button, Card } from '../../components/ui'
 import { ApiError, api, fetchAllPages } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import { completedLessonSlugs } from '../learning/completedLessons'
+import { PracticeBriefing } from '../learning/PracticeBriefing'
 import type { StudyPlan } from '../learning/types'
 import type {
   SessionMode,
@@ -32,13 +33,16 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
   const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
   const requestedTaskId = new URLSearchParams(window.location.search).get('study_task')
+  const requestedTaskType = new URLSearchParams(window.location.search).get('task_type')
+  const excludedLesson = new URLSearchParams(window.location.search).get('exclude')
   const [taskTypes, setTaskTypes] = useState<SpeakingTaskType[]>([])
   const [items, setItems] = useState<SpeakingCatalogItem[]>([])
-  const [filter, setFilter] = useState('all')
+  const [filter, setFilter] = useState(requestedTaskType ?? 'all')
   const [difficulty] = useState(requestedDifficulty ?? 'all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
+  const [pendingItem, setPendingItem] = useState<SpeakingCatalogItem | null>(null)
   const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
 
@@ -62,7 +66,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
           setTaskTypes(types)
           setItems(catalog)
           const lesson = requestedLesson && catalog.find((item) => item.slug === requestedLesson)
-          if (lesson) void begin(lesson)
+          if (lesson) setPendingItem(lesson)
         }
       })
       .catch((reason: unknown) => {
@@ -75,7 +79,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
   }, [])
 
   const filtered = useMemo(
-    () => items.filter((item) => (filter === 'all' || item.task_type === filter) && (difficulty === 'all' || item.difficulty === Number(difficulty)) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
+    () => items.filter((item) => (filter === 'all' || item.task_type === filter) && item.slug !== excludedLesson && (difficulty === 'all' || item.difficulty === Number(difficulty)) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
     [difficulty, filter, items, search],
   )
   const isLearn = mode === 'learn'
@@ -184,7 +188,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
                     className="mt-6 w-full sm:w-auto sm:self-start"
                     variant={isLearn ? 'accent' : 'primary'}
                     disabled={authStatus === 'loading' || starting !== null}
-                    onClick={() => void begin(item)}
+                    onClick={() => setPendingItem(item)}
                   >
                     {isLearn ? <GraduationCap size={18} /> : <Play size={18} />}
                     {starting === item.slug ? 'Opening…' : completed ? 'Practice again' : isLearn ? 'Learn with this prompt' : 'Open microphone practice'}
@@ -195,6 +199,10 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
           </div>
         )}
       </section>
+      {pendingItem && (() => {
+        const task = taskTypes.find((candidate) => candidate.code === pendingItem.task_type)
+        return task ? <PracticeBriefing task={task} starting={starting === pendingItem.slug} onCancel={() => setPendingItem(null)} onStart={() => void begin(pendingItem)} /> : null
+      })()}
     </div>
   )
 }

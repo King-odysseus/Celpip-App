@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Button, Card } from '../../components/ui'
 import { useAuth } from '../auth/AuthProvider'
 import { completedLessonSlugs } from '../learning/completedLessons'
+import { PracticeBriefing } from '../learning/PracticeBriefing'
 import type { StudyPlan } from '../learning/types'
 import { ApiError, api, fetchAllPages } from '../../lib/api'
 import type {
@@ -34,13 +35,16 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
   const requestedDifficulty = new URLSearchParams(window.location.search).get('difficulty')
   const requestedLesson = new URLSearchParams(window.location.search).get('lesson')
   const requestedTaskId = new URLSearchParams(window.location.search).get('study_task')
+  const requestedTaskType = new URLSearchParams(window.location.search).get('task_type')
+  const excludedLesson = new URLSearchParams(window.location.search).get('exclude')
   const [taskTypes, setTaskTypes] = useState<WritingTaskType[]>([])
   const [items, setItems] = useState<WritingCatalogItem[]>([])
-  const [taskFilter, setTaskFilter] = useState('all')
+  const [taskFilter, setTaskFilter] = useState(requestedTaskType ?? 'all')
   const [difficulty] = useState(requestedDifficulty ?? 'all')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
+  const [pendingItem, setPendingItem] = useState<WritingCatalogItem | null>(null)
   const [completedSlugs, setCompletedSlugs] = useState<Set<string>>(new Set())
   const [error, setError] = useState('')
 
@@ -64,7 +68,7 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
         setTaskTypes(types)
         setItems(catalog)
         const lesson = requestedLesson && catalog.find((item) => item.slug === requestedLesson)
-        if (lesson) void begin(lesson)
+        if (lesson) setPendingItem(lesson)
       })
       .catch((reason: unknown) =>
         active && setError(reason instanceof Error ? reason.message : 'Could not load Writing practice.'),
@@ -76,7 +80,7 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
   }, [])
 
   const filtered = useMemo(
-    () => items.filter((item) => (taskFilter === 'all' || item.task_type === taskFilter) && (difficulty === 'all' || item.difficulty === Number(difficulty)) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
+    () => items.filter((item) => (taskFilter === 'all' || item.task_type === taskFilter) && item.slug !== excludedLesson && (difficulty === 'all' || item.difficulty === Number(difficulty)) && `${item.title} ${item.topic}`.toLowerCase().includes(search.trim().toLowerCase())),
     [items, taskFilter, difficulty, search],
   )
 
@@ -191,7 +195,7 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
                     className="mt-6 w-full sm:w-auto sm:self-start"
                     variant={isLearn ? 'accent' : 'primary'}
                     disabled={authStatus === 'loading' || starting !== null}
-                    onClick={() => begin(item)}
+                    onClick={() => setPendingItem(item)}
                   >
                     {isLearn ? <GraduationCap size={18} /> : <Play size={18} />}
                     {starting === item.slug ? 'Starting…' : completed ? 'Practice again' : isLearn ? 'Learn with this prompt' : 'Start timed practice'}
@@ -205,6 +209,10 @@ export function WritingCatalogPage({ mode }: { mode: SessionMode }) {
           <p className="rounded-card border border-line bg-surface p-8 text-center text-muted">No prompts match this filter.</p>
         )}
       </section>
+      {pendingItem && (() => {
+        const task = taskTypes.find((candidate) => candidate.code === pendingItem.task_type)
+        return task ? <PracticeBriefing task={task} starting={starting === pendingItem.slug} onCancel={() => setPendingItem(null)} onStart={() => void begin(pendingItem)} /> : null
+      })()}
     </div>
   )
 }

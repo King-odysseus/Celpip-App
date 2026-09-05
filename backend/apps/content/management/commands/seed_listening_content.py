@@ -14,7 +14,6 @@ from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BA
 from apps.content.listening_seed_data import LISTENING_TASK_TYPES
 from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
 from apps.content.listening_seed_data_v3 import LISTENING_SETS as LISTENING_SETS_V3
-from apps.content.mock_full_length_filler_data import LISTENING_FILLER_SETS
 from apps.content.models import (
     Choice,
     ContentItem,
@@ -31,15 +30,10 @@ from apps.media_assets.models import MediaAsset, MediaStatus
 from apps.media_assets.services import file_checksum
 
 LISTENING_SOURCE_SETS = LISTENING_SETS_BASE + LISTENING_SETS_V2 + LISTENING_SETS_V3
-# Filler sets are deliberately NOT stage-expanded: they exist only to let the
-# full-length mock hit an exact official question count (see
-# mock_full_length_filler_data.py) and are excluded from that expansion so
-# their audio stays to one file each rather than four. Official-part sets are
-# likewise not stage-expanded: each is a complete official Listening part (one
+# Official-part sets are not stage-expanded: each is a complete official Listening part (one
 # recording, full question count) that a full-length mock should use as-is.
 LISTENING_SETS = (
     expand_practice_bank(LISTENING_SOURCE_SETS, skill="listening")
-    + LISTENING_FILLER_SETS
     + LISTENING_OFFICIAL_SETS
     + LISTENING_OFFICIAL_SETS_V2
 )

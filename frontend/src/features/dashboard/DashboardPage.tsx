@@ -160,6 +160,8 @@ export function DashboardPage() {
             date={dashboard.today.date}
             tasks={dashboard.today.tasks}
             nextUpcoming={dashboard.next_upcoming_task}
+            streakProgress={dashboard.today.streak_progress}
+            scheduledMock={dashboard.today.scheduled_mock}
           />
           <SkillEstimates skills={dashboard.skills} />
           <ReadinessIndicator readiness={dashboard.readiness} />

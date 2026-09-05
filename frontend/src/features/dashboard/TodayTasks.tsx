@@ -18,10 +18,14 @@ export function TodayTasks({
   date,
   tasks,
   nextUpcoming,
+  streakProgress,
+  scheduledMock,
 }: {
   date: string
   tasks: StudyTask[]
   nextUpcoming: StudyTask | null
+  streakProgress?: { lesson_skills_completed: number; lesson_skills_required: number; mock_completed: boolean; secured: boolean }
+  scheduledMock?: { id: string; date: string } | null
 }) {
   return (
     <Card>
@@ -32,6 +36,22 @@ export function TodayTasks({
           <p className="mb-3 text-sm text-muted">
             {formatDay(date)}
           </p>
+          {streakProgress && (
+            <div className={`mb-4 rounded-input border p-3 ${streakProgress.secured ? 'border-good/40 bg-good-soft' : 'border-accent/30 bg-accent-soft/25'}`}>
+              <p className={`text-sm font-bold ${streakProgress.secured ? 'text-good' : 'text-ink'}`}>
+                {streakProgress.secured
+                  ? 'Today’s streak is secured'
+                  : `${streakProgress.lesson_skills_completed} of ${streakProgress.lesson_skills_required} lesson skills complete`}
+              </p>
+              {!streakProgress.secured && <p className="mt-1 text-xs text-muted">Complete all four skills or finish a compact/full mock today.</p>}
+            </div>
+          )}
+          {scheduledMock && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-input border border-brand/30 bg-brand-soft/30 p-3">
+              <p className="text-sm text-ink">Full simulation scheduled for <strong>{formatDay(scheduledMock.date)}</strong>.</p>
+              <Link to={`/mock/${scheduledMock.id}`} className="text-sm font-semibold text-brand hover:underline">Open simulation</Link>
+            </div>
+          )}
 
           {tasks.length > 0 ? (
             <ul className="space-y-3">

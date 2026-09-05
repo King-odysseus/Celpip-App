@@ -5,12 +5,26 @@ export function listMocks(): Promise<MockListResponse> {
   return api.get<MockListResponse>('/mocks/')
 }
 
-export function createMock(scope?: string): Promise<MockAttempt> {
-  return api.post<MockAttempt>('/mocks/', scope ? { scope } : undefined)
+export type CompactFocus = {
+  mode: 'balanced' | 'recommended' | 'custom'
+  skills?: string[]
+  task_types?: string[]
+}
+
+export function createMock(scope?: string, focus?: CompactFocus, scheduledFor?: string): Promise<MockAttempt> {
+  return api.post<MockAttempt>('/mocks/', scope ? { scope, ...(focus ? {
+    focus_mode: focus.mode,
+    skills: focus.skills,
+    task_types: focus.task_types,
+  } : {}), ...(scheduledFor ? { scheduled_for: scheduledFor } : {}) } : undefined)
 }
 
 export function getMock(attemptId: string): Promise<MockAttempt> {
   return api.get<MockAttempt>(`/mocks/${attemptId}/`)
+}
+
+export function updateMockSchedule(attemptId: string, scheduledFor: string | null): Promise<MockAttempt> {
+  return api.patch<MockAttempt>(`/mocks/${attemptId}/`, { scheduled_for: scheduledFor })
 }
 
 export function startMock(attemptId: string): Promise<MockAttempt> {

@@ -8,7 +8,7 @@ from uuid import UUID
 from django.http import HttpResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response as ApiResponse
@@ -17,7 +17,13 @@ from rest_framework.views import APIView
 from apps.content.models import Choice, Question, Skill
 from apps.media_assets.models import MediaAsset
 
-from .models import AssessmentSession, SessionMode, SessionState
+from .models import (
+    AssessmentSession,
+    ContentIssue,
+    ContentIssueType,
+    SessionMode,
+    SessionState,
+)
 from .serializers import (
     SaveResponseSerializer,
     SaveSpeakingSerializer,
@@ -177,6 +183,36 @@ class SessionListCreateView(APIView):
             payload["guest_token"] = started.guest_token
             payload["guest_expires_at"] = started.session.guest_expires_at
         return ApiResponse(payload, status=status.HTTP_201_CREATED)
+
+
+class SessionContentIssueView(APIView):
+    permission_classes = [AllowAny]
+
+    class InputSerializer(serializers.Serializer):
+        issue_type = serializers.ChoiceField(choices=ContentIssueType.choices)
+        detail = serializers.CharField(max_length=1000, allow_blank=True, required=False)
+
+    def post(self, request, session_id):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        session = _session_for_request(request, session_id)
+        # A reading session contains several question items for one source set;
+        # the report is attached to the first frozen item so the set can be
+        # quarantined consistently. Writing and speaking sessions also have a
+        # single item, so the same lookup covers every skill.
+        item = session.items.order_by("position").first()
+        if item is None:
+            return ApiResponse({"detail": "This session has no content to report."}, status=status.HTTP_400_BAD_REQUEST)
+        report = ContentIssue.objects.create(
+            session_item=item,
+            content_version=item.content_version,
+            reporter=request.user if request.user.is_authenticated else None,
+            **serializer.validated_data,
+        )
+        return ApiResponse(
+            {"id": report.pk, "status": report.status, "message": "Thanks. This content has been sent for review."},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class SessionDetailView(APIView):

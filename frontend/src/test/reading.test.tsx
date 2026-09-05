@@ -98,6 +98,7 @@ describe('Reading catalog', () => {
     renderApp('/learn')
 
     await user.click(await screen.findByRole('button', { name: 'Learn with this set' }))
+    await user.click(await screen.findByRole('button', { name: 'Start practice' }))
     expect(await screen.findByRole('heading', { name: 'Garden Plot Renewal' })).toBeInTheDocument()
     expect(sessionStorage.getItem(`celpip-guest-${session.id}`)).toBe('one-time-guest-token')
   })

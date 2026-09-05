@@ -17,6 +17,7 @@ def published_versions(skill: str) -> QuerySet[ContentVersion]:
             item__task_type__skill=skill,
             item__task_type__is_active=True,
         )
+        .exclude(quality_reports__status="confirmed")
         .select_related("item", "item__task_type")
         .prefetch_related(Prefetch("questions", queryset=questions))
         .order_by("item__task_type__part_number", "item__difficulty", "item__slug")

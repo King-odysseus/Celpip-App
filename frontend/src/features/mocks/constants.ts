@@ -20,10 +20,8 @@ export const COMPACT_SCOPE = 'compact_task_family_mock'
 export const FULL_LENGTH_SCOPE = 'full_length_simulation'
 
 export const COMPACT_SCOPE_LIMITATION =
-  'This compact task-family mock covers every current CELPIP-General task family and ' +
-  'uses official component time boxes. Its original starter bank has fewer objective ' +
-  'questions than the live test, so question volume and practice accuracy are not an ' +
-  'official test simulation or score conversion.'
+  'Compact mocks are approximately one-hour focused rehearsals. They use original ' +
+  'practice content and are not an official CELPIP score conversion.'
 
 export const FULL_LENGTH_SCOPE_LIMITATION =
   'Full simulation — unofficial. Uses the current official Listening and Reading question ' +

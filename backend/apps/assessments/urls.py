@@ -3,6 +3,7 @@ from django.urls import path
 from .views import (
     ResponseSaveView,
     SessionDetailView,
+    SessionContentIssueView,
     SessionListView,
     SessionListCreateView,
     SessionResultView,
@@ -28,6 +29,11 @@ urlpatterns = [
         name="session-touch",
     ),
     path("sessions/<uuid:session_id>/", SessionDetailView.as_view(), name="session-detail"),
+    path(
+        "sessions/<uuid:session_id>/content-issue/",
+        SessionContentIssueView.as_view(),
+        name="session-content-issue",
+    ),
     path(
         "sessions/<uuid:session_id>/responses/<int:question_id>/",
         ResponseSaveView.as_view(),

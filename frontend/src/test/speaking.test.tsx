@@ -116,6 +116,7 @@ describe('Speaking catalog', () => {
     renderApp('/practice/speaking')
 
     await user.click(await screen.findByRole('button', { name: 'Open microphone practice' }))
+    await user.click(await screen.findByRole('button', { name: 'Start practice' }))
     expect(await screen.findByRole('heading', { name: 'Private recorder' })).toBeInTheDocument()
     expect(sessionStorage.getItem(`celpip-guest-${sessionId}`)).toBe('guest-speaking')
   })

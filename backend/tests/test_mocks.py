@@ -18,6 +18,7 @@ from apps.mocks.models import MockAttempt, MockState, MockTaskState
 from apps.mocks.services import (
     COMPONENT_ORDER,
     COMPONENT_TIMINGS,
+    COMPACT_COMPONENT_TIMINGS,
     FORMAT_CODE,
     OFFICIAL_COUNTS,
     InvalidTransition,
@@ -115,7 +116,7 @@ def test_exact_format_assembly_follows_official_constants(attempt):
     snapshot = attempt.format_snapshot
     assert snapshot["code"] == FORMAT_CODE
     assert snapshot["component_order"] == COMPONENT_ORDER
-    assert snapshot["component_timings"] == COMPONENT_TIMINGS
+    assert snapshot["component_timings"] == COMPACT_COMPONENT_TIMINGS
     assert snapshot["scope"] == "compact_task_family_mock"
     assert "limitation" in snapshot
 
@@ -123,6 +124,23 @@ def test_exact_format_assembly_follows_official_constants(attempt):
     first = tasks[0]
     assert first.snapshot["skill"] == Skill.LISTENING
     assert first.session.items.get().snapshot["title"] == first.snapshot["title"]
+
+
+def test_compact_mock_can_freeze_a_custom_skill_focus_and_briefing(mock_bank, user):
+    attempt = create_attempt(
+        user,
+        focus={"mode": "custom", "skills": [Skill.LISTENING]},
+    )
+
+    assert {task.section for task in attempt.tasks.all()} == {Skill.LISTENING}
+    assert attempt.format_snapshot["focus"]["skills"] == [Skill.LISTENING]
+    assert attempt.format_snapshot["component_timings"] == {
+        Skill.LISTENING: COMPACT_COMPONENT_TIMINGS[Skill.LISTENING]
+    }
+    briefing = attempt.format_snapshot["briefing"]
+    assert briefing["focus_mode"] == "custom"
+    assert briefing["approach"]
+    assert briefing["target"]
 
 
 def test_ensure_format_is_idempotent_and_complete(mock_bank):

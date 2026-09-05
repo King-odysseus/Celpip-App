@@ -163,8 +163,18 @@ def ensure_format() -> TestFormatVersion:
     return format_version
 
 
+COMPACT_COMPONENT_TIMINGS = {
+    # A compact mock is deliberately a one-hour practice programme. The full
+    # simulation alone uses the public CELPIP-General section time boxes.
+    Skill.LISTENING: {"public_range_minutes": [46, 55], "mock_seconds": 1080},
+    Skill.READING: {"public_range_minutes": [43, 56], "mock_seconds": 900},
+    Skill.WRITING: {"public_range_minutes": [53, 53], "mock_seconds": 960},
+    Skill.SPEAKING: {"public_range_minutes": [15, 15], "mock_seconds": 660},
+}
+
+
 @transaction.atomic
-def create_attempt(user, *, scope: str = COMPACT_SCOPE) -> MockAttempt:
+def create_attempt(user, *, scope: str = COMPACT_SCOPE, focus: dict | None = None, scheduled_for=None) -> MockAttempt:
     """Assemble a frozen mock attempt.
 
     ``scope=COMPACT_SCOPE`` (default) keeps the original one-item-per-task-type
@@ -173,33 +183,107 @@ def create_attempt(user, *, scope: str = COMPACT_SCOPE) -> MockAttempt:
     content versions; see ``_create_full_length_attempt``.
     """
     if scope == FULL_LENGTH_SCOPE:
-        return _create_full_length_attempt(user)
-    return _create_compact_attempt(user)
+        return _create_full_length_attempt(user, scheduled_for=scheduled_for)
+    return _create_compact_attempt(user, focus=focus)
 
 
-def _create_compact_attempt(user) -> MockAttempt:
-    format_version = ensure_format()
-    expected = list(
-        TaskType.objects.filter(code__in=OFFICIAL_COUNTS, is_active=True).prefetch_related(
-            "content_items__versions"
+def _compact_task_types(user, focus: dict | None) -> tuple[list[TaskType], dict]:
+    """Resolve a learner's compact-mock choices to reviewed task families.
+
+    The resolved selection, rather than the mutable preference that produced
+    it, is frozen into the attempt snapshot.
+    """
+    focus = focus or {"mode": "balanced"}
+    mode = focus.get("mode", "balanced")
+    skills = set(focus.get("skills") or [])
+    codes = set(focus.get("task_types") or [])
+    if mode == "recommended" and not skills and not codes:
+        from apps.learning.models import MistakeRecord
+
+        ranked = (
+            MistakeRecord.objects.filter(user=user, state="open")
+            .values("skill")
+            .annotate(total=Count("id"))
+            .order_by("-total", "skill")
         )
+        skills = {row["skill"] for row in ranked[:2]}
+    queryset = TaskType.objects.filter(code__in=OFFICIAL_COUNTS, is_active=True)
+    if codes:
+        queryset = queryset.filter(code__in=codes)
+    elif skills:
+        queryset = queryset.filter(skill__in=skills)
+    selected = list(queryset)
+    selected.sort(key=lambda task: (COMPONENT_ORDER.index(task.skill), task.part_number))
+    if not selected:
+        raise MockUnavailable("Choose at least one active CELPIP-General task type.")
+    resolved = {
+        "mode": mode,
+        "skills": sorted({task.skill for task in selected}),
+        "task_types": [task.code for task in selected],
+    }
+    return selected, resolved
+
+
+def _recent_compact_version_ids(user, task_type: TaskType) -> set[int]:
+    return set(
+        MockTask.objects.filter(
+            attempt__user=user, task_type=task_type.code, attempt__scope=COMPACT_SCOPE
+        )
+        .order_by("-attempt__created_at")[:12]
+        .values_list("content_version_id", flat=True)
     )
-    expected.sort(key=lambda task: (COMPONENT_ORDER.index(task.skill), task.part_number))
-    if len(expected) != 20:
-        raise MockUnavailable("All 20 CELPIP-General task families must be available.")
+
+
+def _compact_briefing(user, selected: list[TaskType], focus: dict) -> dict:
+    """Short, evidence-backed coaching shown before a timer can begin."""
+    from apps.learning.models import MistakeRecord
+
+    selected_codes = [task.code for task in selected]
+    mistakes = list(
+        MistakeRecord.objects.filter(user=user, state="open", task_type_id__in=selected_codes)
+        .select_related("task_type")
+        .order_by("-occurrences", "-last_seen_at")[:2]
+    )
+    labels = ", ".join(dict.fromkeys(task.title for task in selected[:3]))
+    approach = (
+        "Work from the prompt or recording first, then choose the answer you can support. "
+        "For Writing and Speaking, answer every part of the task before adding detail."
+    )
+    if mistakes:
+        pattern = mistakes[0]
+        evidence = f"Seen {pattern.occurrences} time(s) in {pattern.task_type.title}."
+        target = pattern.explanation_snapshot or "Pause and identify the exact evidence before answering."
+    else:
+        evidence = "There is not enough matching history yet, so this session will establish a baseline."
+        target = "Notice which task type takes the most time, then review one answer before moving on."
+    return {
+        "approach": approach,
+        "evidence": evidence,
+        "target": target,
+        "selection_summary": labels,
+        "focus_mode": focus["mode"],
+    }
+
+
+def _create_compact_attempt(user, *, focus: dict | None = None) -> MockAttempt:
+    format_version = ensure_format()
+    expected, resolved_focus = _compact_task_types(user, focus)
     selected: list[tuple[TaskType, ContentVersion]] = []
     for task_type in expected:
-        version = (
+        versions = list(
             ContentVersion.objects.filter(
                 item__task_type=task_type,
                 status=PublicationStatus.PUBLISHED,
             )
+            .exclude(quality_reports__status="confirmed")
             .exclude(item__slug__in=_FULL_LENGTH_RESERVED_SLUGS)
             .select_related("item__task_type")
             .prefetch_related("questions__choices")
-            .order_by("item__slug", "-version")
-            .first()
         )
+        random.shuffle(versions)
+        recent_ids = _recent_compact_version_ids(user, task_type)
+        fresh = [version for version in versions if version.id not in recent_ids]
+        version = (fresh or versions or [None])[0]
         if version is None:
             raise MockUnavailable(f"No reviewed prompt is available for {task_type.title}.")
         selected.append((task_type, version))
@@ -207,14 +291,18 @@ def _create_compact_attempt(user) -> MockAttempt:
         "code": format_version.code,
         "verified_on": format_version.verified_on.isoformat(),
         "official_source_urls": format_version.official_source_urls,
-        "component_order": COMPONENT_ORDER,
-        "component_timings": COMPONENT_TIMINGS,
+        "component_order": [skill for skill in COMPONENT_ORDER if skill in resolved_focus["skills"]],
+        "component_timings": {
+            skill: COMPACT_COMPONENT_TIMINGS[skill] for skill in resolved_focus["skills"]
+        },
         "task_structure": format_version.task_structure,
         "scope": "compact_task_family_mock",
-        "limitation": LIMITATION,
+        "limitation": "This approximately one-hour compact mock uses original practice content. It is a focused rehearsal, not an official CELPIP score conversion.",
+        "focus": resolved_focus,
+        "briefing": _compact_briefing(user, expected, resolved_focus),
     }
     attempt = MockAttempt.objects.create(
-        user=user, format_version=format_version, format_snapshot=format_snapshot
+        user=user, scope=COMPACT_SCOPE, format_version=format_version, format_snapshot=format_snapshot
     )
     for order, (task_type, version) in enumerate(selected, start=1):
         frozen = _snapshot(version)
@@ -266,6 +354,7 @@ def _eligible_versions(task_type: TaskType) -> list[ContentVersion]:
         ContentVersion.objects.filter(
             item__task_type=task_type, status=PublicationStatus.PUBLISHED
         )
+        .exclude(quality_reports__status="confirmed")
         .select_related("item__task_type")
         .prefetch_related("questions__choices")
         .annotate(qcount=Count("questions"))
@@ -341,7 +430,7 @@ def _unscored_version_ids(
     return {smallest[0].id}
 
 
-def _create_full_length_attempt(user) -> MockAttempt:
+def _create_full_length_attempt(user, *, scheduled_for=None) -> MockAttempt:
     format_version = ensure_format()
     expected = list(TaskType.objects.filter(code__in=OFFICIAL_COUNTS, is_active=True))
     expected.sort(key=lambda task: (COMPONENT_ORDER.index(task.skill), task.part_number))
@@ -384,9 +473,16 @@ def _create_full_length_attempt(user) -> MockAttempt:
         "task_structure": format_version.task_structure,
         "scope": FULL_LENGTH_SCOPE,
         "limitation": FULL_LENGTH_LIMITATION,
+        "briefing": {
+            "approach": "Use the same steady method throughout: read instructions carefully, manage each section clock, and give every task your best effort.",
+            "evidence": "A full simulation is fixed so its result can be compared with your later full simulations.",
+            "target": "Protect your time: if a question is taking too long, make the best supported choice and continue.",
+            "selection_summary": "All four CELPIP-General skills in official order.",
+            "focus_mode": "fixed_format",
+        },
     }
     attempt = MockAttempt.objects.create(
-        user=user, scope=FULL_LENGTH_SCOPE, format_version=format_version,
+        user=user, scope=FULL_LENGTH_SCOPE, scheduled_for=scheduled_for, format_version=format_version,
         format_snapshot=format_snapshot,
     )
     order = 0
@@ -613,6 +709,7 @@ def attempt_payload(attempt: MockAttempt, *, include_tasks: bool = True) -> dict
         "created_at": attempt.created_at,
         "started_at": attempt.started_at,
         "completed_at": attempt.completed_at,
+        "scheduled_for": attempt.scheduled_for,
         "server_now": timezone.now(),
         "section_started_at": attempt.section_started_at,
         "section_deadline_at": attempt.section_deadline_at,
@@ -628,6 +725,7 @@ def attempt_payload(attempt: MockAttempt, *, include_tasks: bool = True) -> dict
         "rules": exam_rules(attempt),
         "format": attempt.format_snapshot,
         "disclaimer": attempt.format_snapshot.get("limitation", LIMITATION),
+        "briefing": attempt.format_snapshot.get("briefing"),
     }
     if include_tasks:
         payload["tasks"] = [

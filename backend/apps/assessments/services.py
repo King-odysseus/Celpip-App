@@ -242,6 +242,7 @@ def start_session(*, user, content_slug: str, mode: str, time_limit_seconds: int
         version = (
             ContentVersion.objects.select_related("item")
             .prefetch_related("questions__choices")
+            .exclude(quality_reports__status="confirmed")
             .get(item__slug=content_slug, status=PublicationStatus.PUBLISHED)
         )
     except ContentVersion.DoesNotExist as exc:

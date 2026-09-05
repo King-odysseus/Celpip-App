@@ -16,6 +16,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button, Card, Meter } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
+import { ReportContentIssue } from '../content/ReportContentIssue'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
 import { StudyTaskAction } from '../learning/StudyTaskAction'
@@ -622,7 +623,9 @@ function Results({ session, result }: { session: ReadingSession; result: Session
         </div>
       </section>
       {result.transcript && <Transcript text={result.transcript} />}
+      <ReportContentIssue sessionId={session.id} hasAudio={Boolean(session.audio)} />
       <div className="flex flex-wrap gap-3">
+        <ButtonLinkSafe to={`${session.content.skill === 'listening' ? '/practice/listening' : '/practice'}?task_type=${encodeURIComponent(session.content.task_type)}&exclude=${encodeURIComponent(session.content.slug)}`}>Practise this skill on a fresh set</ButtonLinkSafe>
         <ButtonLinkSafe to={session.mode === 'learn' ? '/learn' : '/practice'}>Choose another set</ButtonLinkSafe>
       </div>
     </div>

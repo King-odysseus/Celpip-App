@@ -15,6 +15,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Button, ButtonLink, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
+import { ReportContentIssue } from '../content/ReportContentIssue'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
 import { StudyTaskAction } from '../learning/StudyTaskAction'
@@ -541,7 +542,8 @@ function SpeakingReviewView({ session, review, recording, audioUrl, onBack }: { 
           ))}
         </div>
       </section>
-      <AIFeedbackPanel sessionId={session.id} />
+      <AIFeedbackPanel sessionId={session.id} practiceHref={`/practice/speaking?task_type=${encodeURIComponent(session.content.task_type)}&exclude=${encodeURIComponent(session.content.slug)}`} />
+      <ReportContentIssue sessionId={session.id} />
       {!isMock && !isAttempt2 && <RetryAction sessionId={session.id} />}
       {!isMock && isAttempt2 && <SpeakingComparisonPanel sessionId={session.id} />}
       <Button onClick={onBack}>Choose another prompt</Button>
