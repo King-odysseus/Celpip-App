@@ -18,6 +18,12 @@ from apps.assessments.models import (
     SessionState,
 )
 from apps.assessments.services import _snapshot
+from apps.content.listening_official_parts import LISTENING_OFFICIAL_SETS as _LISTENING_OFFICIAL
+from apps.content.listening_official_parts_v2 import LISTENING_OFFICIAL_SETS_V2 as _LISTENING_OFFICIAL_V2
+from apps.content.mock_full_length_filler_data import (
+    LISTENING_FILLER_SETS as _LISTENING_FILLER,
+    READING_FILLER_SETS as _READING_FILLER,
+)
 from apps.content.models import (
     ContentVersion,
     PublicationStatus,
@@ -25,6 +31,8 @@ from apps.content.models import (
     TaskType,
     TestFormatVersion,
 )
+from apps.content.reading_official_parts import READING_OFFICIAL_SETS as _READING_OFFICIAL
+from apps.content.reading_official_parts_v2 import READING_OFFICIAL_SETS_V2 as _READING_OFFICIAL_V2
 
 from .models import MockAttempt, MockState, MockTask, MockTaskState
 
@@ -86,6 +94,23 @@ FULL_LENGTH_LIMITATION = (
 # inside a single mock attempt would feel repetitive rather than varied. Full
 # mock assembly draws only from the original, non-stage-expanded tier.
 _STAGE_SLUG_SUFFIXES = ("-guided-stage", "-independent-stage", "-challenge-stage")
+
+# Filler sets and official-size parts exist solely to serve the full-length
+# mock (padding exact sums; standing in as one whole part). The compact
+# task-family mock is the lightweight short sample drawn from the ordinary
+# starter sets, so it must never surface one of these reserved items.
+_FULL_LENGTH_RESERVED_SLUGS = frozenset(
+    spec["slug"]
+    for module in (
+        _LISTENING_FILLER,
+        _READING_FILLER,
+        _LISTENING_OFFICIAL,
+        _LISTENING_OFFICIAL_V2,
+        _READING_OFFICIAL,
+        _READING_OFFICIAL_V2,
+    )
+    for spec in module
+)
 
 
 def _is_full_length_eligible(item_slug: str) -> bool:
@@ -166,8 +191,10 @@ def _create_compact_attempt(user) -> MockAttempt:
     for task_type in expected:
         version = (
             ContentVersion.objects.filter(
-                item__task_type=task_type, status=PublicationStatus.PUBLISHED
+                item__task_type=task_type,
+                status=PublicationStatus.PUBLISHED,
             )
+            .exclude(item__slug__in=_FULL_LENGTH_RESERVED_SLUGS)
             .select_related("item__task_type")
             .prefetch_related("questions__choices")
             .order_by("item__slug", "-version")
@@ -278,6 +305,42 @@ def _pick_single_version(task_type: TaskType, recent_ids: set[int]) -> ContentVe
     return fresh[0] if fresh else versions[0]
 
 
+def _select_official_single(
+    task_type: TaskType, target: int, recent_ids: set[int]
+) -> ContentVersion | None:
+    """Return one version whose question count is exactly the official part count.
+
+    When an item of that size exists (an official-simulation part: one recording
+    or passage covering the whole part), the part should be that single item
+    rather than several unrelated short sets spliced together. Prefer versions
+    this user has not recently seen; ``None`` when no exact-size set exists so
+    the caller falls back to exact-sum assembly.
+    """
+    matches = [version for version in _eligible_versions(task_type) if version.qcount == target]
+    if not matches:
+        return None
+    random.shuffle(matches)
+    fresh = [version for version in matches if version.id not in recent_ids]
+    return fresh[0] if fresh else matches[0]
+
+
+def _unscored_version_ids(
+    combo: list[tuple[ContentVersion, int]],
+) -> set[int]:
+    """Which versions of a part are simulated-unscored for scoring.
+
+    A single official-size set, or a natural two-set pairing that reaches the
+    exact official count, is fully scored. Only a part assembled from more than
+    two distinct short sets needed extra content beyond a natural pairing to
+    reach the count; that extra, smallest set becomes the simulated-unscored
+    item — indistinguishable during the attempt, excluded from raw scoring.
+    """
+    if len(combo) <= 2:
+        return set()
+    smallest = min(combo, key=lambda pair: pair[1])
+    return {smallest[0].id}
+
+
 def _create_full_length_attempt(user) -> MockAttempt:
     format_version = ensure_format()
     expected = list(TaskType.objects.filter(code__in=OFFICIAL_COUNTS, is_active=True))
@@ -299,15 +362,17 @@ def _create_full_length_attempt(user) -> MockAttempt:
             version = _pick_single_version(task_type, recent_ids)
             selections.append((task_type, [(version, 0)], set()))
             continue
+        # Prefer one official-simulation set whose question count is the whole
+        # part (a single conversation/passage), so a part never reads as several
+        # unrelated short sets. Fall back to exact-sum splicing when no set of
+        # that size has been authored yet.
+        official = _select_official_single(task_type, target, recent_ids)
+        if official is not None:
+            selections.append((task_type, [(official, official.qcount)], set()))
+            continue
+
         combo = _select_objective_combo(task_type, target, recent_ids)
-        unscored_ids: set[int] = set()
-        # A section assembled from more than two distinct sets needed extra
-        # content beyond a natural pairing to reach the exact official count.
-        # That extra, smallest set becomes the simulated-unscored item —
-        # indistinguishable during the attempt, excluded from raw scoring.
-        if len(combo) > 2:
-            smallest = min(combo, key=lambda pair: pair[1])
-            unscored_ids = {smallest[0].id}
+        unscored_ids = _unscored_version_ids(combo)
         selections.append((task_type, combo, unscored_ids))
 
     format_snapshot = {

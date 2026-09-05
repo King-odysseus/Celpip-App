@@ -16,6 +16,8 @@ from apps.content.models import (
 from apps.content.mock_full_length_filler_data import READING_FILLER_SETS
 from apps.content.official_sources import OFFICIAL_FORMAT_SOURCES
 from apps.content.practice_bank_expansion import expand_practice_bank
+from apps.content.reading_official_parts import READING_OFFICIAL_SETS
+from apps.content.reading_official_parts_v2 import READING_OFFICIAL_SETS_V2
 from apps.content.reading_seed_data_v2 import READING_SETS as READING_SETS_V2
 from apps.content.reading_seed_data_v3 import READING_SETS as READING_SETS_V3
 from apps.content.seed_data import READING_SETS as READING_SETS_BASE
@@ -24,7 +26,15 @@ from apps.content.services import publish, submit_for_review
 
 READING_SOURCE_SETS = READING_SETS_BASE + READING_SETS_V2 + READING_SETS_V3
 # Filler sets are not stage-expanded; see mock_full_length_filler_data.py.
-READING_SETS = expand_practice_bank(READING_SOURCE_SETS, skill="reading") + READING_FILLER_SETS
+# Official-part sets are likewise not stage-expanded: each is a complete
+# official Reading part (one email, table, article, or viewpoints passage at the
+# full question count) that a full-length mock should use as-is.
+READING_SETS = (
+    expand_practice_bank(READING_SOURCE_SETS, skill="reading")
+    + READING_FILLER_SETS
+    + READING_OFFICIAL_SETS
+    + READING_OFFICIAL_SETS_V2
+)
 
 
 class Command(BaseCommand):

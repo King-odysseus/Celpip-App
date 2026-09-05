@@ -113,50 +113,67 @@ def test_repeated_full_length_attempts_vary_which_content_is_selected(user):
     assert found_variation, "Repeated full-length mocks always assembled the identical test."
 
 
-# --- Unscored-item exclusion -------------------------------------------------
+# --- Unscored-item handling --------------------------------------------------
 
 
-def test_unscored_items_are_flagged_and_excluded_from_raw_results(user):
-    from apps.assessments.models import AssessmentSession
-    from apps.assessments.services import submit_session, submit_writing
-    from apps.mocks.services import advance_attempt, start_attempt
+def test_repeated_full_length_attempts_rotate_each_official_part(user):
+    """A second full-length attempt must not reuse the same content for any
+    objective part: a second official-size variant now exists for every part,
+    and recency-aware selection should hand the next attempt that fresh variant.
+    """
+    first = create_attempt(user, scope=FULL_LENGTH_SCOPE)
+    second = create_attempt(user, scope=FULL_LENGTH_SCOPE)
 
-    attempt = create_attempt(user, scope=FULL_LENGTH_SCOPE)
-    unscored = list(attempt.tasks.filter(is_simulated_unscored=True))
-    assert unscored, "Expect at least one simulated-unscored item in a full-length mock."
+    def _chosen_slugs(attempt):
+        return {
+            task.task_type: task.content_version.item.slug
+            for task in attempt.tasks.select_related("content_version")
+            if task.task_type in OBJECTIVE_TASK_TYPES
+        }
 
-    attempt, _ = start_attempt(attempt.id, user)
-    total_possible_scored = 0
-    total_possible_all = 0
-    while attempt.state != "completed":
-        task = MockTask.objects.select_related("session", "content_version").get(
-            attempt=attempt, order=attempt.current_order
+    first_slugs = _chosen_slugs(first)
+    second_slugs = _chosen_slugs(second)
+    for code in OBJECTIVE_TASK_TYPES:
+        assert first_slugs[code] != second_slugs[code], (
+            f"{code} reused {first_slugs[code]} across two full-length attempts"
         )
-        if task.section in (Skill.LISTENING, Skill.READING):
-            question_count = task.content_version.questions.count()
-            total_possible_all += question_count
-            if not task.is_simulated_unscored:
-                total_possible_scored += question_count
-            submit_session(task.session)
-        elif task.section == Skill.WRITING:
-            submit_writing(task.session, final_text="A complete mock response with enough words.")
-        else:
-            from django.utils import timezone
 
-            AssessmentSession.objects.filter(pk=task.session_id).update(
-                state=SessionState.SUBMITTED, submitted_at=timezone.now()
-            )
-        attempt, _ = advance_attempt(attempt.id, user, expected_order=attempt.current_order)
 
-    results = results_payload(attempt)
-    objective = {c["skill"]: c for c in results["components"] if c["skill"] in (Skill.LISTENING, Skill.READING)}
-    reported_possible = sum(c["raw_possible"] for c in objective.values())
-    reported_scored_items = sum(c["items_scored"] for c in objective.values())
-    reported_attempted_items = sum(c["items_attempted"] for c in objective.values())
+def test_full_length_official_parts_are_fully_scored(user):
+    """An official-size part exists for every objective section, so a full
+    mock needs no spliced filler: each part is one item at the exact official
+    count and every presented question is scored. Raw totals must therefore
+    equal the questions actually presented."""
+    attempt = create_attempt(user, scope=FULL_LENGTH_SCOPE)
+    for code in OBJECTIVE_TASK_TYPES:
+        assert attempt.tasks.filter(task_type=code).count() == 1, code
+    assert attempt.tasks.filter(is_simulated_unscored=True).count() == 0
 
-    assert reported_possible == total_possible_scored
-    assert reported_possible < total_possible_all
-    assert reported_scored_items < reported_attempted_items
+    completed = _complete_full_length_attempt(user)
+    results = results_payload(completed)
+    objective = [
+        c for c in results["components"] if c["skill"] in (Skill.LISTENING, Skill.READING)
+    ]
+    for component in objective:
+        assert component["raw_possible"] > 0
+        assert component["items_scored"] == component["items_attempted"]
+
+
+def test_spliced_three_set_part_flags_smallest_set_as_unscored():
+    """When no official-size part exists and a section must be spliced from
+    more than two short sets, the extra smallest set is simulated-unscored; a
+    single set or a natural two-set pairing stays fully scored."""
+    from types import SimpleNamespace
+
+    from apps.mocks.services import _unscored_version_ids
+
+    def pair(version_id, qcount):
+        return (SimpleNamespace(id=version_id), qcount)
+
+    assert _unscored_version_ids([pair(1, 8)]) == set()
+    assert _unscored_version_ids([pair(1, 4), pair(2, 4)]) == set()
+    flagged = _unscored_version_ids([pair(1, 4), pair(2, 3), pair(3, 4)])
+    assert flagged == {2}
 
 
 # --- Immutable snapshots and answer-key protection --------------------------

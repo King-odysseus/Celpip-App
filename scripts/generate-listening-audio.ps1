@@ -12,7 +12,7 @@ New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
 Push-Location $backendPath
 try {
     $pythonPath = (Resolve-Path $PythonExe).Path
-    $manifest = & $pythonPath -c "import json; from apps.content.listening_seed_data import LISTENING_SETS as b; from apps.content.listening_seed_data_v2 import LISTENING_SETS as v2; from apps.content.listening_seed_data_v3 import LISTENING_SETS as v3; from apps.content.mock_full_length_filler_data import LISTENING_FILLER_SETS as filler; from apps.content.practice_bank_expansion import expand_practice_bank; sets = expand_practice_bank(b + v2 + v3, skill='listening') + filler; print(json.dumps([{'slug': x['slug'], 'transcript': x['transcript']} for x in sets]))"
+    $manifest = & $pythonPath -c "import json; from apps.content.listening_seed_data import LISTENING_SETS as b; from apps.content.listening_seed_data_v2 import LISTENING_SETS as v2; from apps.content.listening_seed_data_v3 import LISTENING_SETS as v3; from apps.content.mock_full_length_filler_data import LISTENING_FILLER_SETS as filler; from apps.content.listening_official_parts import LISTENING_OFFICIAL_SETS as official; from apps.content.listening_official_parts_v2 import LISTENING_OFFICIAL_SETS_V2 as official2; from apps.content.practice_bank_expansion import expand_practice_bank; sets = expand_practice_bank(b + v2 + v3, skill='listening') + filler + official + official2; print(json.dumps([{'slug': x['slug'], 'transcript': x['transcript']} for x in sets]))"
     if ($LASTEXITCODE -ne 0) { throw "Could not load the Listening manifest." }
 } finally {
     Pop-Location
