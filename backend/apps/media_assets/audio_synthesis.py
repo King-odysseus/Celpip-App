@@ -41,6 +41,16 @@ MIN_GENERATED_DURATION_MS = 3_000
 # every provider call stays short and validates cleanly.
 MAX_CHUNK_CHARS = 400
 
+# Applied to every OpenAI segment so the paid production rendition has a
+# consistent, clear Canadian-English delivery. The distinct configured voices
+# still carry speaker identity; this instruction must never be stored with a
+# candidate response or exposed to learners.
+OPENAI_LISTENING_VOICE_INSTRUCTIONS = (
+    "Speak in clear, natural Canadian English at a calm test-listening pace. "
+    "Sound conversational and distinct from the other speaker; do not announce "
+    "the speaker label or add words that are not in the script."
+)
+
 # Valid provider names. "local" is the terminal fallback that retains the
 # existing validated recording rather than resynthesizing.
 PROVIDER_NAMES = frozenset({"openai", "azure", "local"})
@@ -342,6 +352,7 @@ class OpenAIVoiceProvider:
                     voice=voice,
                     input=text,
                     response_format="wav",
+                    instructions=OPENAI_LISTENING_VOICE_INSTRUCTIONS,
                 )
                 clip = response.read()
             except SynthesisError:

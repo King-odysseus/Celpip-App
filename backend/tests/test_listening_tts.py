@@ -16,6 +16,7 @@ from apps.media_assets.audio_synthesis import (
     AzureVoiceProvider,
     LocalRetainProvider,
     OpenAIVoiceProvider,
+    OPENAI_LISTENING_VOICE_INSTRUCTIONS,
     SynthesisError,
     _split_long_text,
     concatenate_wav,
@@ -54,9 +55,15 @@ class FakeSpeech:
         self.clip = clip
         self.calls: list[dict] = []
 
-    def create(self, *, model, voice, input, response_format):
+    def create(self, *, model, voice, input, response_format, instructions):
         self.calls.append(
-            {"model": model, "voice": voice, "input": input, "format": response_format}
+            {
+                "model": model,
+                "voice": voice,
+                "input": input,
+                "format": response_format,
+                "instructions": instructions,
+            }
         )
         return SimpleNamespace(read=lambda: self.clip)
 
@@ -301,10 +308,12 @@ def test_command_dialogue_alternates_two_openai_voices(isolated_listening, setti
     voices_used = {call["voice"] for call in speech.calls}
     assert voices_used == {"alloy", "onyx"}
     assert all(call["format"] == "wav" for call in speech.calls)
+    assert all(call["instructions"] == OPENAI_LISTENING_VOICE_INSTRUCTIONS for call in speech.calls)
 
 
 def test_command_openai_failure_falls_to_azure(isolated_listening, settings, monkeypatch):
     settings.OPENAI_API_KEY = FAKE_KEY
+    settings.LISTENING_TTS_PROVIDER_ORDER = ["openai", "azure", "local"]
 
     class Boom:
         def create(self, **kwargs):

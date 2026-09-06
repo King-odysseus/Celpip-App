@@ -24,8 +24,8 @@ LISTENING_OFFICIAL_SETS_V2 = [
         "instructions": "Listen once to the whole conversation, then answer the eight questions about the market plan.",
         "intro": "Two coordinators of a weekly outdoor farmers' market decide what to do when heavy rain floods their usual riverside site the evening before market day.",
         "transcript": (
-            "Dana: The city just texted that the riverside lot is flooded after tonight's storm, so we cannot set up there tomorrow morning. We have eighty vendors booked and the site inspection was scheduled for five a.m.\n"
-            "Omar: Can we move to the community centre parking lot? Their lot is paved and higher, and the manager offered it to us last spring as an overflow site.\n"
+            "Dana: Omar, it's Dana from the farmers' market office. The city just texted that the riverside lot is flooded after tonight's storm, so we cannot set up there tomorrow morning. We have eighty vendors booked and the site inspection was scheduled for five a.m.\n"
+            "Omar: Hi Dana. Can we move to the community centre parking lot? Their lot is paved and higher, and the manager offered it to us last spring as an overflow site.\n"
             "Dana: He did, but the lot holds only sixty stalls, and twenty of our vendors run food trucks that need extra space between them for the health inspection.\n"
             "Omar: Then we split the market. The sixty stall-based vendors go to the centre lot, and we place the food trucks along the park street where the Saturday running race finishes, so they keep the lunch crowd.\n"
             "Dana: The race organizers close that street until one o'clock. If the trucks open at eleven, they get about two hours of runners, which is shorter than their usual service.\n"
@@ -56,8 +56,8 @@ LISTENING_OFFICIAL_SETS_V2 = [
         "instructions": "Listen once to the conversation, then answer the five questions about the bike loan.",
         "intro": "Two roommates sort out whether one can borrow the other's electric cargo bike for an early flight to the airport.",
         "transcript": (
-            "Alex: Have you decided how you are getting to the airport for your six a.m. flight? The earliest bus does not run until five thirty.\n"
-            "Sam: I was hoping to borrow your cargo bike. It has the big front box, so I can carry my suitcase, and the battery should cover the ride.\n"
+            "Alex: Sam, it's Alex. Have you decided how you are getting to the airport for your six a.m. flight? The earliest bus does not run until five thirty.\n"
+            "Sam: Hi Alex. I was hoping to borrow your cargo bike. It has the big front box, so I can carry my suitcase, and the battery should cover the ride.\n"
             "Alex: The range is about forty kilometres, and the airport path is twelve kilometres each way, so you have room to spare. The front box lock is a little sticky, so take my spare key in case it will not open.\n"
             "Sam: Will the battery still last if I carry a loaded suitcase? The manual says a heavy load shortens the range by about a third.\n"
             "Alex: Good point. Charge it fully tonight, and keep the pedal assist on the middle setting to save power. If you run low, there are charging stations at the big junction halfway.\n"
@@ -82,7 +82,7 @@ LISTENING_OFFICIAL_SETS_V2 = [
         "instructions": "Listen once to the recorded message, then answer the six questions about the changes it announces.",
         "intro": "A recorded message from a community pool's aquatics office explains how lesson registration is moving online and announces summer hiring.",
         "transcript": (
-            "Maya: Hello, this is a recorded message from the Maple Leaf Pool aquatics office. We are changing how you register for our spring swimming lessons.\n"
+            "Maya: Hello, this is Maya from the Maple Leaf Pool aquatics office. We are changing how you register for our spring swimming lessons.\n"
             "Starting Monday, March ninth, all lesson bookings move to the new online portal at mapleleafpool dot ca slash lessons, and the front desk will no longer take lesson registrations by phone.\n"
             "If you are a returning family, log in with the email address we have on file and check the box to keep your lesson day and time from last term.\n"
             "The office will email a confirmation within one business day, and you have seven days to pay the lesson fee or your spot is released.\n"
@@ -110,7 +110,7 @@ LISTENING_OFFICIAL_SETS_V2 = [
         "instructions": "Listen once to the news report, then answer the five questions about the new ferry route.",
         "intro": "A short local news report announces a new commuter ferry connecting the harbour to the downtown terminal.",
         "transcript": (
-            "Leah: A new commuter ferry will begin running between the harbour and the downtown terminal on April sixth, cutting the crossing from thirty-five minutes to about twelve.\n"
+            "Leah: I'm Leah Patel with Harbour News. A new commuter ferry will begin running between the harbour and the downtown terminal on April sixth, cutting the crossing from thirty-five minutes to about twelve.\n"
             "The service will run every twenty minutes during weekday rush hours and every forty minutes at other times, and the ferry fare will match the bus fare for the first three months.\n"
             "The transit authority bought two used vessels for the route at a discount, but a councillor warned that the old terminals need about a million dollars in upgrades before they can handle the higher passenger flow.\n"
             "Riders will tap the same transit card used on the buses, and bicycles are allowed on board only outside rush hours.\n"
@@ -135,8 +135,8 @@ LISTENING_OFFICIAL_SETS_V2 = [
         "instructions": "Listen once to the whole discussion, then answer the eight questions about the extended-hours plan.",
         "intro": "A library director and a city finance analyst weigh the costs and benefits of keeping two branches open until ten on weeknights.",
         "transcript": (
-            "Julia: The survey we ran shows nearly a third of our members would use an evening opening, mostly students and shift workers who cannot come during the day.\n"
-            "Marcus: Extending four weeknights until ten adds heating, lighting, and staffing for about two thousand extra hours a year. At current rates that is close to ninety thousand dollars.\n"
+            "Julia: I'm Julia Moreno, library director. The survey we ran shows nearly a third of our members would use an evening opening, mostly students and shift workers who cannot come during the day.\n"
+            "Marcus: And I'm Marcus Bell from the city finance office. Extending four weeknights until ten adds heating, lighting, and staffing for about two thousand extra hours a year. At current rates that is close to ninety thousand dollars.\n"
             "Julia: We could cut costs by moving some day staff to the evening instead of hiring new people, and volunteers already cover the welcome desk on weekends.\n"
             "Marcus: Volunteers cannot handle closing duties such as locking up and managing cash, so we still need paid evening supervisors on every night we stay open late.\n"
             "Julia: True. What about the branch that closes for renovation this fall? If we pilot the late hours at the other two branches first, we can test demand before spending on the busiest one.\n"
@@ -166,8 +166,8 @@ LISTENING_OFFICIAL_SETS_V2 = [
         "instructions": "Listen once to the conversation, then answer the six questions about the two viewpoints.",
         "intro": "Two residents give opposing views on a proposed ban on single-use plastic bags at local shops.",
         "transcript": (
-            "Nina: I support a ban. Plastic bags end up as litter along the river and in the recycling stream, and most shoppers already carry reusable bags, so the change would not be a big inconvenience.\n"
-            "Paul: I am not convinced. The affordable option for many customers is the free plastic bag, and a ban usually means paying about fifty cents for a paper one, which adds up for people on tight budgets.\n"
+            "Nina: I'm Nina Shah, and I support a ban. Plastic bags end up as litter along the river and in the recycling stream, and most shoppers already carry reusable bags, so the change would not be a big inconvenience.\n"
+            "Paul: I'm Paul Bennett, and I am not convinced. The affordable option for many customers is the free plastic bag, and a ban usually means paying about fifty cents for a paper one, which adds up for people on tight budgets.\n"
             "Nina: Stores can offer a small discount when you bring your own bag, and that rewards people without charging anyone. Several nearby towns do this and it works well.\n"
             "Paul: The discount only helps shoppers who can plan ahead. People buying on the way home from work or in an emergency do not carry a reusable bag, and they end up paying more.\n"
             "Nina: Then stores should keep cheap paper bags available and use the fee to fund free bag stations for food banks and community kitchens that serve people in need.\n"

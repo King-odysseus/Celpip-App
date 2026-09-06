@@ -26,8 +26,8 @@ LISTENING_OFFICIAL_SETS = [
         "instructions": "Listen once to the whole conversation, then answer the eight questions about how the owners solve the problem.",
         "intro": "Two co-owners of a small market-and-café business work out what to do when a produce delivery falls through before their busiest weekend.",
         "transcript": (
-            "Priya: The produce distributor just emailed that their main truck broke down and the load cannot reach us before Tuesday. We have the market stall and the café kitchen to run all weekend, and the cold room is nearly empty.\n"
-            "Tom: How much are we actually short? We ordered twelve crates of vegetables for the weekend.\n"
+            "Priya: Tom, it's Priya at the market-and-café. The produce distributor just emailed that their main truck broke down and the load cannot reach us before Tuesday. We have the market stall and the café kitchen to run all weekend, and the cold room is nearly empty.\n"
+            "Tom: Hi Priya. How much are we actually short? We ordered twelve crates of vegetables for the weekend.\n"
             "Priya: They delivered only three. The rest is sitting in a depot two towns away until they can arrange transport.\n"
             "Tom: Can they put the rest onto a smaller van and meet us partway this afternoon? The market sets up at dawn Saturday.\n"
             "Priya: They said a smaller van could leave by early afternoon, but it can only carry half of what we ordered.\n"
@@ -63,8 +63,8 @@ LISTENING_OFFICIAL_SETS = [
         "instructions": "Listen once to the conversation, then answer the five questions about the moving plan.",
         "intro": "Two friends sort out the details of helping their neighbour Maya move apartments this Sunday.",
         "transcript": (
-            "Evan: Did Maya confirm the move for Sunday? She texted that the elevator in her new building is booked for nine, so we need to start loading early.\n"
-            "Leila: Yes, nine works. But her brother who was going to drive the truck texted that his van is being repaired, so we have no vehicle for the furniture.\n"
+            "Evan: Hi Leila, it's Evan. Did Maya confirm the move for Sunday? She texted that the elevator in her new building is booked for nine, so we need to start loading early.\n"
+            "Leila: Hi Evan. Yes, nine works. But her brother who was going to drive the truck texted that his van is being repaired, so we have no vehicle for the furniture.\n"
             "Evan: I can rent a small moving truck tonight and return it Sunday evening. Maya offered to split the rental cost, and I checked—a basic van is cheaper than a full-size truck.\n"
             "Leila: A basic van might not fit her sofa. I remember it is the long one she brought from her parents' place.\n"
             "Evan: Good point. Let me book the full-size truck instead, and we can ask whether the rental company includes a furniture dolly.\n"
@@ -93,7 +93,7 @@ LISTENING_OFFICIAL_SETS = [
         "instructions": "Listen once to the librarian's announcement, then answer the six questions about the program details.",
         "intro": "A branch librarian explains the details of the library's summer reading program for children and families.",
         "transcript": (
-            "Librarian: Good morning, everyone, and welcome to the kickoff for this year's Summer Reading program. The program is free for children aged four to twelve and runs for eight weeks, from the first Monday of July until the last Saturday of August.\n"
+            "Librarian: Good morning, everyone. I'm Amara, the children's librarian, and welcome to the kickoff for this year's Summer Reading program. The program is free for children aged four to twelve and runs for eight weeks, from the first Monday of July until the last Saturday of August.\n"
             "Registration opens online tomorrow at nine, and you can also sign up in person at the front desk from Saturday. Please register your child yourself rather than having them register alone, because we need a parent or guardian to agree to the photo permission form.\n"
             "Each child receives a reading log. For every five books they finish, they earn a stamp, and six stamps win a prize from our treasure box. Audiobooks count toward the total, but eBooks and graphic novels count as well, as long as the child records the title in the log.\n"
             "We also run free story time every Wednesday morning in the children's corner, and a weekly craft activity on Fridays. These sessions are first come, first served, so arrive ten minutes early to take a spot.\n"
@@ -121,7 +121,7 @@ LISTENING_OFFICIAL_SETS = [
         "instructions": "Listen once to the news report, then answer the five questions about the story.",
         "intro": "A newsreader reports on the opening of a lending program for bicycles.",
         "transcript": (
-            "Newsreader: Residents can now borrow bicycles the way they borrow library books, as the city's first community bike library opened this morning in Riverside Plaza.\n"
+            "Newsreader: I'm Maya Chen with Riverside News. Residents can now borrow bicycles the way they borrow library books, as the city's first community bike library opened this morning in Riverside Plaza.\n"
             "The pilot fleet of sixty bikes was collected through a spring donation drive and repaired by volunteers at the neighbourhood workshop. Anyone with a valid library card can borrow a bike free of charge for up to three days, and helmets are included with every rental.\n"
             "Organizers say the program is meant for short trips and errands rather than long tours, and they ask borrowers to return bikes with the batteries charged if they took an electric model. A small number of electric bikes were added after a local charity donated funds for them.\n"
             "The plaza location will operate from seven in the morning until nine at night during the summer. City staff will staff a repair stand on weekends to keep the fleet rideable.\n"
@@ -147,8 +147,8 @@ LISTENING_OFFICIAL_SETS = [
         "instructions": "Listen once to the public meeting, then answer the eight questions about the speakers' views and the decision.",
         "intro": "Residents and a transit planner discuss whether to extend the last bus on Route 12 so evening workers can get home.",
         "transcript": (
-            "Chair: Thank you all for coming. Tonight we are considering whether the last Route 12 bus should run past its current eleven o'clock finish, so I will open the floor.\n"
-            "Ms. Okafor: I work the evening shift at the hospital, and my shift ends at eleven thirty. Right now I wait forty minutes for a connection that may never come, and taxi fare eats half my pay. A bus until twelve thirty would change my life.\n"
+            "Chair: Thank you all for coming. I'm Chair Alvarez, and tonight we are considering whether the last Route 12 bus should run past its current eleven o'clock finish, so I will open the floor.\n"
+            "Ms. Okafor: I'm Amina Okafor. I work the evening shift at the hospital, and my shift ends at eleven thirty. Right now I wait forty minutes for a connection that may never come, and taxi fare eats half my pay. A bus until twelve thirty would change my life.\n"
             "Mr. Li: I agree the service gap is real. Many of my co-workers at the warehouse finish between eleven and midnight. But I worry the extra hours will mostly serve empty buses on other nights, and that cost will come from somewhere.\n"
             "Ms. Grant: I am the transit planner. Extending service by ninety minutes would cost about four hundred thousand dollars a year, and our own survey shows about two hundred riders would use the late buses on a typical night, not enough to cover the cost by far.\n"
             "Mr. Li: Two hundred riders is not nothing, but I would rather see that money improve the daytime frequency that thousands of people rely on every day.\n"
@@ -183,7 +183,7 @@ LISTENING_OFFICIAL_SETS = [
         "instructions": "Listen once to the prepared talk, then answer the six questions about the proposal and the perspectives presented.",
         "intro": "A community liaison presents a proposal to close part of Main Street to cars, followed by the perspectives of a shopkeeper, a transit advocate, and an accessibility advocate.",
         "transcript": (
-            "Liaison: Our city is asking residents to consider closing the four-block core of Main Street to private cars on summer weekends, turning it into a walking and dining zone. Today I will set out the proposal and the views that have reached us.\n"
+            "Liaison: I'm Elena Morris, the city's community liaison. Our city is asking residents to consider closing the four-block core of Main Street to private cars on summer weekends, turning it into a walking and dining zone. Today I will set out the proposal and the views that have reached us.\n"
             "The proposal would run from the Victoria Day weekend through Labour Day, from Friday evening to Sunday night, and delivery trucks would still be allowed in the early morning.\n"
             "Shopkeepers who support the idea point to the success of a one-month trial two years ago, when foot traffic on the street rose by forty percent and several stores reported record sales on Saturday afternoons.\n"
             "Opposing shopkeepers worry that customers who drive will simply go to the suburban mall, and that the loss of on-street parking will hurt the pharmacy and the grocery store, whose older customers often arrive by car.\n"
