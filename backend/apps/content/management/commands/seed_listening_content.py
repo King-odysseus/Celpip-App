@@ -10,6 +10,7 @@ from django.db import transaction
 from apps.accounts.models import User
 from apps.content.listening_official_parts import LISTENING_OFFICIAL_SETS
 from apps.content.listening_official_parts_v2 import LISTENING_OFFICIAL_SETS_V2
+from apps.content.listening_official_parts_v3 import LISTENING_OFFICIAL_SETS_V3
 from apps.content.listening_seed_data import LISTENING_SETS as LISTENING_SETS_BASE
 from apps.content.listening_seed_data import LISTENING_TASK_TYPES
 from apps.content.listening_seed_data_v2 import LISTENING_SETS as LISTENING_SETS_V2
@@ -36,6 +37,7 @@ LISTENING_SETS = (
     expand_practice_bank(LISTENING_SOURCE_SETS, skill="listening")
     + LISTENING_OFFICIAL_SETS
     + LISTENING_OFFICIAL_SETS_V2
+    + LISTENING_OFFICIAL_SETS_V3
 )
 
 

@@ -5,14 +5,12 @@ materials. Every scenario and all wording below are original to this project.
 """
 # ruff: noqa: E501
 
-# WebP rather than PNG: these are photographic scenes, where PNG's lossless
-# encoding cost ~3 MB each (~12 MB for the set). WebP holds the same 1536x1024
-# detail at roughly a tenth of the bytes, which matters most on mobile data
-# where the image gates the start of a Speaking task.
-SCENE_RECREATION = "/speaking/scene-recreation-centre.webp"
-SCENE_MARKET = "/speaking/scene-farmers-market.webp"
-UNUSUAL_INSTRUMENT = "/speaking/unusual-water-instrument.webp"
-UNUSUAL_TRICYCLE = "/speaking/unusual-greenhouse-tricycle.webp"
+# Each scene/predictions/unusual-object script gets its own generated image —
+# see speaking_scene_images.py for the full mapping and the rationale (a
+# "scene" script and its matching "predictions" script describe the same
+# picture by design, so they resolve to the same URL; every other script is
+# standalone). Generate the files with `generate_speaking_images`.
+from apps.content.speaking_scene_images import image_url_for
 
 
 SPEAKING_TASK_TYPES = [
@@ -279,7 +277,7 @@ SPEAKING_SETS = [
         prompt="Describe the scene to someone who cannot see it. Explain where people are and what they are doing.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_RECREATION,
+        image_url=image_url_for("scene-winter-recreation-centre"),
         guidance=["Start with an overview.", "Move from foreground to background."],
     ),
     _prompt(
@@ -294,7 +292,7 @@ SPEAKING_SETS = [
         prompt="Describe the market, the people, and the important actions in the scene.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_MARKET,
+        image_url=image_url_for("scene-spring-farmers-market"),
         guidance=["Group related details.", "Use precise action and location words."],
     ),
     _prompt(
@@ -309,7 +307,7 @@ SPEAKING_SETS = [
         prompt="Make several predictions and connect each one to visible evidence in the image.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_RECREATION,
+        image_url=image_url_for("predictions-winter-recreation-centre"),
         guidance=["Predict outcomes for different people.", "Explain the evidence for each prediction."],
     ),
     _prompt(
@@ -324,7 +322,7 @@ SPEAKING_SETS = [
         prompt="Predict what several people will do and how the approaching weather may affect the market.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_MARKET,
+        image_url=image_url_for("predictions-spring-farmers-market"),
         guidance=["Use may, might, likely, and probably naturally.", "Base predictions on details in the image."],
     ),
     _prompt(
@@ -457,7 +455,7 @@ SPEAKING_SETS = [
         response_seconds=60,
         audience="A friend on a phone call",
         tone="Amazed and descriptive",
-        image_url=UNUSUAL_INSTRUMENT,
+        image_url=image_url_for("unusual-water-instrument"),
         guidance=["Describe the overall shape first.", "Compare unfamiliar parts with familiar objects."],
     ),
     _prompt(
@@ -474,7 +472,7 @@ SPEAKING_SETS = [
         response_seconds=60,
         audience="A family member on the phone",
         tone="Surprised and engaging",
-        image_url=UNUSUAL_TRICYCLE,
+        image_url=image_url_for("unusual-greenhouse-tricycle"),
         guidance=["Explain how it resembles and differs from a normal bicycle.", "Use position and material words."],
     ),
 ]

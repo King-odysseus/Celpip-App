@@ -1,5 +1,16 @@
 export type Skill = 'listening' | 'reading' | 'writing' | 'speaking'
 
+/** A task family's guidance, as returned by /content/task-types/?skill=. */
+export type TaskTypeGuide = {
+  code: string
+  skill: Skill
+  title: string
+  part_number: number
+  description: string
+  strategy: string[]
+  common_mistakes: string[]
+}
+
 export type Progress = {
   skills: Array<{
     skill: Skill

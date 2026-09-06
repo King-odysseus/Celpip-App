@@ -1,9 +1,10 @@
-import { ArrowRight, BookOpen, CalendarRange, Headphones, Mic2, PenLine } from 'lucide-react'
+import { ArrowRight, BookOpen, CalendarRange, Headphones, Lightbulb, Mic2, PenLine } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Card } from '../components/ui'
 
 const studyLinks = [
   { to: '/study-plan', title: 'Study plan', description: 'Follow a schedule shaped around your target and recent activity.', icon: CalendarRange },
+  { to: '/how-to-answer', title: 'How to answer', description: 'The method for every task type, and what it takes to reach level 11–12.', icon: Lightbulb },
   { to: '/learn/listening', title: 'Listening', description: 'Study conversations, announcements, and viewpoints with feedback.', icon: Headphones },
   { to: '/learn', title: 'Reading', description: 'Build comprehension with guided passages and task strategies.', icon: BookOpen },
   { to: '/learn/writing', title: 'Writing', description: 'Learn how to structure emails and survey responses.', icon: PenLine },

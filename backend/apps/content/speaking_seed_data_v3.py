@@ -1,11 +1,6 @@
 """Advanced original Speaking prompts for CELPIP levels 10-12."""
 
-from apps.content.speaking_seed_data import (
-    SCENE_MARKET,
-    SCENE_RECREATION,
-    UNUSUAL_INSTRUMENT,
-    UNUSUAL_TRICYCLE,
-)
+from apps.content.speaking_scene_images import image_url_for
 
 
 def _prompt(
@@ -102,7 +97,7 @@ SPEAKING_SETS = [
         prompt="Describe the setting, the different groups, and the important actions without naming people.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_MARKET,
+        image_url=image_url_for("scene-multi-generation-market"),
         guidance=["Group related details.", "Use precise location and relationship language."],
     ),
     _prompt(
@@ -117,7 +112,7 @@ SPEAKING_SETS = [
         prompt="Make several predictions about what different people will do and how the situation may develop.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_RECREATION,
+        image_url=image_url_for("predictions-transit-disruption"),
         guidance=["Use varied probability language.", "Base each prediction on visible evidence."],
     ),
     _prompt(
@@ -189,7 +184,7 @@ SPEAKING_SETS = [
         response_seconds=60,
         audience="A friend on the phone",
         tone="Precise and curious",
-        image_url=UNUSUAL_TRICYCLE,
+        image_url=image_url_for("unusual-robotic-delivery-device"),
         guidance=["Compare unfamiliar parts to familiar objects.", "Explain what the machine appears to be doing."],
     ),
 ]

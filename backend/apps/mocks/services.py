@@ -20,6 +20,7 @@ from apps.assessments.models import (
 from apps.assessments.services import _snapshot
 from apps.content.listening_official_parts import LISTENING_OFFICIAL_SETS as _LISTENING_OFFICIAL
 from apps.content.listening_official_parts_v2 import LISTENING_OFFICIAL_SETS_V2 as _LISTENING_OFFICIAL_V2
+from apps.content.listening_official_parts_v3 import LISTENING_OFFICIAL_SETS_V3 as _LISTENING_OFFICIAL_V3
 from apps.content.mock_full_length_filler_data import (
     LISTENING_FILLER_SETS as _LISTENING_FILLER,
     READING_FILLER_SETS as _READING_FILLER,
@@ -106,6 +107,7 @@ _FULL_LENGTH_RESERVED_SLUGS = frozenset(
         _READING_FILLER,
         _LISTENING_OFFICIAL,
         _LISTENING_OFFICIAL_V2,
+        _LISTENING_OFFICIAL_V3,
         _READING_OFFICIAL,
         _READING_OFFICIAL_V2,
     )

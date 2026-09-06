@@ -1,11 +1,6 @@
 """Expanded original Speaking prompts for the full practice bank."""
 
-from apps.content.speaking_seed_data import (
-    SCENE_MARKET,
-    SCENE_RECREATION,
-    UNUSUAL_INSTRUMENT,
-    UNUSUAL_TRICYCLE,
-)
+from apps.content.speaking_scene_images import image_url_for
 
 
 def _prompt(
@@ -192,7 +187,7 @@ SPEAKING_SETS = [
         prompt="Describe the people, the setting, and the important actions to someone who cannot see the scene.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_MARKET,
+        image_url=image_url_for("scene-summer-park-picnic"),
         guidance=["Start with the overall setting.", "Move from foreground to background."],
     ),
     _prompt(
@@ -207,7 +202,7 @@ SPEAKING_SETS = [
         prompt="Describe the rink, the people, and what is happening so the listener can picture it.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_RECREATION,
+        image_url=image_url_for("scene-community-skating-rink"),
         guidance=["Identify distinct groups of people.", "Use precise action words."],
     ),
     _prompt(
@@ -222,7 +217,7 @@ SPEAKING_SETS = [
         prompt="Describe the market stalls, the people, and the important actions in the scene.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_MARKET,
+        image_url=image_url_for("scene-harvest-market"),
         guidance=["Group related details.", "Describe actions as well as objects."],
     ),
     _prompt(
@@ -237,7 +232,7 @@ SPEAKING_SETS = [
         prompt="Describe where people are, what they are doing, and the mood of the scene.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_RECREATION,
+        image_url=image_url_for("scene-evening-recreation-centre"),
         guidance=["Begin with an overview.", "Use location language such as near, beside, and behind."],
     ),
     _prompt(
@@ -252,7 +247,7 @@ SPEAKING_SETS = [
         prompt="Make several predictions and connect each one to visible evidence.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_MARKET,
+        image_url=image_url_for("predictions-summer-park"),
         guidance=["Predict outcomes for different people.", "Use may, might, and likely."],
     ),
     _prompt(
@@ -267,7 +262,7 @@ SPEAKING_SETS = [
         prompt="Predict what several skaters will do and how the session may end.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_RECREATION,
+        image_url=image_url_for("predictions-skating-rink"),
         guidance=["Base predictions on visible details.", "Vary your probability language."],
     ),
     _prompt(
@@ -282,7 +277,7 @@ SPEAKING_SETS = [
         prompt="Predict what several people will do before the market closes.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_MARKET,
+        image_url=image_url_for("predictions-harvest-market"),
         guidance=["Connect each prediction to evidence.", "Use a range of future expressions."],
     ),
     _prompt(
@@ -297,7 +292,7 @@ SPEAKING_SETS = [
         prompt="Predict how several visitors will continue their evening and what may occur at the desk.",
         prep_seconds=30,
         response_seconds=60,
-        image_url=SCENE_RECREATION,
+        image_url=image_url_for("predictions-recreation-centre-evening"),
         guidance=["Focus on visible actions and queues.", "Explain the evidence for each prediction."],
     ),
     _prompt(
@@ -534,7 +529,7 @@ SPEAKING_SETS = [
         response_seconds=60,
         audience="A friend on a phone call",
         tone="Surprised and descriptive",
-        image_url=UNUSUAL_TRICYCLE,
+        image_url=image_url_for("unusual-plant-covered-vehicle"),
         guidance=["Describe the overall shape first.", "Compare the unusual parts with familiar objects."],
     ),
     _prompt(
@@ -551,7 +546,7 @@ SPEAKING_SETS = [
         response_seconds=60,
         audience="A family member on the phone",
         tone="Amazed and vivid",
-        image_url=UNUSUAL_INSTRUMENT,
+        image_url=image_url_for("unusual-oversized-park-instrument"),
         guidance=["Start with size and shape.", "Use comparisons for unfamiliar parts."],
     ),
     _prompt(
@@ -568,7 +563,7 @@ SPEAKING_SETS = [
         response_seconds=60,
         audience="A coworker on the phone",
         tone="Surprised and precise",
-        image_url=UNUSUAL_TRICYCLE,
+        image_url=image_url_for("unusual-floating-bicycle"),
         guidance=["Explain position and materials.", "Clarify what you can and cannot see."],
     ),
     _prompt(
@@ -585,7 +580,7 @@ SPEAKING_SETS = [
         response_seconds=60,
         audience="A friend on a phone call",
         tone="Engaging and descriptive",
-        image_url=UNUSUAL_INSTRUMENT,
+        image_url=image_url_for("unusual-water-powered-sculpture"),
         guidance=["Describe movement and sound.", "Use familiar comparisons."],
     ),
 ]

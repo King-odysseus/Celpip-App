@@ -6,6 +6,7 @@ import { ApiError, api, fetchAllPages } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import { completedLessonSlugs } from '../learning/completedLessons'
 import { PracticeBriefing } from '../learning/PracticeBriefing'
+import { TaskTypeGuides } from '../learning/TaskTypeGuides'
 import type { StudyPlan } from '../learning/types'
 import type {
   SessionMode,
@@ -129,7 +130,15 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
         </nav>
       </header>
 
-      {isLearn && <TaskGuides taskTypes={taskTypes} />}
+      {isLearn && (
+        <TaskTypeGuides
+          taskTypes={taskTypes}
+          headingId="speaking-guides-title"
+          eyebrow="Know all eight tasks"
+          icon={Mic2}
+          partLabel="Task"
+        />
+      )}
 
       <section aria-labelledby="speaking-prompts-title" className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -204,35 +213,6 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
         return task ? <PracticeBriefing task={task} starting={starting === pendingItem.slug} onCancel={() => setPendingItem(null)} onStart={() => void begin(pendingItem)} /> : null
       })()}
     </div>
-  )
-}
-
-function TaskGuides({ taskTypes }: { taskTypes: SpeakingTaskType[] }) {
-  return (
-    <section aria-labelledby="speaking-guides-title">
-      <p className="eyebrow">Know all eight tasks</p>
-      <h2 id="speaking-guides-title" className="mt-1 text-2xl font-bold text-ink">Task-type guides</h2>
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
-        {taskTypes.map((task) => (
-          <details key={task.code} className="card group p-5">
-            <summary className="flex cursor-pointer list-none items-center gap-3 font-bold text-ink focus-visible:outline-2 focus-visible:outline-brand">
-              <Mic2 className="text-accent" size={20} />
-              <span>Task {task.part_number}: {task.title}</span>
-              <span aria-hidden="true" className="ml-auto text-muted transition group-open:rotate-45">+</span>
-            </summary>
-            <p className="mt-3 text-sm leading-6 text-muted">{task.description}</p>
-            <h3 className="mt-4 text-sm font-bold text-ink">A reliable approach</h3>
-            <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
-              {task.strategy.map((step) => <li key={step}>{step}</li>)}
-            </ol>
-            <h3 className="mt-4 text-sm font-bold text-ink">Watch for</h3>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted">
-              {task.common_mistakes.map((mistake) => <li key={mistake}>{mistake}</li>)}
-            </ul>
-          </details>
-        ))}
-      </div>
-    </section>
   )
 }
 

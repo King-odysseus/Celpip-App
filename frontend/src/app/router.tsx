@@ -13,6 +13,7 @@ import { SpeakingSessionPage } from '../features/speaking/SpeakingSessionPage'
 import { ProgressPage } from '../features/learning/ProgressPage'
 import { NotFoundPage } from '../pages/placeholder-pages'
 import { StudyHubPage } from '../pages/StudyHubPage'
+import { HowToAnswerPage } from '../pages/HowToAnswerPage'
 import { ReviewHubPage } from '../pages/ReviewHubPage'
 import { DiagnosticPage } from '../features/dashboard/DiagnosticPage'
 
@@ -44,6 +45,7 @@ export const routes = [
       { index: true, element: <DashboardPage /> },
       { path: 'diagnostic', element: <DiagnosticPage /> },
       { path: 'study', element: <StudyHubPage /> },
+      { path: 'how-to-answer', element: <HowToAnswerPage /> },
       { path: 'learn', element: <LazyRoute><ReadingCatalogPage mode="learn" /></LazyRoute> },
       { path: 'learn/listening', element: <LazyRoute><ReadingCatalogPage mode="learn" skill="listening" /></LazyRoute> },
       { path: 'learn/writing', element: <LazyRoute><WritingCatalogPage mode="learn" /></LazyRoute> },

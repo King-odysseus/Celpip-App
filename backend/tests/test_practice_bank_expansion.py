@@ -11,7 +11,7 @@ from apps.content.management.commands.seed_writing_content import WRITING_SETS
 def test_bank_is_exactly_four_times_previous_size_and_slugs_are_unique():
     expected = {
         "reading": (READING_SETS, 171),
-        "listening": (LISTENING_SETS, 180),
+        "listening": (LISTENING_SETS, 186),
         "writing": (WRITING_SETS, 152),
         "speaking": (SPEAKING_SETS, 224),
     }
@@ -20,9 +20,9 @@ def test_bank_is_exactly_four_times_previous_size_and_slugs_are_unique():
         assert len(sets) == total
         assert len({item["slug"] for item in sets}) == total
 
-    assert sum(len(sets) for sets, _ in expected.values()) == 727
+    assert sum(len(sets) for sets, _ in expected.values()) == 733
     assert sum(len(item.get("questions", [])) for item in READING_SETS) == 722
-    assert sum(len(item.get("questions", [])) for item in LISTENING_SETS) == 748
+    assert sum(len(item.get("questions", [])) for item in LISTENING_SETS) == 786
 
 
 def test_every_source_item_has_a_complete_difficulty_progression():
