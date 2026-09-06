@@ -156,7 +156,7 @@ LISTENING_OFFICIAL_SETS_V3 = [
         "source_slug": "night-bus-extension-meeting",
         "instructions": "Listen once to the public meeting, then answer the eight questions about the speakers' views and the decision.",
         "transcript": (
-            "Chair: Thank you for coming. Tonight we are discussing whether to add a seven-to-eight a.m. adults-only lane-swim session at the Fairview Pool, so I will open the floor.\n"
+            "Chair: Thank you for coming. I'm Chair Osei, and tonight we are discussing whether to add a seven-to-eight a.m. adults-only lane-swim session at the Fairview Pool, so I will open the floor.\n"
             "Mr. Haddad: I'm Sam Haddad, and I swim for exercise before work. Right now the pool opens at eight, and I lose valuable time getting to my job downtown. An earlier adults-only hour would let me swim and still make it to work.\n"
             "Ms. Bianchi: I'm the pool's aquatics supervisor. Opening an hour earlier means paying a lifeguard and a front-desk staff member for that extra hour, roughly six thousand dollars a year.\n"
             "Mr. Haddad: Could a smaller number of guaranteed swimmers offset some of that with a modest early-bird fee?\n"
@@ -193,7 +193,7 @@ LISTENING_OFFICIAL_SETS_V3 = [
         "source_slug": "car-free-shopping-street-debate",
         "instructions": "Listen once to the prepared talk, then answer the six questions about the proposal and the perspectives presented.",
         "transcript": (
-            "Liaison: I'm the parks department's community liaison. The city is considering allowing licensed food trucks to operate in three major parks on weekends starting this summer. Today I will explain the proposal and the views we've gathered.\n"
+            "Liaison: I'm Elena Cho, the parks department's community liaison. The city is considering allowing licensed food trucks to operate in three major parks on weekends starting this summer. Today I will explain the proposal and the views we've gathered.\n"
             "The pilot would allow up to four food trucks per park on Saturdays and Sundays, from eleven a.m. to seven p.m., each paying a daily permit fee that funds park maintenance.\n"
             "Food truck operators support the plan. They say park locations reach families who might not otherwise try their food, and the extra revenue from summer weekends is significant for a seasonal business.\n"
             "Nearby restaurant owners are divided. Some worry that food trucks parked just outside their property line will draw away lunch customers who would otherwise dine in. Others note that food trucks tend to bring in visitors who then browse nearby shops afterward.\n"
