@@ -16,6 +16,7 @@ LOGIN_URL = "/api/v1/auth/login/"
 REFRESH_URL = "/api/v1/auth/refresh/"
 LOGOUT_URL = "/api/v1/auth/logout/"
 RECOVERY_URL = "/api/v1/auth/recovery-code/reset/"
+PASSWORD_URL = "/api/v1/me/password/"
 CSRF_URL = "/api/v1/auth/csrf/"
 ME_URL = "/api/v1/me/"
 PROFILE_URL = "/api/v1/me/profile/"
@@ -275,6 +276,53 @@ def test_recovery_reset_wrong_code_is_generic(api_client):
     assert resp.status_code == 400
     assert resp.json()["code"] == "invalid_credentials"
     assert RecoveryCode.objects.get(user__identifier="learner").used_at is None
+
+
+# ── Authenticated password change ───────────────────────────────────────────
+def test_password_change_replaces_password_and_revokes_old_tokens(api_client):
+    reg = api_client.post(
+        REGISTER_URL, {"identifier": "learner", "password": "secret1"}, format="json"
+    )
+    old_access = reg.json()["access"]
+    old_refresh = api_client.cookies[REFRESH_COOKIE].value
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {old_access}")
+
+    changed = api_client.post(
+        PASSWORD_URL,
+        {"current_password": "secret1", "new_password": "brandnew1"},
+        format="json",
+    )
+    assert changed.status_code == 200
+    assert changed.json()["access"]
+    assert changed.cookies[REFRESH_COOKIE].value != old_refresh
+
+    user = User.objects.get(identifier="learner")
+    assert user.check_password("brandnew1")
+    assert not user.check_password("secret1")
+
+    api_client.cookies[REFRESH_COOKIE] = old_refresh
+    assert api_client.post(REFRESH_URL).status_code == 401
+    api_client.credentials(HTTP_AUTHORIZATION=f"Bearer {old_access}")
+    assert api_client.get(ME_URL).status_code == 401
+
+
+def test_password_change_rejects_incorrect_or_reused_password(api_client):
+    _auth(api_client)
+    incorrect = api_client.post(
+        PASSWORD_URL,
+        {"current_password": "wrong", "new_password": "brandnew1"},
+        format="json",
+    )
+    assert incorrect.status_code == 400
+    assert incorrect.json()["code"] == "invalid_credentials"
+
+    reused = api_client.post(
+        PASSWORD_URL,
+        {"current_password": "secret1", "new_password": "secret1"},
+        format="json",
+    )
+    assert reused.status_code == 400
+    assert reused.json()["code"] == "invalid_password"
 
 
 # ── Profile / me (ownership) ─────────────────────────────────────────────────

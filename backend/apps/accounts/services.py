@@ -130,6 +130,26 @@ def authenticate_user(identifier: str, password: str) -> User:
     return user
 
 
+def _revoke_refresh_tokens(user: User) -> None:
+    """Blacklist every refresh token currently issued for ``user``."""
+    for outstanding in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=outstanding)
+
+
+@transaction.atomic
+def change_password(user: User, *, current_password: str, new_password: str) -> None:
+    """Change an authenticated user's password and revoke other sessions."""
+    if not user.check_password(current_password):
+        raise InvalidCredentials("Your current password is incorrect.")
+    validate_password(new_password)
+    if current_password == new_password:
+        raise InvalidPassword("Choose a new password that differs from your current password.")
+
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
+    _revoke_refresh_tokens(user)
+
+
 @transaction.atomic
 def reset_password_with_recovery_code(
     identifier: str, recovery_code: str, new_password: str
@@ -165,8 +185,7 @@ def reset_password_with_recovery_code(
     # Password recovery is an account-takeover boundary. Revoke every refresh
     # session, not merely the browser performing the reset. Existing access
     # tokens are rejected by SimpleJWT's password-hash revocation check.
-    for outstanding in OutstandingToken.objects.filter(user=user):
-        BlacklistedToken.objects.get_or_create(token=outstanding)
+    _revoke_refresh_tokens(user)
 
     stored.used_at = timezone.now()
     stored.save(update_fields=["used_at"])

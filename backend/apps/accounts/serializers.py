@@ -48,6 +48,22 @@ class RecoveryResetSerializer(serializers.Serializer):
     )
 
 
+class PasswordChangeSerializer(serializers.Serializer):
+    """Authenticated password-change confirmation and replacement."""
+
+    current_password = serializers.CharField(
+        max_length=128,
+        style={"input_type": "password"},
+        trim_whitespace=False,
+    )
+    new_password = serializers.CharField(
+        min_length=MIN_PASSWORD_LENGTH,
+        max_length=128,
+        style={"input_type": "password"},
+        trim_whitespace=False,
+    )
+
+
 class UserSerializer(serializers.ModelSerializer):
     """Read-only identity for the authenticated user."""
 

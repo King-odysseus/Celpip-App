@@ -54,6 +54,25 @@ function patchCalls(spy: ReturnType<typeof installRouteFetch>) {
 }
 
 describe('ProfileForm backend field errors', () => {
+  it('updates the password from the account page', async () => {
+    const fetchSpy = installRouteFetch({
+      ...authedBootstrap,
+      'POST /me/password/': () => jsonResponse({ access: 'replacement-access-token' }),
+    })
+    const user = await renderAccount()
+
+    await user.type(screen.getByLabelText('Current password'), 'secret1')
+    await user.type(screen.getByLabelText('New password'), 'brandnew1')
+    await user.type(screen.getByLabelText('Confirm new password'), 'brandnew1')
+    await user.click(screen.getByRole('button', { name: 'Update password' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Password updated.')
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining('/me/password/'),
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
   it('surfaces the timezone validation error as an actionable, labelled message', async () => {
     installRouteFetch({
       ...authedBootstrap,

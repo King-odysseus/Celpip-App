@@ -23,6 +23,7 @@ from .serializers import (
     AccountDeleteSerializer,
     LearnerProfileSerializer,
     LoginSerializer,
+    PasswordChangeSerializer,
     RecoveryResetSerializer,
     RegisterSerializer,
     UserSerializer,
@@ -235,6 +236,31 @@ class MeView(APIView):
         # rotate a token for a deleted user.
         response = Response(status=status.HTTP_204_NO_CONTENT)
         tokens.clear_refresh_cookie(response)
+        return response
+
+
+class PasswordChangeView(APIView):
+    """Change the caller's password while preserving this browser session."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request: Request) -> Response:
+        tokens.enforce_csrf(request)
+        serializer = PasswordChangeSerializer(data=request.data)
+        if not serializer.is_valid():
+            return _validation_error(serializer.errors)
+        try:
+            services.change_password(request.user, **serializer.validated_data)
+        except services.InvalidCredentials as exc:
+            return error(exc.code, exc.message, status.HTTP_400_BAD_REQUEST)
+        except services.InvalidPassword as exc:
+            return error(exc.code, exc.message, status.HTTP_400_BAD_REQUEST)
+
+        # The old refresh token was revoked along with every other session;
+        # immediately issue a replacement for this confirmed browser.
+        pair = tokens.issue_tokens_for_user(request.user)
+        response = Response({"access": pair.access})
+        tokens.set_refresh_cookie(response, pair.refresh)
         return response
 
 

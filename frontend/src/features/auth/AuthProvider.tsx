@@ -31,6 +31,7 @@ type AuthContextValue = {
   clearSession: () => void
   updateProfile: (changes: ProfileUpdate) => Promise<LearnerProfile>
   refreshProfile: () => Promise<void>
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -38,6 +39,7 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 type LoginResponse = { access: string; user: AuthUser }
 type RegisterResponse = { access: string; user: AuthUser; recovery_code: string }
 type RefreshResponse = { access: string; user_id?: number }
+type PasswordChangeResponse = { access: string }
 
 const AUTH_ACCOUNT_EVENT_KEY = 'celpip-auth-account-event'
 
@@ -238,6 +240,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   )
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string): Promise<void> => {
+      const data = await api.post<PasswordChangeResponse>('/me/password/', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      })
+      setAccessToken(data.access)
+    },
+    [],
+  )
+
   const value = useMemo<AuthContextValue>(
     () => ({
       status,
@@ -248,9 +261,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       logout,
       clearSession,
       updateProfile,
+      changePassword,
       refreshProfile: loadProfile,
     }),
-    [status, user, profile, register, login, logout, clearSession, updateProfile, loadProfile],
+    [status, user, profile, register, login, logout, clearSession, updateProfile, changePassword, loadProfile],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

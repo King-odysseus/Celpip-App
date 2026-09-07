@@ -3,6 +3,7 @@ import { Button, Card, CardTitle } from '../../components/ui'
 import { useAuth } from './AuthProvider'
 import { DataExport } from './DataExport'
 import { DeleteAccount } from './DeleteAccount'
+import { PasswordChange } from './PasswordChange'
 import { ProfileForm } from './ProfileForm'
 
 export function AccountPage() {
@@ -55,6 +56,8 @@ export function AccountPage() {
           </p>
         )}
       </Card>
+
+      <PasswordChange />
 
       <DataExport />
 
