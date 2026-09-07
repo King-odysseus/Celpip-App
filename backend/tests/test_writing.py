@@ -9,7 +9,7 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.assessments.models import AssessmentSession, WritingSubmission
+from apps.assessments.models import AssessmentSession, WritingRetry, WritingSubmission
 from apps.content.models import (
     ContentItem,
     ContentVersion,
@@ -380,6 +380,39 @@ def test_repeat_submit_is_idempotent(api_client, seeded_writing):
     assert first.status_code == replay.status_code == 200
     assert first.json()["replayed"] is False
     assert replay.json()["replayed"] is True
+
+
+def test_retry_preserves_writing_prompt_and_is_idempotent(api_client, seeded_writing):
+    started = start(api_client, time_limit_seconds=60)
+    put_writing(api_client, started, "My first complete response.", 0)
+    api_client.post(submit_url(started), **guest_headers(started))
+
+    retry_url = f"{SESSIONS_URL}{started.json()['id']}/writing/retry/"
+    created = api_client.post(retry_url, **guest_headers(started))
+    replay = api_client.post(retry_url, **guest_headers(started))
+
+    assert created.status_code == 201
+    assert replay.status_code == 200
+    assert replay.json()["id"] == created.json()["id"]
+    assert created.json()["attempt_number"] == 2
+    source = AssessmentSession.objects.get(pk=started.json()["id"])
+    retry = AssessmentSession.objects.get(pk=created.json()["id"])
+    source_item = source.items.get()
+    retry_item = retry.items.get()
+    assert retry_item.content_version_id == source_item.content_version_id
+    assert retry_item.snapshot == source_item.snapshot
+    assert retry.deadline_at > source.deadline_at
+    assert WritingRetry.objects.filter(source=source, retry=retry).exists()
+
+    retry_detail = api_client.get(
+        f"{SESSIONS_URL}{retry.id}/writing/", **guest_headers(started)
+    )
+    assert retry_detail.status_code == 200
+    assert retry_detail.json()["attempt"] == {
+        "attempt_number": 2,
+        "source_id": str(source.id),
+    }
+    assert retry_detail.json()["submission"] is None
 
 
 def test_blank_submit_is_rejected(api_client, seeded_writing):

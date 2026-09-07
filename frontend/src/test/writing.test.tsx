@@ -96,6 +96,7 @@ function makeSession(overrides: Record<string, unknown> = {}) {
       questions: [],
     },
     rubric,
+    attempt: { attempt_number: 1 },
     submission: null,
     ...overrides,
   }

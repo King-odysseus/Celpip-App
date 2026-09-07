@@ -8,6 +8,7 @@ from .models import (
     SessionItem,
     SpeakingRetry,
     SpeakingSubmission,
+    WritingRetry,
     WritingSubmission,
 )
 
@@ -23,6 +24,13 @@ class AssessmentSessionAdmin(admin.ModelAdmin):
 admin.site.register(SessionItem)
 admin.site.register(Response)
 admin.site.register(ObjectiveResult)
+
+
+@admin.register(WritingRetry)
+class WritingRetryAdmin(admin.ModelAdmin):
+    list_display = ("source", "retry", "created_at")
+    search_fields = ("source__id", "retry__id")
+    readonly_fields = ("created_at",)
 
 
 @admin.register(ContentIssue)

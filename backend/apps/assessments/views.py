@@ -45,6 +45,7 @@ from .services import (
     StaleRevision,
     authorize_session,
     create_speaking_retry,
+    create_writing_retry,
     get_speaking_submission,
     get_writing_submission,
     save_response,
@@ -59,6 +60,8 @@ from .services import (
     submit_speaking,
     submit_writing,
     touch_session,
+    writing_attempt_metadata,
+    writing_comparison,
     writing_review_metadata,
 )
 
@@ -416,6 +419,7 @@ def _writing_payload(session: AssessmentSession, item, submission) -> dict:
         ),
         "rubric": {"dimensions": WRITING_RUBRIC_DIMENSIONS},
         "submission": _submission_payload(submission),
+        "attempt": writing_attempt_metadata(session),
     }
     if session.mode == SessionMode.MOCK:
         payload["mock"] = _mock_context(session)
@@ -487,6 +491,37 @@ class WritingSubmitView(APIView):
             "submission": _submission_payload(submission),
             "replayed": was_submitted,
         }
+        return ApiResponse(payload)
+
+
+class WritingRetryView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+            retry, replayed = create_writing_retry(session=session)
+        except AssessmentError as exc:
+            return error_response(exc)
+        payload = {
+            "id": str(retry.id),
+            "attempt_number": retry.attempt_number,
+            "replayed": replayed,
+            "launch_url": f"/writing/session/{retry.id}",
+        }
+        response_status = status.HTTP_200_OK if replayed else status.HTTP_201_CREATED
+        return ApiResponse(payload, status=response_status)
+
+
+class WritingComparisonView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, session_id):
+        try:
+            session = _session_for_request(request, session_id)
+            payload = writing_comparison(session)
+        except AssessmentError as exc:
+            return error_response(exc)
         return ApiResponse(payload)
 
 

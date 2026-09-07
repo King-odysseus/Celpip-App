@@ -24,6 +24,7 @@ from .models import (
     SessionState,
     SpeakingRetry,
     SpeakingSubmission,
+    WritingRetry,
     WritingSubmission,
 )
 from .storage import private_recording_storage
@@ -108,6 +109,12 @@ SPEAKING_FEEDBACK_DIMENSION_LABELS = {
     "content_coherence": "Content/Coherence",
     "vocabulary": "Vocabulary",
     "delivery": "Listenability",
+    "task_fulfillment": "Task Fulfillment",
+}
+WRITING_FEEDBACK_DIMENSION_LABELS = {
+    "content_coherence": "Content/Coherence",
+    "vocabulary": "Vocabulary",
+    "delivery": "Readability",
     "task_fulfillment": "Task Fulfillment",
 }
 
@@ -751,7 +758,73 @@ def speaking_review_metadata(submission: SpeakingSubmission) -> dict:
     }
 
 
-# --- Speaking attempt 2 (retry) -------------------------------------------
+# --- Constructed-response attempt 2 (retry) -------------------------------
+
+
+@transaction.atomic
+def create_writing_retry(*, session: AssessmentSession) -> tuple[AssessmentSession, bool]:
+    """Create one fresh, same-prompt Writing rewrite for a submitted response."""
+    locked = AssessmentSession.objects.select_for_update().get(pk=session.pk)
+    if locked.mode == SessionMode.MOCK:
+        raise RetryNotAllowed("Mock writing components cannot be retried.")
+    item = _writing_item(locked)
+    if locked.state != SessionState.SUBMITTED:
+        raise SessionNotActive("Only a submitted writing session can be retried.")
+    if WritingRetry.objects.filter(retry=locked).exists():
+        raise RetryNotAllowed("A retry session cannot be retried again.")
+    existing = WritingRetry.objects.select_related("retry").filter(source=locked).first()
+    if existing:
+        return existing.retry, True
+
+    deadline = None
+    if locked.deadline_at is not None:
+        duration = locked.deadline_at - locked.started_at
+        if duration <= timedelta(0):
+            raise RetryNotAllowed("The original attempt has no usable time window to retry.")
+        deadline = timezone.now() + duration
+
+    try:
+        with transaction.atomic():
+            retry = AssessmentSession.objects.create(
+                user=locked.user,
+                guest_token_hash=locked.guest_token_hash,
+                guest_expires_at=locked.guest_expires_at,
+                mode=locked.mode,
+                state=SessionState.ACTIVE,
+                attempt_number=2,
+                deadline_at=deadline,
+            )
+            SessionItem.objects.create(
+                session=retry,
+                content_version=item.content_version,
+                order=1,
+                snapshot=item.snapshot,
+            )
+            WritingRetry.objects.create(source=locked, retry=retry)
+    except IntegrityError:
+        winner = WritingRetry.objects.select_related("retry").filter(source=locked).first()
+        if winner is None:
+            raise
+        return winner.retry, True
+    return retry, False
+
+
+def writing_attempt_metadata(session: AssessmentSession) -> dict:
+    """Expose safe Writing attempt linkage IDs for review navigation."""
+    metadata: dict = {"attempt_number": session.attempt_number}
+    try:
+        link = session.writing_retry
+    except WritingRetry.DoesNotExist:
+        pass
+    else:
+        metadata["retry_id"] = str(link.retry_id)
+    try:
+        link = session.writing_retry_of
+    except WritingRetry.DoesNotExist:
+        pass
+    else:
+        metadata["source_id"] = str(link.source_id)
+    return metadata
 
 
 @transaction.atomic
@@ -851,9 +924,28 @@ def _speaking_retry_pair(session: AssessmentSession) -> tuple[AssessmentSession,
     return session, link.retry
 
 
+def _writing_retry_pair(session: AssessmentSession) -> tuple[AssessmentSession, AssessmentSession]:
+    """Resolve ``(attempt_1, attempt_2)`` for a writing retry pair."""
+    try:
+        link = session.writing_retry
+    except WritingRetry.DoesNotExist:
+        try:
+            link = session.writing_retry_of
+        except WritingRetry.DoesNotExist as exc:
+            raise ComparisonUnavailable(
+                "This session is not part of a writing retry pair."
+            ) from exc
+        return link.source, session
+    return session, link.retry
+
+
 # --- Speaking attempt 1 vs attempt 2 comparison ----------------------------
 
 SPEAKING_COMPARISON_DISCLAIMER = (
+    "This is an AI-assisted practice comparison, not an official CELPIP score. "
+    "A midpoint change is not an official score difference."
+)
+WRITING_COMPARISON_DISCLAIMER = (
     "This is an AI-assisted practice comparison, not an official CELPIP score. "
     "A midpoint change is not an official score difference."
 )
@@ -926,7 +1018,37 @@ def speaking_comparison(session: AssessmentSession) -> dict:
         "disclaimer": SPEAKING_COMPARISON_DISCLAIMER,
     }
     if status == "ready":
-        payload |= _comparison_ready(source, retry, source_item, retry_item)
+        payload |= _comparison_ready(
+            source, retry, source_item, retry_item, SPEAKING_FEEDBACK_DIMENSION_LABELS
+        )
+    return payload
+
+
+def writing_comparison(session: AssessmentSession) -> dict:
+    """Build an AI-feedback comparison for a submitted writing rewrite."""
+    source, retry = _writing_retry_pair(session)
+    source_item = _writing_item(source)
+    retry_item = _writing_item(retry)
+    source_state = _feedback_state(source_item)
+    retry_state = _feedback_state(retry_item)
+    if source_state == "failed" or retry_state == "failed":
+        comparison_status = "failed"
+    elif source_state == "ready" and retry_state == "ready":
+        comparison_status = "ready"
+    else:
+        comparison_status = "pending"
+    payload = {
+        "status": comparison_status,
+        "attempts": {
+            "1": _comparison_attempt_state(source, source_item, source_state),
+            "2": _comparison_attempt_state(retry, retry_item, retry_state),
+        },
+        "disclaimer": WRITING_COMPARISON_DISCLAIMER,
+    }
+    if comparison_status == "ready":
+        payload |= _comparison_ready(
+            source, retry, source_item, retry_item, WRITING_FEEDBACK_DIMENSION_LABELS
+        )
     return payload
 
 
@@ -951,7 +1073,7 @@ def _comparison_attempt_state(session, item, state: str) -> dict:
     return attempt
 
 
-def _comparison_ready(source, retry, source_item, retry_item) -> dict:
+def _comparison_ready(source, retry, source_item, retry_item, dimension_labels) -> dict:
     source_feedback = source_item.ai_feedback
     retry_feedback = retry_item.ai_feedback
     source_assessment = source_feedback.assessment
@@ -970,7 +1092,7 @@ def _comparison_ready(source, retry, source_item, retry_item) -> dict:
     dimension_deltas = []
     improved_dimensions = []
     non_improved_next_steps = []
-    for key, label in SPEAKING_FEEDBACK_DIMENSION_LABELS.items():
+    for key, label in dimension_labels.items():
         dim_1 = dimensions_1.get(key)
         dim_2 = dimensions_2.get(key)
         rating_1 = dim_1["rating"] if dim_1 else None

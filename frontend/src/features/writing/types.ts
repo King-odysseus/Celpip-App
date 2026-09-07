@@ -95,6 +95,11 @@ export type WritingSession = {
   rubric: { dimensions: RubricDimension[] }
   submission: WritingSubmissionDraft | null
   review?: WritingReview
+  attempt: {
+    attempt_number: 1 | 2
+    source_id?: string
+    retry_id?: string
+  }
   mock?: MockContext
 }
 
@@ -112,3 +117,10 @@ export type WritingSubmitResponse = WritingSubmitResult | MockSubmitResult
 
 /** The lightweight session payload returned by POST /sessions/ at start. */
 export type StartedWritingSession = { id: string; guest_token?: string }
+
+export type WritingRetryResult = {
+  id: string
+  attempt_number: 2
+  replayed: boolean
+  launch_url: string
+}

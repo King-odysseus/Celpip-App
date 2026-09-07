@@ -2,10 +2,10 @@ from django.urls import path
 
 from .views import (
     ResponseSaveView,
-    SessionDetailView,
     SessionContentIssueView,
-    SessionListView,
+    SessionDetailView,
     SessionListCreateView,
+    SessionListView,
     SessionResultView,
     SessionSubmitView,
     SessionTouchView,
@@ -14,7 +14,9 @@ from .views import (
     SpeakingDetailView,
     SpeakingRetryView,
     SpeakingSubmitView,
+    WritingComparisonView,
     WritingDetailView,
+    WritingRetryView,
     WritingSubmitView,
 )
 
@@ -58,6 +60,16 @@ urlpatterns = [
         "sessions/<uuid:session_id>/writing/submit/",
         WritingSubmitView.as_view(),
         name="writing-submit",
+    ),
+    path(
+        "sessions/<uuid:session_id>/writing/retry/",
+        WritingRetryView.as_view(),
+        name="writing-retry",
+    ),
+    path(
+        "sessions/<uuid:session_id>/writing/comparison/",
+        WritingComparisonView.as_view(),
+        name="writing-comparison",
     ),
     path(
         "sessions/<uuid:session_id>/speaking/",

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { ButtonLink, Card } from '../../components/ui'
+import { api } from '../../lib/api'
 import { getSpeakingComparison } from './api'
 import { tokenHeaders } from './token'
 import type {
@@ -50,10 +51,16 @@ function dimensionDeltaWord(delta: number | null): string {
 }
 
 /**
- * Cohesive attempt 1 vs attempt 2 comparison for a submitted Attempt 2 review.
- * It polls while feedback is pending and never fetches or exposes raw audio.
+ * Cohesive attempt 1 vs attempt 2 comparison for a constructed response.
+ * It polls while feedback is pending and never fetches the private response media.
  */
-export function SpeakingComparisonPanel({ sessionId }: { sessionId: string }) {
+export function AttemptComparisonPanel({
+  sessionId,
+  skill = 'speaking',
+}: {
+  sessionId: string
+  skill?: 'speaking' | 'writing'
+}) {
   const [comparison, setComparison] = useState<SpeakingComparison | null>(null)
   const [error, setError] = useState('')
 
@@ -62,7 +69,12 @@ export function SpeakingComparisonPanel({ sessionId }: { sessionId: string }) {
     let timer = 0
     const load = async () => {
       try {
-        const result = await getSpeakingComparison(sessionId, tokenHeaders(sessionId))
+        const result = skill === 'speaking'
+          ? await getSpeakingComparison(sessionId, tokenHeaders(sessionId))
+          : await api.get<SpeakingComparison>(
+              `/sessions/${sessionId}/writing/comparison/`,
+              tokenHeaders(sessionId),
+            )
         if (!active) return
         setComparison(result)
         if (result.status === 'pending') {
@@ -79,7 +91,7 @@ export function SpeakingComparisonPanel({ sessionId }: { sessionId: string }) {
       active = false
       window.clearTimeout(timer)
     }
-  }, [sessionId])
+  }, [sessionId, skill])
 
   if (error) {
     return (
@@ -102,7 +114,11 @@ export function SpeakingComparisonPanel({ sessionId }: { sessionId: string }) {
   }
   if (comparison.status === 'pending') return <PendingView comparison={comparison} />
   if (comparison.status === 'failed') return <FailedView comparison={comparison} />
-  return <ReadyView comparison={comparison} />
+  return <ReadyView comparison={comparison} skill={skill} />
+}
+
+export function SpeakingComparisonPanel({ sessionId }: { sessionId: string }) {
+  return <AttemptComparisonPanel sessionId={sessionId} skill="speaking" />
 }
 
 function PendingView({ comparison }: { comparison: SpeakingComparison }) {
@@ -162,7 +178,13 @@ function UnavailableView() {
   )
 }
 
-function ReadyView({ comparison }: { comparison: SpeakingComparison }) {
+function ReadyView({
+  comparison,
+  skill,
+}: {
+  comparison: SpeakingComparison
+  skill: 'speaking' | 'writing'
+}) {
   const attempt1 = comparison.attempt_1
   const attempt2 = comparison.attempt_2
   if (!attempt1 || !attempt2) return <UnavailableView />
@@ -172,7 +194,7 @@ function ReadyView({ comparison }: { comparison: SpeakingComparison }) {
   const priorities = comparison.remaining_priorities ?? []
 
   return (
-    <section aria-label="Speaking comparison" className="space-y-4">
+    <section aria-label={`${skill === 'writing' ? 'Writing' : 'Speaking'} comparison`} className="space-y-4">
       <Card className="overflow-hidden p-0">
         <div className="bg-brand px-5 py-6 text-white">
           <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-accent-soft">
@@ -268,10 +290,10 @@ function ReadyView({ comparison }: { comparison: SpeakingComparison }) {
       </details>
 
       <div className="flex flex-wrap gap-3">
-        <ButtonLink to={`/speaking/session/${attempt1.session_id}`} variant="secondary">
+        <ButtonLink to={`/${skill}/session/${attempt1.session_id}`} variant="secondary">
           <ExternalLink size={16} /> Open Attempt 1 review
         </ButtonLink>
-        <ButtonLink to={`/speaking/session/${attempt2.session_id}`} variant="secondary">
+        <ButtonLink to={`/${skill}/session/${attempt2.session_id}`} variant="secondary">
           <ExternalLink size={16} /> Open Attempt 2 review
         </ButtonLink>
       </div>

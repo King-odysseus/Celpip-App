@@ -13,14 +13,16 @@ import {
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { Button, Card } from '../../components/ui'
+import { Button, ButtonLink, Card } from '../../components/ui'
 import { ApiError, api } from '../../lib/api'
 import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
 import { ReportContentIssue } from '../content/ReportContentIssue'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
 import { StudyTaskAction } from '../learning/StudyTaskAction'
+import { AttemptComparisonPanel } from '../speaking/SpeakingComparisonPanel'
 import { countWords, targetState } from './wordCount'
+import { WritingRetryAction } from './WritingRetryAction'
 import type {
   WritingReview,
   WritingSaveResult,
@@ -599,6 +601,8 @@ function WritingReviewView({
 }) {
   const submittedText = session.submission?.text ?? text
   const within = review.within_target
+  const isAttempt2 = session.attempt.attempt_number === 2
+  const isMock = session.mode === 'mock'
   return (
     <div className="mx-auto max-w-4xl space-y-6 animate-fade-up">
       <Card className="overflow-hidden p-0 text-center">
@@ -612,9 +616,25 @@ function WritingReviewView({
             {within === true && ' · within the 150–200 target'}
             {within === false && ' · outside the 150–200 target'}
           </p>
+          <p className="mt-3">
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-accent-soft">
+              Attempt {session.attempt.attempt_number}
+            </span>
+          </p>
         </div>
         <p className="p-4 text-sm text-muted">{review.disclaimer}</p>
       </Card>
+
+      {isAttempt2 && session.attempt.source_id && (
+        <Card className="p-4">
+          <p className="text-sm leading-6 text-ink">
+            <strong>Attempt 1 is preserved.</strong> Compare its wording and structure with this rewrite.
+          </p>
+          <ButtonLink to={`/writing/session/${session.attempt.source_id}`} variant="secondary" className="mt-3">
+            <ArrowLeft size={16} /> Open Attempt 1 review
+          </ButtonLink>
+        </Card>
+      )}
 
       <section aria-labelledby="self-review-title">
         <h2 id="self-review-title" className="text-2xl font-bold text-ink">Guided self-review</h2>
@@ -637,7 +657,9 @@ function WritingReviewView({
       </section>
 
       <AIFeedbackPanel sessionId={session.id} practiceHref={`/practice/writing?task_type=${encodeURIComponent(session.content.task_type)}&exclude=${encodeURIComponent(session.content.slug)}`} />
+      {!isMock && isAttempt2 && <AttemptComparisonPanel sessionId={session.id} skill="writing" />}
       <ReportContentIssue sessionId={session.id} />
+      {!isMock && !isAttempt2 && <WritingRetryAction sessionId={session.id} />}
 
       <div className="flex flex-wrap gap-3">
         <Button onClick={onBack}>Choose another prompt</Button>

@@ -365,3 +365,70 @@ class SpeakingRetry(models.Model):
             raise ValidationError("A speaking retry must reuse the source content version.")
         if source_item.snapshot != retry_item.snapshot:
             raise ValidationError("A speaking retry must reuse the frozen source snapshot.")
+
+
+class WritingRetry(models.Model):
+    """Link a submitted Writing response to one same-prompt rewrite."""
+
+    source = models.OneToOneField(
+        AssessmentSession,
+        on_delete=models.CASCADE,
+        related_name="writing_retry",
+    )
+    retry = models.OneToOneField(
+        AssessmentSession,
+        on_delete=models.CASCADE,
+        related_name="writing_retry_of",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Writing retry"
+        verbose_name_plural = "Writing retries"
+        constraints = [
+            models.CheckConstraint(
+                condition=~Q(source=F("retry")),
+                name="assessments_writing_retry_distinct_sessions",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Writing retry {self.source_id} -> {self.retry_id}"
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        return super().save(*args, **kwargs)
+
+    def clean(self) -> None:
+        source = self.source if self.source_id else None
+        retry = self.retry if self.retry_id else None
+        if source is None or retry is None:
+            return
+        if source.pk == retry.pk:
+            raise ValidationError("A session cannot be its own writing retry.")
+        if source.user_id != retry.user_id:
+            raise ValidationError("A writing retry must share the source's owner.")
+        if source.user_id is None and (
+            source.guest_token_hash != retry.guest_token_hash
+            or source.guest_expires_at != retry.guest_expires_at
+        ):
+            raise ValidationError("A writing retry must reuse the source guest identity.")
+        if source.mode != retry.mode:
+            raise ValidationError("A writing retry must keep the source's mode.")
+        if source.attempt_number != 1 or retry.attempt_number != 2:
+            raise ValidationError("Writing retries must link attempt 1 to attempt 2.")
+        if source.state != SessionState.SUBMITTED or retry.state != SessionState.ACTIVE:
+            raise ValidationError("A writing retry requires a submitted source and active retry.")
+        source_item = source.items.first()
+        retry_item = retry.items.first()
+        if source_item is None or retry_item is None:
+            raise ValidationError("Both writing retry sessions need a frozen item.")
+        if (
+            source_item.snapshot.get("skill") != "writing"
+            or retry_item.snapshot.get("skill") != "writing"
+        ):
+            raise ValidationError("A writing retry may only link writing sessions.")
+        if source_item.content_version_id != retry_item.content_version_id:
+            raise ValidationError("A writing retry must reuse the source content version.")
+        if source_item.snapshot != retry_item.snapshot:
+            raise ValidationError("A writing retry must reuse the frozen source snapshot.")
