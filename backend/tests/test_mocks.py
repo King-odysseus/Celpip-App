@@ -120,6 +120,16 @@ def test_exact_format_assembly_follows_official_constants(attempt):
     assert snapshot["scope"] == "compact_task_family_mock"
     assert "limitation" in snapshot
 
+    # Every mock section uses the official CELPIP-General time box. Writing
+    # contains both written tasks and must never inherit Speaking's 15-minute
+    # clock.
+    assert snapshot["component_timings"] == {
+        Skill.LISTENING: {"public_range_minutes": [46, 55], "mock_seconds": 55 * 60},
+        Skill.READING: {"public_range_minutes": [43, 56], "mock_seconds": 56 * 60},
+        Skill.WRITING: {"public_range_minutes": [53, 53], "mock_seconds": 53 * 60},
+        Skill.SPEAKING: {"public_range_minutes": [15, 15], "mock_seconds": 15 * 60},
+    }
+
     # Frozen per-task and per-session snapshots agree with the source content.
     first = tasks[0]
     assert first.snapshot["skill"] == Skill.LISTENING

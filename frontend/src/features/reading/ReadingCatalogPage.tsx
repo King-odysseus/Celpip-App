@@ -207,7 +207,7 @@ export function ReadingCatalogPage({
                     className="mt-6 w-full sm:w-auto sm:self-start"
                     variant={isLearn ? 'accent' : 'primary'}
                     disabled={authStatus === 'loading' || starting !== null}
-                    onClick={() => setPendingItem(item)}
+                    onClick={() => (isLearn ? setPendingItem(item) : void begin(item))}
                   >
                     {isLearn ? <GraduationCap size={18} /> : <Play size={18} />}
                     {starting === item.slug ? 'Starting…' : completed ? 'Practice again' : isLearn ? 'Learn with this set' : 'Start timed practice'}

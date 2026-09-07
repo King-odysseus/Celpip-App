@@ -166,12 +166,12 @@ def ensure_format() -> TestFormatVersion:
 
 
 COMPACT_COMPONENT_TIMINGS = {
-    # A compact mock is deliberately a one-hour practice programme. The full
-    # simulation alone uses the public CELPIP-General section time boxes.
-    Skill.LISTENING: {"public_range_minutes": [46, 55], "mock_seconds": 1080},
-    Skill.READING: {"public_range_minutes": [43, 56], "mock_seconds": 900},
-    Skill.WRITING: {"public_range_minutes": [53, 53], "mock_seconds": 960},
-    Skill.SPEAKING: {"public_range_minutes": [15, 15], "mock_seconds": 660},
+    # Both mock formats use the official CELPIP-General component clocks.
+    # Compact mocks differ only in the number of practice tasks they assemble.
+    Skill.LISTENING: {"public_range_minutes": [46, 55], "mock_seconds": 55 * 60},
+    Skill.READING: {"public_range_minutes": [43, 56], "mock_seconds": 56 * 60},
+    Skill.WRITING: {"public_range_minutes": [53, 53], "mock_seconds": 53 * 60},
+    Skill.SPEAKING: {"public_range_minutes": [15, 15], "mock_seconds": 15 * 60},
 }
 
 
@@ -299,7 +299,7 @@ def _create_compact_attempt(user, *, focus: dict | None = None) -> MockAttempt:
         },
         "task_structure": format_version.task_structure,
         "scope": "compact_task_family_mock",
-        "limitation": "This approximately one-hour compact mock uses original practice content. It is a focused rehearsal, not an official CELPIP score conversion.",
+        "limitation": "This compact mock uses original practice content and official CELPIP-General component time boxes. It is a focused rehearsal, not an official CELPIP score conversion.",
         "focus": resolved_focus,
         "briefing": _compact_briefing(user, expected, resolved_focus),
     }
