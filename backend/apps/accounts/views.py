@@ -245,7 +245,6 @@ class PasswordChangeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request: Request) -> Response:
-        tokens.enforce_csrf(request)
         serializer = PasswordChangeSerializer(data=request.data)
         if not serializer.is_valid():
             return _validation_error(serializer.errors)
