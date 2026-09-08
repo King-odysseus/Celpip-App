@@ -66,7 +66,6 @@ FEEDBACK_SCHEMA = {
         "estimated_level_high",
         "confidence",
         "disclaimer",
-        "level_twelve_exemplar",
     ],
 }
 
@@ -149,24 +148,30 @@ def validate_feedback(payload: dict) -> dict:
         raise ProviderError(
             "invalid_output", "The estimated level range is invalid.", retryable=False
         )
+    # The exemplar is an enhancement to feedback, never a reason to discard a
+    # valid learner assessment. Older providers/outputs may not include it, and
+    # an invalid annotation is safely omitted rather than failing the job.
     exemplar = payload.get("level_twelve_exemplar")
+    if exemplar is None:
+        payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
+        return payload
     if not isinstance(exemplar, dict) or not isinstance(exemplar.get("response"), str):
-        raise ProviderError(
-            "invalid_output", "Feedback must include a model exemplar.", retryable=False
-        )
+        payload.pop("level_twelve_exemplar", None)
+        payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
+        return payload
     highlights = exemplar.get("highlights")
     if not isinstance(highlights, list) or not 3 <= len(highlights) <= 5:
-        raise ProviderError(
-            "invalid_output", "The model exemplar highlights are invalid.", retryable=False
-        )
+        payload.pop("level_twelve_exemplar", None)
+        payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
+        return payload
     response = exemplar["response"]
     for highlight in highlights:
         excerpt = highlight.get("excerpt") if isinstance(highlight, dict) else None
         reason = highlight.get("why_it_matters") if isinstance(highlight, dict) else None
         if not isinstance(excerpt, str) or not excerpt.strip() or excerpt not in response or not isinstance(reason, str) or not reason.strip():
-            raise ProviderError(
-                "invalid_output", "Each model exemplar highlight must quote its response.", retryable=False
-            )
+            payload.pop("level_twelve_exemplar", None)
+            payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
+            return payload
     payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
     return payload
 
