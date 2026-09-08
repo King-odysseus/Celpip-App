@@ -387,9 +387,13 @@ def feedback_payload(session_item) -> dict:
         .order_by("-created_at")
         .first()
     )
+    # Feedback created during a deployment boundary may predate the on-commit
+    # enqueue callback. Recover it lazily when the learner opens their result.
+    if exemplar_job is None:
+        exemplar_job = enqueue_response_exemplar(session_item)
     assessment = dict(feedback.assessment)
-    example_status = exemplar_job.status if exemplar_job else "not_requested"
-    if exemplar_job and exemplar_job.status == AIJobStatus.SUCCEEDED:
+    example_status = exemplar_job.status
+    if exemplar_job.status == AIJobStatus.SUCCEEDED:
         assessment["level_twelve_exemplar"] = exemplar_job.output
     return {
         "status": "succeeded",
