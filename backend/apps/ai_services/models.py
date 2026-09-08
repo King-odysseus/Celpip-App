@@ -13,6 +13,7 @@ from django.db.models import Q
 class AIJobKind(models.TextChoices):
     WRITING_FEEDBACK = "writing_feedback", "Writing feedback"
     SPEAKING_FEEDBACK = "speaking_feedback", "Speaking feedback"
+    RESPONSE_EXEMPLAR = "response_exemplar", "Response exemplar"
     CONTENT_DRAFT = "content_draft", "Content draft"
     IMAGE_DRAFT = "image_draft", "Image draft"
     SPEECH_DRAFT = "speech_draft", "Speech draft"

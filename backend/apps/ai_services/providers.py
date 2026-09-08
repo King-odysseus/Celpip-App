@@ -9,8 +9,8 @@ from pathlib import Path
 from django.conf import settings
 
 from .contracts import ProviderError, ProviderResult
-from .prompts import CONTENT_DEVELOPER_PROMPT, FEEDBACK_DEVELOPER_PROMPT
-from .schemas import CONTENT_DRAFT_SCHEMA, FEEDBACK_SCHEMA
+from .prompts import CONTENT_DEVELOPER_PROMPT, EXEMPLAR_DEVELOPER_PROMPT, FEEDBACK_DEVELOPER_PROMPT
+from .schemas import CONTENT_DRAFT_SCHEMA, EXEMPLAR_SCHEMA, FEEDBACK_SCHEMA
 
 
 class FakeProvider:
@@ -75,6 +75,9 @@ class FakeProvider:
             payload | {"transcript": transcript}, delivery_label="Listenability"
         )
         return ProviderResult(result.payload | {"transcript": transcript}, result.external_id)
+
+    def generate_exemplar(self, payload: dict) -> ProviderResult:
+        return ProviderResult(self._feedback(payload, delivery_label="Readability").payload["level_twelve_exemplar"], "fake-exemplar")
 
     def generate_content(self, payload: dict) -> ProviderResult:
         topic = str(payload.get("topic", "Canadian community services"))
@@ -223,6 +226,12 @@ class OpenAIProvider:
         )
         return ProviderResult(
             result.payload | {"transcript": transcript}, result.external_id, result.usage
+        )
+
+    def generate_exemplar(self, payload: dict) -> ProviderResult:
+        return self._structured(
+            developer_prompt=EXEMPLAR_DEVELOPER_PROMPT, payload=payload,
+            schema=EXEMPLAR_SCHEMA, name="celpip_response_exemplar",
         )
 
     def generate_content(self, payload: dict) -> ProviderResult:

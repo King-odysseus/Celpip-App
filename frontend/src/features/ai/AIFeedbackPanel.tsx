@@ -14,6 +14,7 @@ type LevelTwelveExemplar = {
 type FeedbackState = {
   status: 'not_requested' | 'queued' | 'running' | 'succeeded' | 'failed'
   error?: string
+  example_status?: 'not_requested' | 'queued' | 'running' | 'succeeded' | 'failed'
   transcript?: string
   assessment?: {
     overall_summary: string
@@ -91,6 +92,8 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
       </div>
       {feedback.transcript && <details className="card p-5"><summary className="cursor-pointer font-bold text-ink">AI transcript used for feedback</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{feedback.transcript}</p></details>}
       {assessment.level_twelve_exemplar && <LevelTwelveExemplarPanel exemplar={assessment.level_twelve_exemplar} />}
+      {['queued', 'running'].includes(feedback.example_status ?? '') && <Card className="border-dashed p-4 text-sm text-muted" aria-live="polite"><Loader2 className="mr-2 inline animate-spin text-brand" size={16} />Preparing your example high-scoring answer…</Card>}
+      {feedback.example_status === 'failed' && <Card className="border-dashed p-4 text-sm text-muted">Your score is ready. The example answer could not be generated after several attempts.</Card>}
       {practiceHref && <Card className="border-accent/30 bg-accent-soft/25"><p className="text-sm font-bold text-ink">Apply this feedback on a fresh prompt</p><p className="mt-1 text-sm text-muted">Try the same task type again so the app can compare your next response with this one.</p><Link to={practiceHref} className="mt-3 inline-flex min-h-10 items-center rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">Practise this next</Link></Card>}
       {feedback.audit && <details className="text-xs text-muted"><summary className="cursor-pointer font-semibold">Feedback audit details</summary><p className="mt-2">Provider: {feedback.audit.provider} · Model: {feedback.audit.model} · Prompt: {feedback.audit.prompt_version}</p></details>}
     </section>

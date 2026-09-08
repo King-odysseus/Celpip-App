@@ -26,9 +26,9 @@ from apps.content.services import validate_content_version
 
 from .contracts import ProviderError
 from .models import AIFeedback, AIJob, AIJobKind, AIJobStatus
-from .prompts import CONTENT_PROMPT_VERSION, FEEDBACK_PROMPT_VERSION
+from .prompts import CONTENT_PROMPT_VERSION, EXEMPLAR_PROMPT_VERSION, FEEDBACK_PROMPT_VERSION
 from .providers import get_provider
-from .schemas import validate_content_draft, validate_feedback
+from .schemas import validate_content_draft, validate_exemplar, validate_feedback
 
 logger = logging.getLogger(__name__)
 
@@ -131,6 +131,31 @@ def enqueue_content_draft(*, task_type: TaskType, topic: str, difficulty: int, u
     )
 
 
+def enqueue_response_exemplar(session_item) -> AIJob:
+    """Queue one independently retryable example answer after scoring succeeds."""
+    existing = AIJob.objects.filter(
+        session_item=session_item, kind=AIJobKind.RESPONSE_EXEMPLAR
+    ).first()
+    if existing:
+        return existing
+    return AIJob.objects.create(
+        kind=AIJobKind.RESPONSE_EXEMPLAR,
+        user=session_item.session.user,
+        session_item=session_item,
+        provider=settings.AI_PROVIDER,
+        model=settings.OPENAI_TEXT_MODEL,
+        prompt_version=EXEMPLAR_PROMPT_VERSION,
+        input_snapshot={
+            "skill": session_item.snapshot.get("skill"),
+            "task_type": session_item.snapshot.get("task_type"),
+            "instructions": session_item.snapshot.get("instructions"),
+            "stimulus": session_item.snapshot.get("stimulus"),
+        },
+        max_attempts=settings.AI_MAX_ATTEMPTS,
+        run_after=timezone.now(),
+    )
+
+
 @transaction.atomic
 def claim_next_job() -> AIJob | None:
     now = timezone.now()
@@ -172,6 +197,10 @@ def run_job(job: AIJob, *, provider=None) -> AIJob:
             result = provider.evaluate_speaking(Path(submission.audio.path), job.input_snapshot)
             transcript = str(result.payload.pop("transcript", ""))
             payload = validate_feedback(result.payload)
+        elif job.kind == AIJobKind.RESPONSE_EXEMPLAR:
+            result = provider.generate_exemplar(job.input_snapshot)
+            payload = validate_exemplar(result.payload)
+            transcript = ""
         elif job.kind == AIJobKind.CONTENT_DRAFT:
             result = provider.generate_content(job.input_snapshot)
             payload = validate_content_draft(result.payload)
@@ -229,6 +258,9 @@ def run_job(job: AIJob, *, provider=None) -> AIJob:
                 transaction.on_commit(
                     lambda: discard_speaking_audio(submission), robust=True
                 )
+            transaction.on_commit(
+                lambda: enqueue_response_exemplar(locked.session_item), robust=True
+            )
     return locked
 
 
@@ -350,12 +382,22 @@ def feedback_payload(session_item) -> dict:
             "attempts": job.attempts,
             "error": job.error_message if job.status == AIJobStatus.FAILED else "",
         }
+    exemplar_job = (
+        session_item.ai_jobs.filter(kind=AIJobKind.RESPONSE_EXEMPLAR)
+        .order_by("-created_at")
+        .first()
+    )
+    assessment = dict(feedback.assessment)
+    example_status = exemplar_job.status if exemplar_job else "not_requested"
+    if exemplar_job and exemplar_job.status == AIJobStatus.SUCCEEDED:
+        assessment["level_twelve_exemplar"] = exemplar_job.output
     return {
         "status": "succeeded",
         "job_id": str(feedback.job_id),
         "kind": feedback.kind,
         "transcript": feedback.transcript,
-        "assessment": feedback.assessment,
+        "assessment": assessment,
+        "example_status": example_status,
         "audit": {
             "provider": feedback.provider,
             "model": feedback.model,
@@ -384,7 +426,12 @@ def feedback_history(user) -> list[dict]:
     results = []
     for artifact in artifacts:
         snapshot = artifact.session_item.snapshot
-        assessment = artifact.assessment
+        assessment = dict(artifact.assessment)
+        exemplar_job = artifact.session_item.ai_jobs.filter(
+            kind=AIJobKind.RESPONSE_EXEMPLAR, status=AIJobStatus.SUCCEEDED
+        ).order_by("-created_at").first()
+        if exemplar_job:
+            assessment["level_twelve_exemplar"] = exemplar_job.output
         results.append(
             {
                 "created_at": artifact.created_at,

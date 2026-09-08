@@ -33,29 +33,6 @@ FEEDBACK_SCHEMA = {
         "estimated_level_high": {"type": "integer", "minimum": 1, "maximum": 12},
         "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
         "disclaimer": {"type": "string"},
-        "level_twelve_exemplar": {
-            "type": "object",
-            "additionalProperties": False,
-            "properties": {
-                "response": {"type": "string", "minLength": 1},
-                "why_it_is_strong": {"type": "string", "minLength": 1},
-                "highlights": {
-                    "type": "array",
-                    "minItems": 3,
-                    "maxItems": 5,
-                    "items": {
-                        "type": "object",
-                        "additionalProperties": False,
-                        "properties": {
-                            "excerpt": {"type": "string", "minLength": 1},
-                            "why_it_matters": {"type": "string", "minLength": 1},
-                        },
-                        "required": ["excerpt", "why_it_matters"],
-                    },
-                },
-            },
-            "required": ["response", "why_it_is_strong", "highlights"],
-        },
     },
     "required": [
         "overall_summary",
@@ -67,6 +44,20 @@ FEEDBACK_SCHEMA = {
         "confidence",
         "disclaimer",
     ],
+}
+
+EXEMPLAR_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "properties": {
+        "response": {"type": "string", "minLength": 1},
+        "why_it_is_strong": {"type": "string", "minLength": 1},
+        "highlights": {"type": "array", "minItems": 3, "maxItems": 5, "items": {
+            "type": "object", "additionalProperties": False,
+            "properties": {"excerpt": {"type": "string", "minLength": 1}, "why_it_matters": {"type": "string", "minLength": 1}},
+            "required": ["excerpt", "why_it_matters"],
+        }},
+    },
+    "required": ["response", "why_it_is_strong", "highlights"],
 }
 
 CONTENT_DRAFT_SCHEMA = {
@@ -148,32 +139,25 @@ def validate_feedback(payload: dict) -> dict:
         raise ProviderError(
             "invalid_output", "The estimated level range is invalid.", retryable=False
         )
-    # The exemplar is an enhancement to feedback, never a reason to discard a
-    # valid learner assessment. Older providers/outputs may not include it, and
-    # an invalid annotation is safely omitted rather than failing the job.
-    exemplar = payload.get("level_twelve_exemplar")
-    if exemplar is None:
-        payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
-        return payload
-    if not isinstance(exemplar, dict) or not isinstance(exemplar.get("response"), str):
-        payload.pop("level_twelve_exemplar", None)
-        payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
-        return payload
+    payload.pop("level_twelve_exemplar", None)
+    payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
+    return payload
+
+
+def validate_exemplar(payload: dict) -> dict:
+    if not isinstance(payload, dict) or not isinstance(payload.get("response"), str):
+        raise ProviderError("invalid_output", "The example answer is invalid.")
+    exemplar = payload
     highlights = exemplar.get("highlights")
     if not isinstance(highlights, list) or not 3 <= len(highlights) <= 5:
-        payload.pop("level_twelve_exemplar", None)
-        payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
-        return payload
+        raise ProviderError("invalid_output", "The example answer highlights are invalid.")
     response = exemplar["response"]
     for highlight in highlights:
         excerpt = highlight.get("excerpt") if isinstance(highlight, dict) else None
         reason = highlight.get("why_it_matters") if isinstance(highlight, dict) else None
         if not isinstance(excerpt, str) or not excerpt.strip() or excerpt not in response or not isinstance(reason, str) or not reason.strip():
-            payload.pop("level_twelve_exemplar", None)
-            payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
-            return payload
-    payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
-    return payload
+            raise ProviderError("invalid_output", "Each example highlight must quote its response.")
+    return exemplar
 
 
 def validate_content_draft(payload: dict) -> dict:
