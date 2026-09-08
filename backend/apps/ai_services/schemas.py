@@ -33,6 +33,29 @@ FEEDBACK_SCHEMA = {
         "estimated_level_high": {"type": "integer", "minimum": 1, "maximum": 12},
         "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
         "disclaimer": {"type": "string"},
+        "level_twelve_exemplar": {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "response": {"type": "string", "minLength": 1},
+                "why_it_is_strong": {"type": "string", "minLength": 1},
+                "highlights": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 5,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "properties": {
+                            "excerpt": {"type": "string", "minLength": 1},
+                            "why_it_matters": {"type": "string", "minLength": 1},
+                        },
+                        "required": ["excerpt", "why_it_matters"],
+                    },
+                },
+            },
+            "required": ["response", "why_it_is_strong", "highlights"],
+        },
     },
     "required": [
         "overall_summary",
@@ -43,6 +66,7 @@ FEEDBACK_SCHEMA = {
         "estimated_level_high",
         "confidence",
         "disclaimer",
+        "level_twelve_exemplar",
     ],
 }
 
@@ -125,6 +149,24 @@ def validate_feedback(payload: dict) -> dict:
         raise ProviderError(
             "invalid_output", "The estimated level range is invalid.", retryable=False
         )
+    exemplar = payload.get("level_twelve_exemplar")
+    if not isinstance(exemplar, dict) or not isinstance(exemplar.get("response"), str):
+        raise ProviderError(
+            "invalid_output", "Feedback must include a model exemplar.", retryable=False
+        )
+    highlights = exemplar.get("highlights")
+    if not isinstance(highlights, list) or not 3 <= len(highlights) <= 5:
+        raise ProviderError(
+            "invalid_output", "The model exemplar highlights are invalid.", retryable=False
+        )
+    response = exemplar["response"]
+    for highlight in highlights:
+        excerpt = highlight.get("excerpt") if isinstance(highlight, dict) else None
+        reason = highlight.get("why_it_matters") if isinstance(highlight, dict) else None
+        if not isinstance(excerpt, str) or not excerpt.strip() or excerpt not in response or not isinstance(reason, str) or not reason.strip():
+            raise ProviderError(
+                "invalid_output", "Each model exemplar highlight must quote its response.", retryable=False
+            )
     payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
     return payload
 

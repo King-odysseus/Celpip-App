@@ -44,6 +44,24 @@ class FakeProvider:
                 "estimated_level_high": 7,
                 "confidence": "low",
                 "disclaimer": "AI-assisted practice estimate — not an official CELPIP score.",
+                "level_twelve_exemplar": {
+                    "response": (
+                        "Thank you for raising this matter. I would address it promptly by "
+                        "confirming the key details, proposing a practical solution, and "
+                        "following up with a clear next step. This approach is respectful, "
+                        "specific, and focused on the requested outcome."
+                    ),
+                    "why_it_is_strong": (
+                        "This model response is fully developed, clear, and purposefully "
+                        "organized. It demonstrates qualities associated with the highest "
+                        "practice band; it is not an official CELPIP score."
+                    ),
+                    "highlights": [
+                        {"excerpt": "raising this matter", "why_it_matters": "Acknowledges the situation with an appropriate, audience-aware tone."},
+                        {"excerpt": "confirming the key details", "why_it_matters": "Shows a precise and logical first action."},
+                        {"excerpt": "proposing a practical solution", "why_it_matters": "Addresses the task with concrete support rather than a vague promise."},
+                    ],
+                },
             },
             external_id="fake-response",
         )

@@ -6,6 +6,11 @@ import { Link } from 'react-router-dom'
 import { DIMENSION_LABELS } from './dimensionLabels'
 
 type Dimension = { key: string; rating: number; evidence: string; next_step: string }
+type LevelTwelveExemplar = {
+  response: string
+  why_it_is_strong: string
+  highlights: { excerpt: string; why_it_matters: string }[]
+}
 type FeedbackState = {
   status: 'not_requested' | 'queued' | 'running' | 'succeeded' | 'failed'
   error?: string
@@ -19,6 +24,7 @@ type FeedbackState = {
     estimated_level_high: number
     confidence: 'low' | 'medium' | 'high'
     disclaimer: string
+    level_twelve_exemplar?: LevelTwelveExemplar
   }
   audit?: { provider: string; model: string; prompt_version: string; created_at: string }
 }
@@ -84,9 +90,32 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
         ))}
       </div>
       {feedback.transcript && <details className="card p-5"><summary className="cursor-pointer font-bold text-ink">AI transcript used for feedback</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{feedback.transcript}</p></details>}
+      {assessment.level_twelve_exemplar && <LevelTwelveExemplarPanel exemplar={assessment.level_twelve_exemplar} />}
       {practiceHref && <Card className="border-accent/30 bg-accent-soft/25"><p className="text-sm font-bold text-ink">Apply this feedback on a fresh prompt</p><p className="mt-1 text-sm text-muted">Try the same task type again so the app can compare your next response with this one.</p><Link to={practiceHref} className="mt-3 inline-flex min-h-10 items-center rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">Practise this next</Link></Card>}
       {feedback.audit && <details className="text-xs text-muted"><summary className="cursor-pointer font-semibold">Feedback audit details</summary><p className="mt-2">Provider: {feedback.audit.provider} · Model: {feedback.audit.model} · Prompt: {feedback.audit.prompt_version}</p></details>}
     </section>
+  )
+}
+
+function LevelTwelveExemplarPanel({ exemplar }: { exemplar: LevelTwelveExemplar }) {
+  return (
+    <Card className="border-accent/40 bg-accent-soft/20 p-5">
+      <p className="text-xs font-bold uppercase tracking-widest text-brand">Score-12 learning model</p>
+      <h3 className="mt-1 text-xl font-bold text-ink">How the AI would answer this task</h3>
+      <p className="mt-2 text-sm leading-6 text-muted">{exemplar.why_it_is_strong}</p>
+      <div className="mt-4 rounded-lg bg-white/70 p-4 text-sm leading-7 text-ink">
+        <p className="whitespace-pre-wrap">{exemplar.response}</p>
+      </div>
+      <div className="mt-4 space-y-2">
+        <p className="text-sm font-bold text-ink">Why this response is strong</p>
+        {exemplar.highlights.map((highlight, index) => (
+          <div key={`${highlight.excerpt}-${index}`} className="rounded-lg border border-accent/30 bg-white/60 p-3 text-sm leading-6 text-muted">
+            <mark className="rounded bg-accent-soft px-1 font-semibold text-ink">“{highlight.excerpt}”</mark>
+            <span> — {highlight.why_it_matters}</span>
+          </div>
+        ))}
+      </div>
+    </Card>
   )
 }
 
