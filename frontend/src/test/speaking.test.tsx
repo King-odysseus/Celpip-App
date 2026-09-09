@@ -1,8 +1,10 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import { renderApp } from './renderApp'
 import { installRouteFetch, jsonResponse } from './mockFetch'
+import { AIFeedbackPanel } from '../features/ai/AIFeedbackPanel'
 
 const sessionId = '55555555-5555-4555-8555-555555555555'
 
@@ -118,6 +120,46 @@ describe('Speaking catalog', () => {
     await user.click(await screen.findByRole('button', { name: 'Open microphone practice' }))
     expect(await screen.findByRole('heading', { name: 'Private recorder' })).toBeInTheDocument()
     expect(sessionStorage.getItem(`celpip-guest-${sessionId}`)).toBe('guest-speaking')
+  })
+})
+
+describe('AI feedback panel', () => {
+  it('continues polling for the model answer after the assessment is ready', async () => {
+    vi.useFakeTimers()
+    try {
+      let polls = 0
+      const assessment = {
+        overall_summary: 'Clear advice.',
+        dimensions: [{ key: 'content_coherence', rating: 3, evidence: 'Connected ideas.', next_step: 'Add detail.' }],
+        strengths: ['Clear recommendation.'],
+        priorities: ['Add support.'],
+        estimated_level_low: 6,
+        estimated_level_high: 7,
+        confidence: 'medium' as const,
+        disclaimer: 'Practice estimate.',
+      }
+      installRouteFetch({
+        [`GET /sessions/${sessionId}/ai-feedback/`]: () => {
+          polls += 1
+          return jsonResponse({
+            status: 'succeeded',
+            assessment: polls >= 2
+              ? { ...assessment, level_twelve_exemplar: { response: 'A polished model answer.', why_it_is_strong: 'It is specific.', highlights: [] } }
+              : assessment,
+            example_status: polls >= 2 ? 'succeeded' : 'queued',
+          })
+        },
+      })
+      render(<MemoryRouter><AIFeedbackPanel sessionId={sessionId} /></MemoryRouter>)
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(screen.getByText(/preparing your example/i)).toBeInTheDocument()
+      await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+      expect(screen.getByText('A polished model answer.')).toBeInTheDocument()
+      expect(polls).toBeGreaterThanOrEqual(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

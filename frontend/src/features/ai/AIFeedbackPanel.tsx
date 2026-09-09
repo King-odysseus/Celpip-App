@@ -48,7 +48,13 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
         if (!active) return
         setFeedback(result)
         setUnavailable(false)
-        if (result.status === 'queued' || result.status === 'running') {
+        // The assessment and the model-answer exemplar are separate jobs. The
+        // assessment can be ready while the exemplar is still being generated;
+        // keep polling in that state so the answer appears here without the
+        // learner having to leave for the dashboard and come back.
+        const assessmentPending = result.status === 'queued' || result.status === 'running'
+        const exemplarPending = result.example_status === 'queued' || result.example_status === 'running'
+        if (assessmentPending || exemplarPending) {
           timer = window.setTimeout(() => void load(), 3000)
         }
       } catch {
