@@ -9,6 +9,8 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { AccountControl } from '../components/AccountControl'
 import { AppUpdateNotice } from '../components/AppUpdateNotice'
 import { HardRefreshButton } from '../components/HardRefreshButton'
+import { AICoachProvider } from '../features/coach/AICoachProvider'
+import { AICoachWidget } from '../features/coach/AICoachWidget'
 import { useAuth } from '../features/auth/AuthProvider'
 
 // Destinations that manage their own navigation chrome (splash/auth pages, and
@@ -329,7 +331,7 @@ function DesktopNavGroup({
   )
 }
 
-export function AppShell() {
+function AppShellLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -530,6 +532,15 @@ export function AppShell() {
         onClose={() => setMoreOpen(false)}
         triggerRef={moreTriggerRef}
       />
+      <AICoachWidget />
     </div>
+  )
+}
+
+export function AppShell() {
+  return (
+    <AICoachProvider>
+      <AppShellLayout />
+    </AICoachProvider>
   )
 }

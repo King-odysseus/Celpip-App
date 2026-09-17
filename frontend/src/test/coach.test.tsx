@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from './renderApp'
 import { errorResponse, installRouteFetch, jsonResponse } from './mockFetch'
@@ -54,7 +54,7 @@ describe('AI Coach', () => {
     renderApp('/coach?skill=writing')
 
     expect(await screen.findByRole('heading', { level: 1, name: /ask before your next attempt/i })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'How should I structure a CELPIP email?' }))
+    await user.click(await screen.findByRole('button', { name: 'How should I structure a CELPIP email?' }))
     await user.click(screen.getByRole('button', { name: 'Send question' }))
 
     expect(await screen.findByText('Open with the purpose, add the key details, and close with a clear action.')).toBeInTheDocument()
@@ -99,6 +99,69 @@ describe('AI Coach', () => {
 
     await waitFor(() => expect(screen.getByText('What would you like to improve?')).toBeInTheDocument())
     expect(fetchSpy.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true)
+  })
+
+  it('opens a compact floating coach from any signed-in page', async () => {
+    const user = userEvent.setup()
+    const fetchSpy = installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/ai-coach/': () => jsonResponse({ messages: [] }),
+      'POST /me/ai-coach/': () => jsonResponse({
+        user_message: {
+          id: 'widget-user',
+          role: 'user',
+          content: 'How can I improve my reading speed?',
+          skill: 'reading',
+          created_at: '2026-09-17T12:00:00Z',
+        },
+        coach_message: {
+          id: 'widget-coach',
+          role: 'assistant',
+          content: 'Start by reading the question stems before the passage.',
+          skill: 'reading',
+          created_at: '2026-09-17T12:00:01Z',
+        },
+      }, 201),
+    })
+
+    renderApp('/study')
+
+    await user.click(await screen.findByRole('button', { name: 'Open AI Coach' }))
+    const dialog = await screen.findByRole('dialog', { name: 'AI Coach' })
+    await user.click(within(dialog).getByRole('button', { name: 'Reading' }))
+    await user.click(within(dialog).getByRole('button', { name: 'How can I find the right evidence faster?' }))
+    const composer = within(dialog).getByLabelText('Message the AI Coach')
+    await user.clear(composer)
+    await user.type(composer, 'How can I improve my reading speed?')
+    await user.click(within(dialog).getByRole('button', { name: 'Send question' }))
+
+    expect(await within(dialog).findByText('Start by reading the question stems before the passage.')).toBeInTheDocument()
+    const post = fetchSpy.mock.calls.find(
+      ([url, init]) => init?.method === 'POST' && String(url).includes('/me/ai-coach/'),
+    )
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+      message: 'How can I improve my reading speed?',
+      skill: 'reading',
+    })
+  })
+
+  it('opens the floating coach with context from How to Answer', async () => {
+    const user = userEvent.setup()
+    installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/ai-coach/': () => jsonResponse({ messages: [] }),
+      'GET /content/task-types/': () => jsonResponse([]),
+    })
+
+    renderApp('/how-to-answer')
+
+    await user.click(await screen.findByRole('button', { name: 'Ask AI Coach' }))
+    const dialog = await screen.findByRole('dialog', { name: 'AI Coach' })
+
+    expect(within(dialog).getByLabelText('Message the AI Coach')).toHaveValue(
+      'Help me answer Listening tasks at a level 11-12 standard.',
+    )
+    expect(within(dialog).getByText('Listening focus')).toBeInTheDocument()
   })
 
   it('redirects anonymous visitors to sign in', async () => {

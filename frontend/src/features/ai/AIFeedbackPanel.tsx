@@ -4,6 +4,7 @@ import { Card } from '../../components/ui'
 import { api } from '../../lib/api'
 import { Link } from 'react-router-dom'
 import { DIMENSION_LABELS } from './dimensionLabels'
+import { AICoachTrigger } from '../coach/AICoachProvider'
 
 type Dimension = { key: string; rating: number; evidence: string; next_step: string }
 type LevelTwelveExemplar = {
@@ -111,13 +112,13 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
             <p className="text-sm font-bold text-ink">Need to understand this feedback?</p>
             <p className="mt-1 text-sm leading-6 text-muted">Ask a direct follow-up and get a next step without waiting for another evaluation.</p>
           </div>
-          <Link
-            to={coachSkill ? `/coach?skill=${coachSkill}` : '/coach'}
-            state={{ coachPrompt }}
+          <AICoachTrigger
+            skill={coachSkill === 'speaking' || coachSkill === 'writing' ? coachSkill : 'general'}
+            prompt={coachPrompt}
             className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
           >
             <MessageCircleQuestion size={17} /> Ask AI Coach
-          </Link>
+          </AICoachTrigger>
         </div>
       </Card>
       {['queued', 'running'].includes(feedback.example_status ?? '') && <Card className="border-dashed p-4 text-sm text-muted" aria-live="polite"><Loader2 className="mr-2 inline animate-spin text-brand" size={16} />Preparing your example high-scoring answer…</Card>}

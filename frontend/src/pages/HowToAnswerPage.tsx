@@ -1,6 +1,6 @@
 import { BookOpen, CheckCircle2, Headphones, MessageCircleQuestion, Mic2, PenLine, Sparkles, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { AICoachTrigger } from '../features/coach/AICoachProvider'
 import { LEVEL_TWELVE_GUIDANCE } from '../features/learning/levelTwelveGuidance'
 import { TaskTypeGuides } from '../features/learning/TaskTypeGuides'
 import type { Skill, TaskTypeGuide } from '../features/learning/types'
@@ -57,13 +57,13 @@ export function HowToAnswerPage() {
               separates a solid response from a top-band (11–12) one.
             </p>
           </div>
-          <Link
-            to={`/coach?skill=${active}`}
-            state={{ coachPrompt: `Help me answer ${activeMeta.label} tasks at a level 11-12 standard.` }}
+          <AICoachTrigger
+            skill={active}
+            prompt={`Help me answer ${activeMeta.label} tasks at a level 11-12 standard.`}
             className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <MessageCircleQuestion size={18} /> Ask AI Coach
-          </Link>
+          </AICoachTrigger>
         </div>
       </header>
 
