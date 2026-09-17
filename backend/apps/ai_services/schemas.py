@@ -53,7 +53,10 @@ EXEMPLAR_SCHEMA = {
         "why_it_is_strong": {"type": "string", "minLength": 1},
         "highlights": {"type": "array", "minItems": 3, "maxItems": 5, "items": {
             "type": "object", "additionalProperties": False,
-            "properties": {"excerpt": {"type": "string", "minLength": 1}, "why_it_matters": {"type": "string", "minLength": 1}},
+            "properties": {
+                "excerpt": {"type": "string", "minLength": 1},
+                "why_it_matters": {"type": "string", "minLength": 1},
+            },
             "required": ["excerpt", "why_it_matters"],
         }},
     },
@@ -155,9 +158,26 @@ def validate_exemplar(payload: dict) -> dict:
     for highlight in highlights:
         excerpt = highlight.get("excerpt") if isinstance(highlight, dict) else None
         reason = highlight.get("why_it_matters") if isinstance(highlight, dict) else None
-        if not isinstance(excerpt, str) or not excerpt.strip() or excerpt not in response or not isinstance(reason, str) or not reason.strip():
+        if (
+            not isinstance(excerpt, str)
+            or not excerpt.strip()
+            or excerpt not in response
+            or not isinstance(reason, str)
+            or not reason.strip()
+        ):
             raise ProviderError("invalid_output", "Each example highlight must quote its response.")
     return exemplar
+
+
+def validate_coach_reply(payload: dict) -> str:
+    if not isinstance(payload, dict):
+        raise ProviderError("invalid_output", "The AI Coach returned an invalid reply.")
+    message = payload.get("message")
+    if not isinstance(message, str) or not message.strip():
+        raise ProviderError("invalid_output", "The AI Coach returned an empty reply.")
+    if len(message) > 8000:
+        raise ProviderError("invalid_output", "The AI Coach reply was too long.")
+    return message.strip()
 
 
 def validate_content_draft(payload: dict) -> dict:

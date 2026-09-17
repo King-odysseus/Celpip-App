@@ -16,6 +16,7 @@ import { StudyHubPage } from '../pages/StudyHubPage'
 import { HowToAnswerPage } from '../pages/HowToAnswerPage'
 import { ReviewHubPage } from '../pages/ReviewHubPage'
 import { DiagnosticPage } from '../features/dashboard/DiagnosticPage'
+import { AICoachPage } from '../features/coach/AICoachPage'
 
 const ReadingCatalogPage = lazy(() => import('../features/reading/ReadingCatalogPage').then((module) => ({ default: module.ReadingCatalogPage })))
 const WritingCatalogPage = lazy(() => import('../features/writing/WritingCatalogPage').then((module) => ({ default: module.WritingCatalogPage })))
@@ -46,6 +47,14 @@ export const routes = [
       { path: 'diagnostic', element: <DiagnosticPage /> },
       { path: 'study', element: <StudyHubPage /> },
       { path: 'how-to-answer', element: <HowToAnswerPage /> },
+      {
+        path: 'coach',
+        element: (
+          <ProtectedRoute>
+            <AICoachPage />
+          </ProtectedRoute>
+        ),
+      },
       { path: 'learn', element: <LazyRoute><ReadingCatalogPage mode="learn" /></LazyRoute> },
       { path: 'learn/listening', element: <LazyRoute><ReadingCatalogPage mode="learn" skill="listening" /></LazyRoute> },
       { path: 'learn/writing', element: <LazyRoute><WritingCatalogPage mode="learn" /></LazyRoute> },

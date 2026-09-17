@@ -170,6 +170,7 @@ REST_FRAMEWORK = {
         "auth_login_ip": os.environ.get("THROTTLE_AUTH_LOGIN_IP", "30/min"),
         "auth_register_ip": os.environ.get("THROTTLE_AUTH_REGISTER_IP", "5/hour"),
         "auth_recovery_ip": os.environ.get("THROTTLE_AUTH_RECOVERY_IP", "5/hour"),
+        "ai_coach": os.environ.get("THROTTLE_AI_COACH", "30/hour"),
     },
     "EXCEPTION_HANDLER": "apps.core.exceptions.exception_handler",
 }

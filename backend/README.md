@@ -26,6 +26,9 @@ and tests; production (`config.settings.prod`) refuses to start without a real
   tokens, answer keys, other users, or private audio).
 - `DELETE /api/v1/me/` — delete the account after a password or recovery-code
   confirmation; cascades owned data and private recordings.
+- `GET/POST/DELETE /api/v1/me/ai-coach/` — read the authenticated learner's
+  persisted AI Coach conversation, ask one direct improvement/task-strategy
+  question, or clear the saved conversation.
 
 Speaking attempts can be retried and compared:
 

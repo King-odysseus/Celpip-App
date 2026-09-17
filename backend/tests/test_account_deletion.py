@@ -12,7 +12,7 @@ from apps.accounts.services import (
     InvalidCredentials,
     delete_account,
 )
-from apps.ai_services.models import AIFeedback, AIJob, AIJobKind, AIJobStatus
+from apps.ai_services.models import AICoachMessage, AIFeedback, AIJob, AIJobKind, AIJobStatus
 from apps.assessments.models import (
     AssessmentSession,
     ObjectiveResult,
@@ -140,6 +140,9 @@ def _owned_data(user, task_type, version, question):
         session_item=item, job=job, kind=AIJobKind.WRITING_FEEDBACK,
         provider="fake", model="m", prompt_version="v", assessment={},
     )
+    AICoachMessage.objects.create(
+        user=user, role=AICoachMessage.Role.USER, content="How can I improve?", skill="writing"
+    )
     return Path(speaking.audio.path)
 
 
@@ -181,6 +184,7 @@ def test_delete_with_password_cascades_owned_data_and_recording(api_client):
     assert not MockAttempt.objects.filter(user_id=user.pk).exists()
     assert not SpeakingSubmission.objects.exists()
     assert not AIJob.objects.filter(session_item__session__user_id=user.pk).exists()
+    assert not AICoachMessage.objects.filter(user_id=user.pk).exists()
     assert not recording_path.exists()
 
 

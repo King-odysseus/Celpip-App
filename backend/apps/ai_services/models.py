@@ -125,3 +125,36 @@ class AIFeedback(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValidationError("AI feedback is an immutable audit record.")
+
+
+class AICoachMessage(models.Model):
+    """A learner-visible, account-scoped turn in the quick-help coach."""
+
+    class Role(models.TextChoices):
+        USER = "user", "User"
+        ASSISTANT = "assistant", "Assistant"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ai_coach_messages",
+    )
+    role = models.CharField(max_length=12, choices=Role.choices)
+    content = models.TextField()
+    skill = models.CharField(max_length=16, blank=True, default="general")
+    provider = models.CharField(max_length=32, blank=True)
+    model = models.CharField(max_length=80, blank=True)
+    prompt_version = models.CharField(max_length=40, blank=True)
+    external_id = models.CharField(max_length=120, blank=True)
+    usage = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_role_display()} AI Coach message for {self.user_id}"

@@ -251,6 +251,7 @@ const desktopGroups = [
     items: [
       { to: '/study-plan', label: 'Study Plan' },
       { to: '/how-to-answer', label: 'How to Answer' },
+      { to: '/coach', label: 'AI Coach' },
       { to: '/learn/listening', label: 'Listening Learn' },
       { to: '/learn', label: 'Reading Learn' },
       { to: '/learn/writing', label: 'Writing Learn' },

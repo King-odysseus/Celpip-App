@@ -9,7 +9,12 @@ from pathlib import Path
 from django.conf import settings
 
 from .contracts import ProviderError, ProviderResult
-from .prompts import CONTENT_DEVELOPER_PROMPT, EXEMPLAR_DEVELOPER_PROMPT, FEEDBACK_DEVELOPER_PROMPT
+from .prompts import (
+    COACH_DEVELOPER_PROMPT,
+    CONTENT_DEVELOPER_PROMPT,
+    EXEMPLAR_DEVELOPER_PROMPT,
+    FEEDBACK_DEVELOPER_PROMPT,
+)
 from .schemas import CONTENT_DRAFT_SCHEMA, EXEMPLAR_SCHEMA, FEEDBACK_SCHEMA
 
 
@@ -57,9 +62,24 @@ class FakeProvider:
                         "practice band; it is not an official CELPIP score."
                     ),
                     "highlights": [
-                        {"excerpt": "raising this matter", "why_it_matters": "Acknowledges the situation with an appropriate, audience-aware tone."},
-                        {"excerpt": "confirming the key details", "why_it_matters": "Shows a precise and logical first action."},
-                        {"excerpt": "proposing a practical solution", "why_it_matters": "Addresses the task with concrete support rather than a vague promise."},
+                        {
+                            "excerpt": "raising this matter",
+                            "why_it_matters": (
+                                "Acknowledges the situation with an appropriate, "
+                                "audience-aware tone."
+                            ),
+                        },
+                        {
+                            "excerpt": "confirming the key details",
+                            "why_it_matters": "Shows a precise and logical first action.",
+                        },
+                        {
+                            "excerpt": "proposing a practical solution",
+                            "why_it_matters": (
+                                "Addresses the task with concrete support rather than a "
+                                "vague promise."
+                            ),
+                        },
                     ],
                 },
             },
@@ -77,7 +97,45 @@ class FakeProvider:
         return ProviderResult(result.payload | {"transcript": transcript}, result.external_id)
 
     def generate_exemplar(self, payload: dict) -> ProviderResult:
-        return ProviderResult(self._feedback(payload, delivery_label="Readability").payload["level_twelve_exemplar"], "fake-exemplar")
+        exemplar = self._feedback(payload, delivery_label="Readability").payload[
+            "level_twelve_exemplar"
+        ]
+        return ProviderResult(exemplar, "fake-exemplar")
+
+    def coach_reply(self, payload: dict) -> ProviderResult:
+        skill = str(payload.get("skill") or "general")
+        focus = {
+            "listening": (
+                "Take notes on purpose, speaker changes, and the detail that answers the question."
+            ),
+            "reading": (
+                "Locate the evidence first, then eliminate choices that go beyond the passage."
+            ),
+            "writing": (
+                "State one clear position, support it with specific details, and finish with a "
+                "purposeful close."
+            ),
+            "speaking": (
+                "Use a simple structure, keep moving, and support each point with one concrete "
+                "example."
+            ),
+            "general": (
+                "Choose one skill, practise a short timed response, and review one weakness "
+                "immediately."
+            ),
+        }.get(
+            skill,
+            "Choose one skill and make the next practice attempt specific and measurable.",
+        )
+        message = (
+            f"For {skill} practice, start with the task requirement rather than a memorized "
+            "template. "
+            f"1. {focus} 2. Check that every sentence has a clear job. "
+            "3. Review one weak point before starting another attempt. "
+            "Next action: answer one prompt in 10 minutes, then compare it with the task "
+            "instructions."
+        )
+        return ProviderResult({"message": message}, external_id="fake-coach")
 
     def generate_content(self, payload: dict) -> ProviderResult:
         topic = str(payload.get("topic", "Canadian community services"))
@@ -232,6 +290,39 @@ class OpenAIProvider:
         return self._structured(
             developer_prompt=EXEMPLAR_DEVELOPER_PROMPT, payload=payload,
             schema=EXEMPLAR_SCHEMA, name="celpip_response_exemplar",
+        )
+
+    def coach_reply(self, payload: dict) -> ProviderResult:
+        skill = str(payload.get("skill") or "general")
+        message = str(payload.get("message") or "").strip()
+        history = payload.get("history") if isinstance(payload.get("history"), list) else []
+        input_items = [
+            {
+                "role": item.get("role"),
+                "content": str(item.get("content") or ""),
+            }
+            for item in history
+            if isinstance(item, dict) and item.get("role") in {"user", "assistant"}
+        ]
+        input_items.append(
+            {
+                "role": "user",
+                "content": f"Practice focus: {skill}\n\nLearner question: {message}",
+            }
+        )
+        try:
+            response = self.client.responses.create(
+                model=settings.OPENAI_TEXT_MODEL,
+                store=False,
+                instructions=COACH_DEVELOPER_PROMPT,
+                input=input_items,
+                max_output_tokens=900,
+            )
+            reply = response.output_text
+        except Exception as exc:
+            raise ProviderError("provider_error", "OpenAI could not answer the learner.") from exc
+        return ProviderResult(
+            {"message": reply}, getattr(response, "id", ""), self._usage(response)
         )
 
     def generate_content(self, payload: dict) -> ProviderResult:

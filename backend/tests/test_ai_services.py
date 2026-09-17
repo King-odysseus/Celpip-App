@@ -11,18 +11,22 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.utils import timezone
 
+from apps.accounts.models import User
 from apps.ai_services.contracts import ProviderError, ProviderResult
-from apps.ai_services.models import AIFeedback, AIJob, AIJobKind, AIJobStatus
+from apps.ai_services.models import AICoachMessage, AIFeedback, AIJob, AIJobKind, AIJobStatus
 from apps.ai_services.providers import FakeProvider, OpenAIProvider
 from apps.ai_services.services import (
     FEEDBACK_RETENTION_DAYS,
+    ask_coach,
     claim_next_job,
+    coach_messages,
     enqueue_content_draft,
+    enqueue_response_exemplar,
     feedback_history,
     materialize_content_draft,
     run_job,
 )
-from apps.accounts.models import User
+from apps.ai_services.throttling import AICoachRateThrottle
 from apps.assessments.models import AssessmentSession, SessionItem, SpeakingSubmission
 from apps.assessments.storage import private_recording_storage
 from apps.content.models import (
@@ -92,6 +96,11 @@ def test_writing_submission_queues_runs_and_exposes_owned_feedback(
     feedback = AIFeedback.objects.get()
     assert feedback.assessment["estimated_level_low"] <= feedback.assessment["estimated_level_high"]
     assert "not an official CELPIP score" in feedback.assessment["disclaimer"]
+    exemplar = enqueue_response_exemplar(finished.session_item)
+    assert exemplar.input_snapshot["learner_response"] == (
+        "I am writing about the renovation noise. Please limit work to daytime hours."
+    )
+    assert exemplar.input_snapshot["feedback"]["priorities"]
 
     endpoint = f"/api/v1/sessions/{started.json()['id']}/ai-feedback/"
     assert api_client.get(endpoint).status_code == 403
@@ -226,6 +235,116 @@ def test_openai_adapter_uses_private_structured_responses(settings):
     assert captured["text"]["format"]["type"] == "json_schema"
     assert result.external_id == "resp_test"
     assert result.usage["input_tokens"] == 10
+
+
+def test_openai_coach_uses_plain_private_responses_conversation(settings):
+    settings.OPENAI_API_KEY = ""
+    settings.OPENAI_TEXT_MODEL = "test-model"
+    captured = {}
+
+    class Responses:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                id="resp_coach",
+                output_text="Use a clear structure and add one specific example.",
+                usage=SimpleNamespace(model_dump=lambda: {"input_tokens": 12}),
+            )
+
+    provider = OpenAIProvider(client=SimpleNamespace(responses=Responses()))
+    result = provider.coach_reply(
+        {
+            "message": "How can I improve my writing?",
+            "skill": "writing",
+            "history": [{"role": "user", "content": "Earlier question"}],
+        }
+    )
+
+    assert captured["store"] is False
+    assert captured["model"] == "test-model"
+    assert captured["max_output_tokens"] == 900
+    assert "CELPIP-General preparation" in captured["instructions"]
+    assert captured["input"][-1]["content"].endswith("How can I improve my writing?")
+    assert result.payload["message"].startswith("Use a clear structure")
+    assert result.external_id == "resp_coach"
+
+
+def test_ai_coach_persists_only_the_owners_conversation(api_client):
+    owner = User.objects.create_user(identifier="coach-owner", password="secret1")
+    stranger = User.objects.create_user(identifier="coach-stranger", password="secret1")
+
+    assert api_client.get("/api/v1/me/ai-coach/").status_code == 401
+    api_client.force_authenticate(owner)
+    created = api_client.post(
+        "/api/v1/me/ai-coach/",
+        {"message": "How should I structure a writing email?", "skill": "writing"},
+        format="json",
+    )
+    assert created.status_code == 201
+    assert created.json()["user_message"]["role"] == "user"
+    assert created.json()["coach_message"]["role"] == "assistant"
+    assert AICoachMessage.objects.filter(user=owner).count() == 2
+
+    history = api_client.get("/api/v1/me/ai-coach/")
+    assert history.status_code == 200
+    assert [item["role"] for item in history.json()["messages"]] == ["user", "assistant"]
+
+    api_client.force_authenticate(stranger)
+    assert api_client.get("/api/v1/me/ai-coach/").json() == {"messages": []}
+    assert api_client.delete("/api/v1/me/ai-coach/").status_code == 204
+    assert AICoachMessage.objects.filter(user=owner).count() == 2
+
+
+def test_ai_coach_rejects_empty_questions(api_client):
+    user = User.objects.create_user(identifier="coach-validation", password="secret1")
+    api_client.force_authenticate(user)
+
+    response = api_client.post(
+        "/api/v1/me/ai-coach/", {"message": "   ", "skill": "reading"}, format="json"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "invalid_input"
+    assert not AICoachMessage.objects.filter(user=user).exists()
+
+
+def test_ai_coach_clear_removes_only_the_current_users_history(api_client):
+    owner = User.objects.create_user(identifier="coach-clear", password="secret1")
+    stranger = User.objects.create_user(identifier="coach-keep", password="secret1")
+    ask_coach(user=owner, message="Question one?", skill="reading")
+    ask_coach(user=stranger, message="Question two?", skill="listening")
+
+    api_client.force_authenticate(owner)
+    response = api_client.delete("/api/v1/me/ai-coach/")
+
+    assert response.status_code == 204
+    assert coach_messages(owner) == []
+    assert len(coach_messages(stranger)) == 2
+
+
+def test_ai_coach_rate_limit_only_charges_question_submissions(api_client, monkeypatch):
+    monkeypatch.setattr(AICoachRateThrottle, "rate", "2/hour", raising=False)
+    user = User.objects.create_user(identifier="coach-throttle", password="secret1")
+    api_client.force_authenticate(user)
+
+    for _ in range(4):
+        assert api_client.get("/api/v1/me/ai-coach/").status_code == 200
+
+    for _ in range(2):
+        response = api_client.post(
+            "/api/v1/me/ai-coach/",
+            {"message": "How can I improve?", "skill": "general"},
+            format="json",
+        )
+        assert response.status_code == 201
+
+    assert api_client.post(
+        "/api/v1/me/ai-coach/",
+        {"message": "One more question?", "skill": "general"},
+        format="json",
+    ).status_code == 429
+    assert api_client.get("/api/v1/me/ai-coach/").status_code == 200
+    assert api_client.delete("/api/v1/me/ai-coach/").status_code == 204
 
 
 def test_feedback_model_cannot_be_deleted_after_creation(

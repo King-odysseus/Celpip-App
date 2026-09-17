@@ -6,6 +6,7 @@ import pytest
 from django.utils import timezone
 
 from apps.accounts.models import LearnerProfile, RecoveryCode, User
+from apps.ai_services.models import AICoachMessage
 from apps.assessments.models import (
     AssessmentSession,
     ObjectiveResult,
@@ -187,6 +188,15 @@ def test_export_contains_all_expected_sections(api_client):
         last_seen_at=timezone.now(),
     )
     StudyPlan.objects.create(user=user, version=1, is_active=True, reason_summary={})
+    AICoachMessage.objects.create(
+        user=user,
+        role=AICoachMessage.Role.ASSISTANT,
+        content="Use one clear reason and one specific example.",
+        skill="writing",
+        provider="fake",
+        model="test-model",
+        prompt_version="coach-v1",
+    )
     format_version = FormatVersion.objects.create(
         code="mock-format", name="Mock", is_active=True, verified_on=dt.date(2026, 8, 29)
     )
@@ -206,6 +216,9 @@ def test_export_contains_all_expected_sections(api_client):
     assert body["mistakes"]
     assert body["study_plans"]
     assert body["mock_attempts"] and body["mock_attempts"][0]["id"] == str(attempt.id)
+    assert body["coach_messages"][0]["content"] == (
+        "Use one clear reason and one specific example."
+    )
     # Authored response text/metadata is present.
     assert body["sessions"][0]["writing_submission"]["text"] == "My authored writing."
     assert body["sessions"][0]["speaking_submission"]["duration_ms"] == 1000

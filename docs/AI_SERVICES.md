@@ -15,6 +15,10 @@ never be added to `VITE_*`, source control, or browser storage.
   Listening job. Successful output can only become an `AI-generated draft` in
   Django Admin; the existing separate-reviewer rule prevents automatic or
   self-publication.
+- AI Coach: an authenticated learner can ask direct improvement or task-strategy
+  questions at `/api/v1/me/ai-coach/`. Replies are synchronous provider calls,
+  capped by a separate per-user throttle, and are stored as account-scoped
+  conversation messages so the learner can revisit, export, or clear them.
 - Media: the provider interface implements GPT Image prompt scenes and TTS for
   original listening scripts. These binaries must enter the private/editorial
   asset workflow and be reviewed before a content version can be published.

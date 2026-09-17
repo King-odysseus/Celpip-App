@@ -262,6 +262,7 @@ describe('Speaking recorder', () => {
       }),
       [`GET /sessions/${sessionId}/ai-feedback/`]: () => jsonResponse({
         status: 'succeeded',
+        kind: 'speaking_feedback',
         transcript: 'I would suggest taking the evening course.',
         assessment: {
           overall_summary: 'Clear advice with room for more support.',
@@ -287,6 +288,10 @@ describe('Speaking recorder', () => {
     expect(screen.getByText('Content/Coherence')).toBeInTheDocument()
     expect(screen.getAllByText(/not an official CELPIP score/i).length).toBeGreaterThan(0)
     expect(await screen.findByRole('heading', { name: 'Estimated range: 6–7' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ask AI Coach' })).toHaveAttribute(
+      'href',
+      '/coach?skill=speaking',
+    )
     expect(screen.getByText('AI transcript used for feedback')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText('Replay your response').parentElement?.querySelector('audio')).toHaveAttribute('src', 'blob:server-speaking'))
     expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('/api/v1/api/v1/'))).toBe(false)

@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import AIFeedbackHistoryView, AIFeedbackView
+from .views import AICoachView, AIFeedbackHistoryView, AIFeedbackView
 
 app_name = "ai_services"
 
@@ -15,4 +15,5 @@ urlpatterns = [
         AIFeedbackHistoryView.as_view(),
         name="ai-feedback-history",
     ),
+    path("me/ai-coach/", AICoachView.as_view(), name="ai-coach"),
 ]

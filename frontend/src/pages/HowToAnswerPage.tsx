@@ -1,5 +1,6 @@
-import { BookOpen, CheckCircle2, Headphones, Mic2, PenLine, Sparkles, type LucideIcon } from 'lucide-react'
+import { BookOpen, CheckCircle2, Headphones, MessageCircleQuestion, Mic2, PenLine, Sparkles, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { LEVEL_TWELVE_GUIDANCE } from '../features/learning/levelTwelveGuidance'
 import { TaskTypeGuides } from '../features/learning/TaskTypeGuides'
 import type { Skill, TaskTypeGuide } from '../features/learning/types'
@@ -48,11 +49,22 @@ export function HowToAnswerPage() {
     <div className="mx-auto w-full max-w-[1600px] space-y-8 animate-fade-up">
       <header className="rounded-card bg-brand px-5 py-8 text-white shadow-elevated sm:px-8">
         <p className="text-xs font-bold uppercase tracking-[0.16em] text-accent-soft">The method, not just more questions</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">How to Answer</h1>
-        <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80 sm:text-base">
-          For each skill: a reliable approach for every task type, the mistakes that quietly cost marks, and what
-          separates a solid response from a top-band (11–12) one.
-        </p>
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">How to Answer</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-white/80 sm:text-base">
+              For each skill: a reliable approach for every task type, the mistakes that quietly cost marks, and what
+              separates a solid response from a top-band (11–12) one.
+            </p>
+          </div>
+          <Link
+            to={`/coach?skill=${active}`}
+            state={{ coachPrompt: `Help me answer ${activeMeta.label} tasks at a level 11-12 standard.` }}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-bold text-brand transition hover:bg-accent-soft focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <MessageCircleQuestion size={18} /> Ask AI Coach
+          </Link>
+        </div>
       </header>
 
       <nav aria-label="Skill" className="flex flex-wrap gap-2">

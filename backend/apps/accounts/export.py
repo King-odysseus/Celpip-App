@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from django.utils import timezone
 
-from apps.ai_services.models import AIFeedback
+from apps.ai_services.models import AICoachMessage, AIFeedback
 from apps.assessments.models import (
     AssessmentSession,
     ObjectiveResult,
@@ -201,6 +201,14 @@ def _study_plans(user: User) -> list[dict]:
     ]
 
 
+def _coach_messages(user: User) -> list[dict]:
+    return list(
+        AICoachMessage.objects.filter(user=user)
+        .order_by("created_at", "id")
+        .values("id", "role", "content", "skill", "provider", "model", "created_at")
+    )
+
+
 def _mock_attempts(user: User) -> list[dict]:
     attempts = MockAttempt.objects.filter(user=user).prefetch_related("tasks")
     exported: list[dict] = []
@@ -229,4 +237,5 @@ def build_export(user: User) -> dict:
         "mistakes": _mistakes(user),
         "study_plans": _study_plans(user),
         "mock_attempts": _mock_attempts(user),
+        "coach_messages": _coach_messages(user),
     }

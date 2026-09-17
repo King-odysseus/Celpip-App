@@ -98,6 +98,9 @@ Phase 6 adds audited AI services:
   development/tests and a live `openai` adapter behind a backend-only key.
 - Structured, versioned writing evaluation and speaking transcription/evaluation
   with immutable, labelled, non-official estimates.
+- A synchronous, account-scoped AI Coach for direct improvement and
+  task-strategy questions, with saved conversation history, cost controls, and
+  export/delete coverage.
 - AI drafting that can only publish through the existing human editorial gate.
   See [`docs/AI_SERVICES.md`](docs/AI_SERVICES.md).
 

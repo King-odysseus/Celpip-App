@@ -1,4 +1,4 @@
-import { Bot, Loader2, ShieldCheck } from 'lucide-react'
+import { Bot, Loader2, MessageCircleQuestion, ShieldCheck } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Card } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -13,6 +13,7 @@ type LevelTwelveExemplar = {
 }
 type FeedbackState = {
   status: 'not_requested' | 'queued' | 'running' | 'succeeded' | 'failed'
+  kind?: 'writing_feedback' | 'speaking_feedback'
   error?: string
   example_status?: 'not_requested' | 'queued' | 'running' | 'succeeded' | 'failed'
   transcript?: string
@@ -77,6 +78,12 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
   }
 
   const assessment = feedback.assessment
+  const coachSkill = feedback.kind === 'speaking_feedback'
+    ? 'speaking'
+    : feedback.kind === 'writing_feedback'
+      ? 'writing'
+      : ''
+  const coachPrompt = `Help me improve the priorities from my ${coachSkill || 'practice'} feedback: ${assessment.priorities.join('; ')}`
   return (
     <section aria-labelledby="ai-feedback-title" className="space-y-4">
       <Card className="overflow-hidden p-0">
@@ -98,6 +105,21 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
       </div>
       {feedback.transcript && <details className="card p-5"><summary className="cursor-pointer font-bold text-ink">AI transcript used for feedback</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{feedback.transcript}</p></details>}
       {assessment.level_twelve_exemplar && <LevelTwelveExemplarPanel exemplar={assessment.level_twelve_exemplar} />}
+      <Card className="border-brand/20 bg-brand-soft/35">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-bold text-ink">Need to understand this feedback?</p>
+            <p className="mt-1 text-sm leading-6 text-muted">Ask a direct follow-up and get a next step without waiting for another evaluation.</p>
+          </div>
+          <Link
+            to={coachSkill ? `/coach?skill=${coachSkill}` : '/coach'}
+            state={{ coachPrompt }}
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+          >
+            <MessageCircleQuestion size={17} /> Ask AI Coach
+          </Link>
+        </div>
+      </Card>
       {['queued', 'running'].includes(feedback.example_status ?? '') && <Card className="border-dashed p-4 text-sm text-muted" aria-live="polite"><Loader2 className="mr-2 inline animate-spin text-brand" size={16} />Preparing your example high-scoring answer…</Card>}
       {feedback.example_status === 'failed' && <Card className="border-dashed p-4 text-sm text-muted">Your score is ready. The example answer could not be generated after several attempts.</Card>}
       {practiceHref && <Card className="border-accent/30 bg-accent-soft/25"><p className="text-sm font-bold text-ink">Apply this feedback on a fresh prompt</p><p className="mt-1 text-sm text-muted">Try the same task type again so the app can compare your next response with this one.</p><Link to={practiceHref} className="mt-3 inline-flex min-h-10 items-center rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">Practise this next</Link></Card>}
@@ -112,13 +134,13 @@ function LevelTwelveExemplarPanel({ exemplar }: { exemplar: LevelTwelveExemplar 
       <p className="text-xs font-bold uppercase tracking-widest text-brand">Score-12 learning model</p>
       <h3 className="mt-1 text-xl font-bold text-ink">How the AI would answer this task</h3>
       <p className="mt-2 text-sm leading-6 text-muted">{exemplar.why_it_is_strong}</p>
-      <div className="mt-4 rounded-lg bg-white/70 p-4 text-sm leading-7 text-ink">
+      <div className="mt-4 rounded-lg bg-surface p-4 text-sm leading-7 text-ink">
         <p className="whitespace-pre-wrap">{exemplar.response}</p>
       </div>
       <div className="mt-4 space-y-2">
         <p className="text-sm font-bold text-ink">Why this response is strong</p>
         {exemplar.highlights.map((highlight, index) => (
-          <div key={`${highlight.excerpt}-${index}`} className="rounded-lg border border-accent/30 bg-white/60 p-3 text-sm leading-6 text-muted">
+          <div key={`${highlight.excerpt}-${index}`} className="rounded-lg border border-accent/30 bg-surface-secondary p-3 text-sm leading-6 text-muted">
             <mark className="rounded bg-accent-soft px-1 font-semibold text-ink">“{highlight.excerpt}”</mark>
             <span> — {highlight.why_it_matters}</span>
           </div>

@@ -25,10 +25,20 @@ from apps.content.models import (
 from apps.content.services import validate_content_version
 
 from .contracts import ProviderError
-from .models import AIFeedback, AIJob, AIJobKind, AIJobStatus
-from .prompts import CONTENT_PROMPT_VERSION, EXEMPLAR_PROMPT_VERSION, FEEDBACK_PROMPT_VERSION
+from .models import AICoachMessage, AIFeedback, AIJob, AIJobKind, AIJobStatus
+from .prompts import (
+    COACH_PROMPT_VERSION,
+    CONTENT_PROMPT_VERSION,
+    EXEMPLAR_PROMPT_VERSION,
+    FEEDBACK_PROMPT_VERSION,
+)
 from .providers import get_provider
-from .schemas import validate_content_draft, validate_exemplar, validate_feedback
+from .schemas import (
+    validate_coach_reply,
+    validate_content_draft,
+    validate_exemplar,
+    validate_feedback,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +46,10 @@ logger = logging.getLogger(__name__)
 # transcript + analysis + score). After this, the retention command purges it.
 # The audio recording is dropped much earlier — immediately once feedback lands.
 FEEDBACK_RETENTION_DAYS = 180
+COACH_HISTORY_LIMIT = 60
+COACH_CONTEXT_MESSAGES = 12
+COACH_MAX_MESSAGE_LENGTH = 2000
+COACH_SKILLS = {"general", "listening", "reading", "writing", "speaking"}
 
 
 def discard_speaking_audio(submission) -> None:
@@ -134,10 +148,22 @@ def enqueue_content_draft(*, task_type: TaskType, topic: str, difficulty: int, u
 def enqueue_response_exemplar(session_item) -> AIJob:
     """Queue one independently retryable example answer after scoring succeeds."""
     existing = AIJob.objects.filter(
-        session_item=session_item, kind=AIJobKind.RESPONSE_EXEMPLAR
+        session_item=session_item,
+        kind=AIJobKind.RESPONSE_EXEMPLAR,
+        prompt_version=EXEMPLAR_PROMPT_VERSION,
     ).first()
     if existing:
         return existing
+    skill = session_item.snapshot.get("skill")
+    learner_response = ""
+    if skill == "writing":
+        learner_response = WritingSubmission.objects.get(session_item=session_item).text
+    elif skill == "speaking":
+        feedback = AIFeedback.objects.filter(session_item=session_item).first()
+        if feedback:
+            learner_response = feedback.transcript
+    feedback = AIFeedback.objects.filter(session_item=session_item).first()
+    feedback_context = feedback.assessment if feedback else {}
     return AIJob.objects.create(
         kind=AIJobKind.RESPONSE_EXEMPLAR,
         user=session_item.session.user,
@@ -146,10 +172,12 @@ def enqueue_response_exemplar(session_item) -> AIJob:
         model=settings.OPENAI_TEXT_MODEL,
         prompt_version=EXEMPLAR_PROMPT_VERSION,
         input_snapshot={
-            "skill": session_item.snapshot.get("skill"),
+            "skill": skill,
             "task_type": session_item.snapshot.get("task_type"),
             "instructions": session_item.snapshot.get("instructions"),
             "stimulus": session_item.snapshot.get("stimulus"),
+            "learner_response": learner_response,
+            "feedback": feedback_context,
         },
         max_attempts=settings.AI_MAX_ATTEMPTS,
         run_after=timezone.now(),
@@ -450,3 +478,72 @@ def feedback_history(user) -> list[dict]:
             }
         )
     return results
+
+
+def coach_messages(user) -> list[AICoachMessage]:
+    """Return the most recent coach turns in natural conversation order."""
+    recent = list(
+        AICoachMessage.objects.filter(user=user).order_by("-created_at", "-id")[
+            :COACH_HISTORY_LIMIT
+        ]
+    )
+    recent.reverse()
+    return recent
+
+
+def ask_coach(*, user, message: str, skill: str) -> tuple[AICoachMessage, AICoachMessage]:
+    """Answer one learner turn immediately and persist both sides of it."""
+    clean_message = (message or "").strip()
+    clean_skill = (skill or "general").strip().lower()
+    if not clean_message:
+        raise ValidationError("Write a question before sending it.")
+    if len(clean_message) > COACH_MAX_MESSAGE_LENGTH:
+        raise ValidationError(
+            f"Questions must be {COACH_MAX_MESSAGE_LENGTH} characters or fewer."
+        )
+    if clean_skill not in COACH_SKILLS:
+        raise ValidationError("Choose a valid practice skill.")
+
+    recent = list(
+        AICoachMessage.objects.filter(user=user).order_by("-created_at", "-id")[
+            :COACH_CONTEXT_MESSAGES
+        ]
+    )
+    recent.reverse()
+    result = get_provider().coach_reply(
+        {
+            "message": clean_message,
+            "skill": clean_skill,
+            "history": [
+                {"role": item.role, "content": item.content}
+                for item in recent
+            ],
+        }
+    )
+    reply = validate_coach_reply(result.payload)
+
+    with transaction.atomic():
+        learner_message = AICoachMessage.objects.create(
+            user=user,
+            role=AICoachMessage.Role.USER,
+            content=clean_message,
+            skill=clean_skill,
+        )
+        coach_message = AICoachMessage.objects.create(
+            user=user,
+            role=AICoachMessage.Role.ASSISTANT,
+            content=reply,
+            skill=clean_skill,
+            provider=settings.AI_PROVIDER,
+            model=settings.OPENAI_TEXT_MODEL,
+            prompt_version=COACH_PROMPT_VERSION,
+            external_id=result.external_id,
+            usage=result.usage,
+        )
+    return learner_message, coach_message
+
+
+def clear_coach_messages(user) -> int:
+    """Delete the learner's quick-help conversation on request."""
+    deleted, _ = AICoachMessage.objects.filter(user=user).delete()
+    return deleted
