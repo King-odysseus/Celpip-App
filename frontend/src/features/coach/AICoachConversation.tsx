@@ -105,7 +105,7 @@ export function AICoachConversation({
               className={`${compact ? 'rounded-xl px-3 py-2.5' : 'rounded-2xl px-4 py-3'} text-sm leading-6 ${
                 message.role === 'user'
                   ? `${compact ? 'rounded-br-sm' : 'rounded-br-md'} bg-brand text-white shadow-sm`
-                  : `${compact ? 'rounded-bl-sm' : 'rounded-bl-md'} border border-line-light bg-surface-secondary text-ink`
+                  : `${compact ? 'rounded-bl-sm' : 'rounded-bl-md'} bg-surface-secondary text-ink`
               }`}
             >
               {message.role === 'assistant'
@@ -124,7 +124,7 @@ export function AICoachConversation({
       </div>
 
       <form
-        className={`border-t border-line-light bg-surface ${compact ? 'p-3' : 'p-3 sm:p-4'}`}
+        className={`bg-surface ${compact ? 'p-3' : 'p-3 sm:p-4'}`}
         onSubmit={(event) => {
           event.preventDefault()
           void sendMessage()
@@ -135,7 +135,7 @@ export function AICoachConversation({
             {error}
           </p>
         )}
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface-secondary p-1.5 pl-2 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
+        <div className="flex items-end gap-2 rounded-2xl bg-surface-secondary p-1.5 pl-2 focus-within:ring-2 focus-within:ring-brand/25">
           <label htmlFor={fieldId} className="sr-only">Message the AI Coach</label>
           <textarea
             ref={textareaRef}

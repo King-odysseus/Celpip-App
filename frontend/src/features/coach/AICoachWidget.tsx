@@ -59,7 +59,7 @@ export function AICoachWidget() {
       <section
         role="dialog"
         aria-labelledby="ai-coach-widget-title"
-        className="fixed inset-x-3 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-50 flex h-[min(36rem,calc(100dvh-8rem))] flex-col overflow-hidden rounded-3xl border border-line bg-surface shadow-elevated lg:inset-x-auto lg:right-6 lg:bottom-6 lg:h-[min(38rem,calc(100dvh-3rem))] lg:w-[24rem]"
+        className="fixed inset-x-3 bottom-[calc(6.25rem+env(safe-area-inset-bottom))] z-50 flex h-[min(36rem,calc(100dvh-8rem))] flex-col overflow-hidden rounded-3xl bg-surface shadow-elevated lg:inset-x-auto lg:right-6 lg:bottom-6 lg:h-[min(38rem,calc(100dvh-3rem))] lg:w-[24rem]"
       >
         <header className="flex min-h-16 items-center gap-2 bg-brand px-3.5 py-3 text-white">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15">
@@ -102,7 +102,7 @@ export function AICoachWidget() {
           </button>
         </header>
 
-        <div className="scrollbar-none flex gap-1.5 overflow-x-auto border-b border-line-light px-3 py-2.5 [mask-image:linear-gradient(to_right,transparent,black_0.75rem,black_calc(100%-1.5rem),transparent)]">
+        <div className="scrollbar-none flex gap-1.5 overflow-x-auto px-3 py-2.5 [mask-image:linear-gradient(to_right,transparent,black_0.75rem,black_calc(100%-1.5rem),transparent)]">
           {COACH_SKILLS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
