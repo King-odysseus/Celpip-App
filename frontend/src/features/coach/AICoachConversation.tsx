@@ -3,6 +3,7 @@ import { useEffect, useId, useRef } from 'react'
 import { Button } from '../../components/ui'
 import { STARTERS } from './coachData'
 import { useAICoach } from './AICoachProvider'
+import { CoachMarkdown } from './CoachMarkdown'
 
 export function AICoachConversation({
   compact = false,
@@ -38,6 +39,13 @@ export function AICoachConversation({
     return () => window.clearTimeout(timer)
   }, [autoFocus])
 
+  useEffect(() => {
+    const field = textareaRef.current
+    if (!field) return
+    field.style.height = 'auto'
+    field.style.height = `${field.scrollHeight}px`
+  }, [draft])
+
   function chooseStarter(prompt: string) {
     setDraft(prompt)
     textareaRef.current?.focus()
@@ -49,7 +57,7 @@ export function AICoachConversation({
         role="log"
         aria-live="polite"
         aria-label="AI Coach conversation"
-        className={compact ? 'min-h-0 flex-1 space-y-3 overflow-y-auto px-3 py-4' : 'min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5'}
+        className={compact ? 'scrollbar-none min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-3.5 py-4' : 'scrollbar-none min-h-0 flex-1 space-y-4 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-5 sm:px-5'}
       >
         {loading && messages.length === 0 && (
           <p role="status" className="flex items-center justify-center gap-2 py-16 text-sm text-muted">
@@ -88,19 +96,21 @@ export function AICoachConversation({
         {messages.map((message) => (
           <article
             key={message.id}
-            className={message.role === 'user' ? 'ml-auto max-w-[88%]' : 'mr-auto max-w-[92%]'}
+            className={`min-w-0 ${message.role === 'user' ? 'ml-auto max-w-[85%]' : 'mr-auto max-w-full'}`}
           >
-            <p className={`mb-1 text-xs font-bold uppercase tracking-wide ${message.role === 'user' ? 'text-right text-muted' : 'text-brand'}`}>
+            <p className={`mb-1 text-[11px] font-bold uppercase tracking-wider ${message.role === 'user' ? 'text-right text-muted' : 'text-brand'}`}>
               {message.role === 'user' ? 'You' : 'AI Coach'}
             </p>
             <div
               className={`${compact ? 'rounded-xl px-3 py-2.5' : 'rounded-2xl px-4 py-3'} text-sm leading-6 ${
                 message.role === 'user'
-                  ? `${compact ? 'rounded-br-sm' : 'rounded-br-md'} bg-brand text-white`
-                  : `${compact ? 'rounded-bl-sm' : 'rounded-bl-md'} bg-surface-secondary text-ink`
+                  ? `${compact ? 'rounded-br-sm' : 'rounded-br-md'} bg-brand text-white shadow-sm`
+                  : `${compact ? 'rounded-bl-sm' : 'rounded-bl-md'} border border-line-light bg-surface-secondary text-ink`
               }`}
             >
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              {message.role === 'assistant'
+                ? <CoachMarkdown content={message.content} />
+                : <p className="whitespace-pre-wrap break-words">{message.content}</p>}
             </div>
           </article>
         ))}
@@ -125,7 +135,7 @@ export function AICoachConversation({
             {error}
           </p>
         )}
-        <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface-secondary p-2 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
+        <div className="flex items-end gap-2 rounded-2xl border border-line bg-surface-secondary p-1.5 pl-2 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/15">
           <label htmlFor={fieldId} className="sr-only">Message the AI Coach</label>
           <textarea
             ref={textareaRef}
@@ -134,7 +144,7 @@ export function AICoachConversation({
             maxLength={2000}
             rows={compact ? 1 : 2}
             placeholder="Ask about improving or answering a task..."
-            className={`${compact ? 'min-h-10 max-h-28' : 'min-h-12 max-h-40'} flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-muted`}
+            className={`${compact ? 'min-h-10 max-h-28' : 'min-h-12 max-h-40'} scrollbar-none min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-muted`}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {

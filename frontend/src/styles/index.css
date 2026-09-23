@@ -296,3 +296,12 @@ body {
   font-weight: 500;
   transition: border-color 150ms ease, transform 150ms ease;
 }
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

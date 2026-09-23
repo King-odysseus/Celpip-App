@@ -102,7 +102,7 @@ export function AICoachWidget() {
           </button>
         </header>
 
-        <div className="flex gap-1 overflow-x-auto border-b border-line-light px-3 py-2">
+        <div className="scrollbar-none flex gap-1.5 overflow-x-auto border-b border-line-light px-3 py-2.5 [mask-image:linear-gradient(to_right,transparent,black_0.75rem,black_calc(100%-1.5rem),transparent)]">
           {COACH_SKILLS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
@@ -121,7 +121,7 @@ export function AICoachWidget() {
         </div>
 
         <AICoachConversation compact autoFocus />
-        <p className="border-t border-line-light px-3 py-2 text-center text-[11px] leading-4 text-muted">
+        <p className="px-3 pb-2.5 text-center text-[11px] leading-4 text-muted">
           Practice guidance only. Not an official CELPIP score.
         </p>
       </section>
