@@ -197,7 +197,7 @@ export function SpeakingCatalogPage({ mode }: { mode: SessionMode }) {
                     className="mt-6 w-full sm:w-auto sm:self-start"
                     variant={isLearn ? 'accent' : 'primary'}
                     disabled={authStatus === 'loading' || starting !== null}
-                    onClick={() => (isLearn ? setPendingItem(item) : void begin(item))}
+                    onClick={() => (diagnostic ? void begin(item) : setPendingItem(item))}
                   >
                     {isLearn ? <GraduationCap size={18} /> : <Play size={18} />}
                     {starting === item.slug ? 'Opening…' : completed ? 'Practice again' : isLearn ? 'Learn with this prompt' : 'Open microphone practice'}

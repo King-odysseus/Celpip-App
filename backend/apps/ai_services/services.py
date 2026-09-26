@@ -14,6 +14,7 @@ from django.utils import timezone
 
 from apps.assessments.models import SpeakingSubmission, WritingSubmission
 from apps.assessments.storage import private_recording_storage
+from apps.content.answer_patterns import grading_pattern
 from apps.content.models import (
     Choice,
     ContentItem,
@@ -52,6 +53,13 @@ COACH_CONTEXT_MESSAGES = 12
 COACH_MAX_MESSAGE_LENGTH = 8000
 COACH_TITLE_LENGTH = 120
 COACH_SKILLS = {"general", "listening", "reading", "writing", "speaking"}
+# An example answer is shown only after the same grader places it at this
+# level or above; otherwise one more draft is written from the grader's notes.
+EXEMPLAR_TARGET_LEVEL = 11
+EXEMPLAR_MAX_DRAFTS = 2
+# Learners read a spoken example aloud, so it must fit the response time at a
+# comfortable pace (about 120 words per minute) or the recording cuts it off.
+SPOKEN_WORDS_PER_SECOND = 2.0
 
 
 def discard_speaking_audio(submission) -> None:
@@ -112,6 +120,7 @@ def enqueue_feedback(session_item) -> AIJob:
             "task_type": session_item.snapshot.get("task_type"),
             "instructions": session_item.snapshot.get("instructions"),
             "stimulus": session_item.snapshot.get("stimulus"),
+            "answer_pattern": grading_pattern(session_item.snapshot.get("task_type")),
             **response_data,
         },
         max_attempts=settings.AI_MAX_ATTEMPTS,
@@ -166,6 +175,10 @@ def enqueue_response_exemplar(session_item) -> AIJob:
             learner_response = feedback.transcript
     feedback = AIFeedback.objects.filter(session_item=session_item).first()
     feedback_context = feedback.assessment if feedback else {}
+    stimulus = session_item.snapshot.get("stimulus") or {}
+    word_budget = {}
+    if skill == "speaking" and stimulus.get("response_seconds"):
+        word_budget["max_words"] = int(stimulus["response_seconds"] * SPOKEN_WORDS_PER_SECOND)
     return AIJob.objects.create(
         kind=AIJobKind.RESPONSE_EXEMPLAR,
         user=session_item.session.user,
@@ -180,6 +193,8 @@ def enqueue_response_exemplar(session_item) -> AIJob:
             "stimulus": session_item.snapshot.get("stimulus"),
             "learner_response": learner_response,
             "feedback": feedback_context,
+            "answer_pattern": grading_pattern(session_item.snapshot.get("task_type")),
+            **word_budget,
         },
         max_attempts=settings.AI_MAX_ATTEMPTS,
         run_after=timezone.now(),
@@ -236,8 +251,7 @@ def run_job(job: AIJob, *, provider=None) -> AIJob:
             transcript = str(result.payload.pop("transcript", ""))
             payload = validate_feedback(result.payload)
         elif job.kind == AIJobKind.RESPONSE_EXEMPLAR:
-            result = provider.generate_exemplar(job.input_snapshot)
-            payload = validate_exemplar(result.payload)
+            result, payload = _generate_checked_exemplar(provider, job.input_snapshot)
             transcript = ""
         elif job.kind == AIJobKind.CONTENT_DRAFT:
             result = provider.generate_content(job.input_snapshot)
@@ -300,6 +314,54 @@ def run_job(job: AIJob, *, provider=None) -> AIJob:
                 lambda: enqueue_response_exemplar(locked.session_item), robust=True
             )
     return locked
+
+
+def _generate_checked_exemplar(provider, snapshot: dict):
+    """Write an example answer and grade it with the learner's own grader.
+
+    The level the grader gives is stored on the example, so the page never
+    promises a level the grader itself would not award. The best-scoring
+    draft is kept if none reaches the target.
+    """
+    grading_request = {
+        key: snapshot.get(key)
+        for key in ("skill", "task_type", "instructions", "stimulus", "answer_pattern")
+    }
+    answer_key = "transcript" if snapshot.get("skill") == "speaking" else "response"
+    max_words = snapshot.get("max_words")
+    request = snapshot
+    best = None
+    for _ in range(EXEMPLAR_MAX_DRAFTS):
+        result = provider.generate_exemplar(request)
+        exemplar = validate_exemplar(result.payload)
+        check = validate_feedback(
+            provider.grade_text(grading_request | {answer_key: exemplar["response"]}).payload
+        )
+        word_count = len(exemplar["response"].split())
+        too_long = bool(max_words) and word_count > max_words
+        exemplar["verified_level_low"] = check["estimated_level_low"]
+        exemplar["verified_level_high"] = check["estimated_level_high"]
+        rank = (not too_long, check["estimated_level_low"], check["estimated_level_high"])
+        if best is None or rank > best[0]:
+            best = (rank, result, exemplar)
+        if not too_long and check["estimated_level_low"] >= EXEMPLAR_TARGET_LEVEL:
+            break
+        review = {
+            "estimated_level_low": check["estimated_level_low"],
+            "estimated_level_high": check["estimated_level_high"],
+            "priorities": check["priorities"],
+        }
+        if too_long:
+            review["priorities"] = [
+                f"Cut the response from {word_count} to at most {max_words} words.",
+                *review["priorities"],
+            ]
+        request = snapshot | {
+            "previous_draft": exemplar["response"],
+            "previous_draft_review": review,
+        }
+    _, result, exemplar = best
+    return result, exemplar
 
 
 def _record_failure(job: AIJob, exc: ProviderError) -> AIJob:

@@ -1,9 +1,12 @@
 from rest_framework import serializers
 
+from .answer_patterns import answer_pattern_for
 from .models import Choice, ContentVersion, Question, TaskType
 
 
 class TaskTypeSerializer(serializers.ModelSerializer):
+    answer_pattern = serializers.SerializerMethodField()
+
     class Meta:
         model = TaskType
         fields = [
@@ -14,7 +17,11 @@ class TaskTypeSerializer(serializers.ModelSerializer):
             "description",
             "strategy",
             "common_mistakes",
+            "answer_pattern",
         ]
+
+    def get_answer_pattern(self, task_type: TaskType) -> dict | None:
+        return answer_pattern_for(task_type.code)
 
 
 class PublicChoiceSerializer(serializers.ModelSerializer):

@@ -343,6 +343,12 @@ AI_JOB_POLL_SECONDS = float(os.environ.get("AI_JOB_POLL_SECONDS", "2"))
 # than the model's own default, which can otherwise vary a lot per request.
 # Set to "" to omit the parameter and use the model's default effort.
 AI_REASONING_EFFORT = os.environ.get("AI_REASONING_EFFORT", "low").strip()
+# Grading (Writing/Speaking feedback and the check on example answers) gets
+# its own effort: low effort made the same response score noticeably
+# differently between runs. Set to "" to use the model's default effort.
+AI_FEEDBACK_REASONING_EFFORT = os.environ.get(
+    "AI_FEEDBACK_REASONING_EFFORT", "medium"
+).strip()
 
 # ── Listening audio synthesis (text-to-speech) ──────────────────────────────
 # Stored Listening audio is generated once and reused. Regeneration tries these

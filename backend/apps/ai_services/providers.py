@@ -49,6 +49,16 @@ class FakeProvider:
                 "estimated_level_high": 7,
                 "confidence": "low",
                 "disclaimer": "AI-assisted practice estimate — not an official CELPIP score.",
+                "pattern_check": [
+                    {
+                        "step": step["label"],
+                        "followed": index == 0,
+                        "note": "Development check of this step.",
+                    }
+                    for index, step in enumerate(
+                        (payload.get("answer_pattern") or {}).get("steps", [])
+                    )
+                ],
                 "level_twelve_exemplar": {
                     "response": (
                         "Thank you for raising this matter. I would address it promptly by "
@@ -89,6 +99,10 @@ class FakeProvider:
     def evaluate_writing(self, payload: dict) -> ProviderResult:
         return self._feedback(payload, delivery_label="Readability")
 
+    def grade_text(self, payload: dict) -> ProviderResult:
+        label = "Listenability" if payload.get("skill") == "speaking" else "Readability"
+        return self._feedback(payload, delivery_label=label)
+
     def evaluate_speaking(self, audio_path: Path, payload: dict) -> ProviderResult:
         transcript = f"Development transcript for {audio_path.name}."
         result = self._feedback(
@@ -99,6 +113,12 @@ class FakeProvider:
     def generate_exemplar(self, payload: dict) -> ProviderResult:
         exemplar = self._feedback(payload, delivery_label="Readability").payload[
             "level_twelve_exemplar"
+        ]
+        steps = (payload.get("answer_pattern") or {}).get("steps", [])
+        openings = ["Thank you for raising", "I would address it", "This approach is"]
+        exemplar["pattern_map"] = [
+            {"step": step["label"], "excerpt": opening}
+            for step, opening in zip(steps, openings, strict=False)
         ]
         return ProviderResult(exemplar, "fake-exemplar")
 
@@ -197,6 +217,11 @@ class FakeProvider:
         return b"fake-audio"
 
 
+# Reasoning tokens count toward max_output_tokens, so grading at a higher
+# effort needs more headroom than the visible JSON alone would.
+FEEDBACK_MAX_OUTPUT_TOKENS = 4000
+
+
 class OpenAIProvider:
     name = "openai"
 
@@ -230,13 +255,15 @@ class OpenAIProvider:
         schema: dict,
         name: str,
         max_output_tokens: int | None = None,
+        effort: str | None = None,
     ) -> ProviderResult:
         # Reasoning effort and an output cap bound how long one job can run.
-        # Both are omitted when unset so a blank AI_REASONING_EFFORT falls
-        # back to the model's own default rather than an invalid empty value.
+        # Both are omitted when unset so a blank effort setting falls back to
+        # the model's own default rather than an invalid empty value.
+        effort = settings.AI_REASONING_EFFORT if effort is None else effort
         extra: dict = {}
-        if settings.AI_REASONING_EFFORT:
-            extra["reasoning"] = {"effort": settings.AI_REASONING_EFFORT}
+        if effort:
+            extra["reasoning"] = {"effort": effort}
         if max_output_tokens:
             extra["max_output_tokens"] = max_output_tokens
         try:
@@ -267,12 +294,18 @@ class OpenAIProvider:
         return ProviderResult(parsed, getattr(response, "id", ""), self._usage(response))
 
     def evaluate_writing(self, payload: dict) -> ProviderResult:
+        return self.grade_text(payload)
+
+    def grade_text(self, payload: dict) -> ProviderResult:
+        """Grade a written response or a speaking transcript on the same scale."""
+        skill = "speaking" if payload.get("skill") == "speaking" else "writing"
         return self._structured(
             developer_prompt=FEEDBACK_DEVELOPER_PROMPT,
             payload=payload,
             schema=FEEDBACK_SCHEMA,
-            name="celpip_writing_feedback",
-            max_output_tokens=1400,
+            name=f"celpip_{skill}_feedback",
+            max_output_tokens=FEEDBACK_MAX_OUTPUT_TOKENS,
+            effort=settings.AI_FEEDBACK_REASONING_EFFORT,
         )
 
     def evaluate_speaking(self, audio_path: Path, payload: dict) -> ProviderResult:
@@ -292,13 +325,14 @@ class OpenAIProvider:
             raise ProviderError(
                 "transcription_error", "OpenAI could not transcribe the recording."
             ) from exc
-        result = self._structured(
-            developer_prompt=FEEDBACK_DEVELOPER_PROMPT,
-            payload=payload | {"transcript": transcript},
-            schema=FEEDBACK_SCHEMA,
-            name="celpip_speaking_feedback",
-            max_output_tokens=1400,
-        )
+        timing = {"transcript": transcript}
+        duration_ms = payload.get("recording_duration_ms") or 0
+        if duration_ms > 0:
+            # Pace is the one delivery signal a transcript can't show on its own.
+            timing["speech_rate_words_per_minute"] = round(
+                len(transcript.split()) * 60000 / duration_ms
+            )
+        result = self.grade_text(payload | timing)
         return ProviderResult(
             result.payload | {"transcript": transcript}, result.external_id, result.usage
         )

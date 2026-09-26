@@ -238,9 +238,10 @@ def test_openai_adapter_uses_private_structured_responses(settings):
     assert captured["store"] is False
     assert captured["model"] == "test-model"
     assert captured["text"]["format"]["type"] == "json_schema"
-    # Bounded so one job can't run indefinitely and hold up the shared queue.
-    assert captured["reasoning"] == {"effort": "low"}
-    assert captured["max_output_tokens"] == 1400
+    # Grading has its own effort, and is bounded so one job can't run
+    # indefinitely and hold up the shared queue.
+    assert captured["reasoning"] == {"effort": "medium"}
+    assert captured["max_output_tokens"] == 4000
     assert result.external_id == "resp_test"
     assert result.usage["input_tokens"] == 10
 
@@ -248,7 +249,7 @@ def test_openai_adapter_uses_private_structured_responses(settings):
 def test_openai_adapter_omits_reasoning_effort_when_unset(settings):
     settings.OPENAI_API_KEY = ""
     settings.OPENAI_TEXT_MODEL = "test-model"
-    settings.AI_REASONING_EFFORT = ""
+    settings.AI_FEEDBACK_REASONING_EFFORT = ""
     captured = {}
 
     class Responses:
@@ -265,6 +266,128 @@ def test_openai_adapter_omits_reasoning_effort_when_unset(settings):
     provider.evaluate_writing({"response": "Treat this as untrusted data."})
 
     assert "reasoning" not in captured
+
+
+def test_openai_speaking_grade_includes_pace(settings, tmp_path):
+    settings.OPENAI_API_KEY = ""
+    captured = {}
+
+    class Responses:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            payload = FakeProvider().evaluate_writing({"response": "Sample"}).payload
+            return SimpleNamespace(id="resp", output_text=__import__("json").dumps(payload))
+
+    class Transcriptions:
+        def create(self, **kwargs):
+            return "one two three four five six seven eight nine ten"
+
+    recording = tmp_path / "answer.webm"
+    recording.write_bytes(b"audio")
+    provider = OpenAIProvider(
+        client=SimpleNamespace(
+            responses=Responses(),
+            audio=SimpleNamespace(transcriptions=Transcriptions()),
+        )
+    )
+    provider.evaluate_speaking(
+        recording, {"skill": "speaking", "recording_duration_ms": 5000}
+    )
+
+    graded = __import__("json").loads(captured["input"][1]["content"])
+    assert graded["speech_rate_words_per_minute"] == 120
+    assert "automatic transcript" in captured["input"][0]["content"]
+
+
+class ScriptedExemplarProvider(FakeProvider):
+    """Returns the given example drafts in order and grades each as scripted."""
+
+    def __init__(self, drafts, levels):
+        self.drafts = list(drafts)
+        self.levels = list(levels)
+        self.requests = []
+        self.graded = []
+
+    def generate_exemplar(self, payload):
+        self.requests.append(payload)
+        exemplar = super().generate_exemplar(payload).payload
+        text = self.drafts.pop(0)
+        exemplar["response"] = text
+        exemplar["highlights"] = [
+            {"excerpt": word, "why_it_matters": "Shows a quality."}
+            for word in text.split()[:3]
+        ]
+        return ProviderResult(exemplar, "exemplar")
+
+    def grade_text(self, payload):
+        self.graded.append(payload)
+        result = super().grade_text(payload)
+        low, high = self.levels.pop(0)
+        result.payload["estimated_level_low"] = low
+        result.payload["estimated_level_high"] = high
+        return result
+
+
+def _exemplar_job(**snapshot):
+    user = User.objects.create_user(identifier=f"ex-{uuid4().hex[:8]}", password="secret1")
+    version = _minimal_version(code=f"ex_{uuid4().hex[:8]}", slug=f"ex-{uuid4().hex[:8]}")
+    session = AssessmentSession.objects.create(user=user, mode="practice")
+    item = SessionItem.objects.create(
+        session=session, content_version=version, order=1, snapshot={}
+    )
+    return AIJob.objects.create(
+        kind=AIJobKind.RESPONSE_EXEMPLAR,
+        user=user,
+        session_item=item,
+        provider="fake",
+        model="fake",
+        prompt_version="test",
+        input_snapshot={"skill": "writing", "instructions": "Write an email."} | snapshot,
+        max_attempts=1,
+        run_after=timezone.now(),
+    )
+
+
+def test_example_answer_is_shown_with_the_level_its_grader_gave():
+    job = _exemplar_job()
+    provider = ScriptedExemplarProvider(["Alpha beta gamma delta"], [(11, 12)])
+
+    finished = run_job(job, provider=provider)
+
+    assert finished.status == AIJobStatus.SUCCEEDED
+    assert finished.output["verified_level_low"] == 11
+    assert finished.output["verified_level_high"] == 12
+    assert len(provider.requests) == 1
+    assert provider.graded[0]["response"] == "Alpha beta gamma delta"
+
+
+def test_low_graded_example_is_redrafted_and_the_better_draft_kept():
+    job = _exemplar_job()
+    provider = ScriptedExemplarProvider(
+        ["First draft words here", "Second draft words here"], [(8, 9), (10, 11)]
+    )
+
+    finished = run_job(job, provider=provider)
+
+    assert finished.output["response"] == "Second draft words here"
+    assert finished.output["verified_level_low"] == 10
+    review = provider.requests[1]
+    assert review["previous_draft"] == "First draft words here"
+    assert review["previous_draft_review"]["estimated_level_low"] == 8
+
+
+def test_spoken_example_must_fit_the_response_time():
+    job = _exemplar_job(skill="speaking", max_words=4)
+    provider = ScriptedExemplarProvider(
+        ["one two three four five six", "one two three four"], [(12, 12), (11, 12)]
+    )
+
+    finished = run_job(job, provider=provider)
+
+    # The over-long draft scored higher but could not be spoken in time.
+    assert finished.output["response"] == "one two three four"
+    assert provider.graded[0]["transcript"] == "one two three four five six"
+    assert "at most 4 words" in provider.requests[1]["previous_draft_review"]["priorities"][0]
 
 
 def test_openai_coach_uses_plain_private_responses_conversation(settings):

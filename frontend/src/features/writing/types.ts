@@ -1,3 +1,4 @@
+import type { AnswerPattern } from '../learning/types'
 import type {
   MockContext,
   MockSubmitResult,
@@ -15,6 +16,7 @@ export type WritingTaskType = {
   description: string
   strategy: string[]
   common_mistakes: string[]
+  answer_pattern?: AnswerPattern | null
 }
 
 export type WritingCatalogItem = {
@@ -93,6 +95,8 @@ export type WritingSession = {
   guest_expires_at?: string
   content: WritingContent
   rubric: { dimensions: RubricDimension[] }
+  /** Withheld (null) in mocks and the baseline assessment. */
+  answer_pattern?: AnswerPattern | null
   submission: WritingSubmissionDraft | null
   review?: WritingReview
   attempt: {

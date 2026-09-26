@@ -33,6 +33,20 @@ FEEDBACK_SCHEMA = {
         "estimated_level_high": {"type": "integer", "minimum": 1, "maximum": 12},
         "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
         "disclaimer": {"type": "string"},
+        "pattern_check": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "step": {"type": "string"},
+                    "followed": {"type": "boolean"},
+                    "note": {"type": "string"},
+                },
+                "required": ["step", "followed", "note"],
+            },
+        },
     },
     "required": [
         "overall_summary",
@@ -43,6 +57,7 @@ FEEDBACK_SCHEMA = {
         "estimated_level_high",
         "confidence",
         "disclaimer",
+        "pattern_check",
     ],
 }
 
@@ -59,8 +74,16 @@ EXEMPLAR_SCHEMA = {
             },
             "required": ["excerpt", "why_it_matters"],
         }},
+        "pattern_map": {"type": "array", "maxItems": 6, "items": {
+            "type": "object", "additionalProperties": False,
+            "properties": {
+                "step": {"type": "string", "minLength": 1},
+                "excerpt": {"type": "string", "minLength": 1},
+            },
+            "required": ["step", "excerpt"],
+        }},
     },
-    "required": ["response", "why_it_is_strong", "highlights"],
+    "required": ["response", "why_it_is_strong", "highlights", "pattern_map"],
 }
 
 CONTENT_DRAFT_SCHEMA = {
@@ -142,6 +165,14 @@ def validate_feedback(payload: dict) -> dict:
         raise ProviderError(
             "invalid_output", "The estimated level range is invalid.", retryable=False
         )
+    checks = payload.get("pattern_check")
+    payload["pattern_check"] = [
+        {"step": item["step"], "followed": item["followed"], "note": str(item.get("note", ""))}
+        for item in (checks if isinstance(checks, list) else [])
+        if isinstance(item, dict)
+        and isinstance(item.get("step"), str)
+        and isinstance(item.get("followed"), bool)
+    ]
     payload.pop("level_twelve_exemplar", None)
     payload["disclaimer"] = "AI-assisted practice estimate — not an official CELPIP score."
     return payload
@@ -166,6 +197,18 @@ def validate_exemplar(payload: dict) -> dict:
             or not reason.strip()
         ):
             raise ProviderError("invalid_output", "Each example highlight must quote its response.")
+    # Step labels are a teaching aid: drop any that don't quote the response
+    # rather than failing an otherwise good example.
+    steps = exemplar.get("pattern_map")
+    exemplar["pattern_map"] = [
+        {"step": item["step"], "excerpt": item["excerpt"]}
+        for item in (steps if isinstance(steps, list) else [])
+        if isinstance(item, dict)
+        and isinstance(item.get("step"), str)
+        and isinstance(item.get("excerpt"), str)
+        and item["excerpt"].strip()
+        and item["excerpt"] in response
+    ]
     return exemplar
 
 

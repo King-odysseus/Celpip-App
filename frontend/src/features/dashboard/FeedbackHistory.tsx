@@ -7,7 +7,7 @@ import type { Skill } from '../learning/types'
 import { SKILL_LABELS } from './labels'
 
 type Dimension = { key: string; rating: number; evidence: string; next_step: string }
-type LevelTwelveExemplar = { response: string; why_it_is_strong: string; highlights: { excerpt: string; why_it_matters: string }[] }
+type LevelTwelveExemplar = { response: string; why_it_is_strong: string; highlights: { excerpt: string; why_it_matters: string }[]; verified_level_low?: number; verified_level_high?: number }
 
 type Assessment = {
   overall_summary: string
@@ -111,6 +111,11 @@ function Entry({ entry }: { entry: HistoryEntry }) {
           <details className="rounded-lg bg-accent-soft/25 p-3 text-xs">
             <summary className="cursor-pointer font-semibold text-ink">Score-12 learning model</summary>
             <p className="mt-2 leading-5 text-muted">{assessment.level_twelve_exemplar.why_it_is_strong}</p>
+            {assessment.level_twelve_exemplar.verified_level_low !== undefined && (
+              <p className="mt-2 font-semibold text-ink">
+                Checked by the same AI grader: {assessment.level_twelve_exemplar.verified_level_low}–{assessment.level_twelve_exemplar.verified_level_high}
+              </p>
+            )}
             <p className="mt-2 whitespace-pre-wrap leading-5 text-ink">{assessment.level_twelve_exemplar.response}</p>
             <ul className="mt-2 space-y-1 leading-5 text-muted">
               {assessment.level_twelve_exemplar.highlights.map((highlight, index) => <li key={`${highlight.excerpt}-${index}`}><strong className="text-ink">“{highlight.excerpt}”:</strong> {highlight.why_it_matters}</li>)}

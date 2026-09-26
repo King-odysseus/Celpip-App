@@ -14,6 +14,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response as ApiResponse
 from rest_framework.views import APIView
 
+from apps.content.answer_patterns import answer_pattern_for
 from apps.content.models import Choice, Question, Skill
 from apps.media_assets.models import MediaAsset
 
@@ -403,6 +404,14 @@ def _submission_payload(submission) -> dict | None:
     }
 
 
+def _answer_pattern(session: AssessmentSession, item) -> dict | None:
+    # Mocks and the baseline assessment run under exam conditions, so the
+    # pattern (a practice hint) is withheld from them entirely.
+    if session.mode in (SessionMode.MOCK, SessionMode.DIAGNOSTIC):
+        return None
+    return answer_pattern_for(item.snapshot.get("task_type"))
+
+
 def _writing_payload(session: AssessmentSession, item, submission) -> dict:
     payload = {
         "id": str(session.id),
@@ -418,6 +427,7 @@ def _writing_payload(session: AssessmentSession, item, submission) -> dict:
             include_learning_notes=session.mode == SessionMode.LEARN,
         ),
         "rubric": {"dimensions": WRITING_RUBRIC_DIMENSIONS},
+        "answer_pattern": _answer_pattern(session, item),
         "submission": _submission_payload(submission),
         "attempt": writing_attempt_metadata(session),
     }
@@ -555,6 +565,7 @@ def _speaking_payload(session, item, submission) -> dict:
             include_learning_notes=session.mode == SessionMode.LEARN,
         ),
         "rubric": {"dimensions": SPEAKING_RUBRIC_DIMENSIONS},
+        "answer_pattern": _answer_pattern(session, item),
         "submission": _speaking_submission_payload(session.id, submission),
         "attempt": speaking_attempt_metadata(session),
     }

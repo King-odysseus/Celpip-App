@@ -22,7 +22,7 @@ from apps.assessments.models import (
     SpeakingSubmission,
     WritingSubmission,
 )
-from apps.learning.models import MistakeRecord, StudyPlan
+from apps.learning.models import MistakeRecord, PatternDrillProgress, StudyPlan
 from apps.learning.services import plan_payload, progress_payload
 from apps.mocks.models import MockAttempt
 from apps.mocks.services import MockError, attempt_payload, results_payload
@@ -192,6 +192,14 @@ def _mistakes(user: User) -> list[dict]:
     )
 
 
+def _pattern_drills(user: User) -> list[dict]:
+    return list(
+        PatternDrillProgress.objects.filter(user=user).values(
+            "task_type_id", "attempts", "correct", "streak", "last_drilled_at"
+        )
+    )
+
+
 def _study_plans(user: User) -> list[dict]:
     return [
         plan_payload(plan)
@@ -244,6 +252,7 @@ def build_export(user: User) -> dict:
         "sessions": _sessions(user),
         "progress": progress_payload(user),
         "mistakes": _mistakes(user),
+        "pattern_drills": _pattern_drills(user),
         "study_plans": _study_plans(user),
         "mock_attempts": _mock_attempts(user),
         "coach_messages": _coach_messages(user),

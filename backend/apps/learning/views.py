@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -6,6 +7,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import LearnerProfile
+from apps.content.answer_patterns import answer_pattern_for
+from apps.content.models import TaskType
 
 from .analytics import (
     HISTORY_PAGE_SIZE_DEFAULT,
@@ -13,7 +16,13 @@ from .analytics import (
     history_payload,
     recommendation_payload,
 )
-from .models import MistakeRecord, MistakeState, StudyPlan, StudyTaskState
+from .models import (
+    MistakeRecord,
+    MistakeState,
+    PatternDrillProgress,
+    StudyPlan,
+    StudyTaskState,
+)
 from .services import (
     PLAN_ALGORITHM_VERSION,
     dashboard_payload,
@@ -159,6 +168,55 @@ class MistakeDetailView(APIView):
         mistake.next_review_at = None if mistake.state == MistakeState.RESOLVED else timezone.now()
         mistake.save(update_fields=["state", "resolved_at", "next_review_at"])
         return Response(_mistake_payload(mistake))
+
+
+def _pattern_drill_payload(progress: PatternDrillProgress) -> dict:
+    return {
+        "task_type": progress.task_type_id,
+        "attempts": progress.attempts,
+        "correct": progress.correct,
+        "streak": progress.streak,
+        "mastered": progress.mastered,
+        "last_drilled_at": progress.last_drilled_at,
+    }
+
+
+class PatternDrillView(APIView):
+    """Recall drills for the Speaking and Writing answer patterns."""
+
+    permission_classes = [IsAuthenticated]
+
+    class InputSerializer(serializers.Serializer):
+        task_type = serializers.CharField(max_length=64)
+        correct = serializers.BooleanField()
+
+    def get(self, request):
+        progress = PatternDrillProgress.objects.filter(user=request.user)
+        return Response({"results": [_pattern_drill_payload(item) for item in progress]})
+
+    def post(self, request):
+        serializer = self.InputSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        code = serializer.validated_data["task_type"]
+        if answer_pattern_for(code) is None:
+            return Response(
+                {"code": "unknown_pattern", "message": "This task type has no answer pattern."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        task_type = get_object_or_404(TaskType, pk=code)
+        correct = serializer.validated_data["correct"]
+        with transaction.atomic():
+            progress, _ = PatternDrillProgress.objects.select_for_update().get_or_create(
+                user=request.user,
+                task_type=task_type,
+                defaults={"last_drilled_at": timezone.now()},
+            )
+            progress.attempts += 1
+            progress.correct += int(correct)
+            progress.streak = progress.streak + 1 if correct else 0
+            progress.last_drilled_at = timezone.now()
+            progress.save()
+        return Response(_pattern_drill_payload(progress))
 
 
 class StudyPlanView(APIView):

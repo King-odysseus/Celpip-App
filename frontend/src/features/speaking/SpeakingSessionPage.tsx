@@ -18,6 +18,7 @@ import { AIFeedbackPanel } from '../ai/AIFeedbackPanel'
 import { ReportContentIssue } from '../content/ReportContentIssue'
 import { advanceMock } from '../mocks/api'
 import { MockReturnNotice } from '../mocks/MockReturnNotice'
+import { PatternPlanner, usePatternProgress } from '../learning/AnswerPattern'
 import { StudyTaskAction } from '../learning/StudyTaskAction'
 import { RetryAction } from './RetryAction'
 import { SpeakingComparisonPanel } from './SpeakingComparisonPanel'
@@ -45,6 +46,7 @@ export function SpeakingSessionPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const studyTaskId = new URLSearchParams(location.search).get('study_task')
+  const { progress: patternProgress } = usePatternProgress()
   const [session, setSession] = useState<SpeakingSession | null>(null)
   const [phase, setPhase] = useState<RecorderPhase>('ready')
   const [remaining, setRemaining] = useState(0)
@@ -328,6 +330,11 @@ export function SpeakingSessionPage() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(22rem,.85fr)]">
         <Card className="p-5 sm:p-7">
           <Prompt stimulus={stimulus} />
+          {session.answer_pattern && phase !== 'recorded' && phase !== 'uploading' && (
+            <div className="mt-5">
+              <PatternPlanner pattern={session.answer_pattern} compact={Boolean(patternProgress[session.content.task_type]?.mastered)} />
+            </div>
+          )}
           {session.content.learning_notes && (
             <aside className="mt-5 rounded-input border border-info/30 bg-info-bg p-4 text-sm text-ink">
               <strong>Learning note:</strong> {session.content.learning_notes}

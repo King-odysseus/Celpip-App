@@ -138,3 +138,38 @@ class StudyTask(models.Model):
             if any(getattr(original, field) != getattr(self, field) for field in immutable):
                 raise ValidationError("Generated study task details are immutable.")
         super().save(*args, **kwargs)
+
+
+# Consecutive correct recalls after which a pattern counts as learned and the
+# practice screens shrink its hints down to the mnemonic alone.
+PATTERN_MASTERY_STREAK = 3
+
+
+class PatternDrillProgress(models.Model):
+    """How well a learner recalls one task type's answer pattern."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="pattern_drills"
+    )
+    task_type = models.ForeignKey(
+        TaskType, on_delete=models.PROTECT, related_name="pattern_drills"
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    correct = models.PositiveIntegerField(default=0)
+    streak = models.PositiveSmallIntegerField(default=0)
+    last_drilled_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["task_type_id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "task_type"], name="learning_unique_user_pattern_drill"
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.user_id}: {self.task_type_id} pattern ({self.streak} streak)"
+
+    @property
+    def mastered(self) -> bool:
+        return self.streak >= PATTERN_MASTERY_STREAK

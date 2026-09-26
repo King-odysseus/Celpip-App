@@ -1,3 +1,4 @@
+import type { AnswerPattern } from '../learning/types'
 import type {
   MockContext,
   MockSubmitResult,
@@ -15,6 +16,7 @@ export type SpeakingTaskType = {
   description: string
   strategy: string[]
   common_mistakes: string[]
+  answer_pattern?: AnswerPattern | null
 }
 
 export type SpeakingCatalogItem = {
@@ -104,6 +106,8 @@ export type SpeakingSession = {
     questions: never[]
   }
   rubric: { dimensions: RubricDimension[] }
+  /** Withheld (null) in mocks and the baseline assessment. */
+  answer_pattern?: AnswerPattern | null
   submission: SpeakingRecording | null
   review?: SpeakingReview
   attempt: SpeakingAttempt

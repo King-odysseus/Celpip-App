@@ -9,6 +9,27 @@ export type TaskTypeGuide = {
   description: string
   strategy: string[]
   common_mistakes: string[]
+  answer_pattern?: AnswerPattern | null
+}
+
+/** One step of an answer pattern; its label starts with the mnemonic's letter. */
+export type AnswerPatternStep = { key: string; label: string; what: string; phrases: string[] }
+
+/** A memorable structure for answering one Speaking or Writing task type. */
+export type AnswerPattern = {
+  mnemonic: string
+  summary: string
+  plan: string
+  steps: AnswerPatternStep[]
+}
+
+export type PatternDrillProgress = {
+  task_type: string
+  attempts: number
+  correct: number
+  streak: number
+  mastered: boolean
+  last_drilled_at: string
 }
 
 export type Progress = {

@@ -1,4 +1,5 @@
 import { BookOpenCheck, type LucideIcon } from 'lucide-react'
+import { PatternCard } from './AnswerPattern'
 import type { TaskTypeGuide } from './types'
 
 /**
@@ -33,6 +34,7 @@ export function TaskTypeGuides({
               <span aria-hidden="true" className="ml-auto text-muted transition group-open:rotate-45">+</span>
             </summary>
             <p className="mt-3 text-sm leading-6 text-muted">{task.description}</p>
+            {task.answer_pattern && <div className="mt-4"><PatternCard pattern={task.answer_pattern} /></div>}
             <h3 className="mt-4 text-sm font-bold text-ink">A reliable approach</h3>
             <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm text-muted">
               {task.strategy.map((step) => <li key={step}>{step}</li>)}

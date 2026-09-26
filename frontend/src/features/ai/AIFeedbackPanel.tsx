@@ -1,4 +1,4 @@
-import { Bot, Loader2, MessageCircleQuestion, ShieldCheck } from 'lucide-react'
+import { Bot, CheckCircle2, Loader2, MessageCircleQuestion, ShieldCheck, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Card } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -11,7 +11,12 @@ type LevelTwelveExemplar = {
   response: string
   why_it_is_strong: string
   highlights: { excerpt: string; why_it_matters: string }[]
+  verified_level_low?: number
+  verified_level_high?: number
+  /** Where each answer-pattern step begins, as a verbatim excerpt. */
+  pattern_map?: { step: string; excerpt: string }[]
 }
+type PatternCheck = { step: string; followed: boolean; note: string }
 type FeedbackState = {
   status: 'not_requested' | 'queued' | 'running' | 'succeeded' | 'failed'
   kind?: 'writing_feedback' | 'speaking_feedback'
@@ -28,6 +33,7 @@ type FeedbackState = {
     confidence: 'low' | 'medium' | 'high'
     disclaimer: string
     level_twelve_exemplar?: LevelTwelveExemplar
+    pattern_check?: PatternCheck[]
   }
   audit?: { provider: string; model: string; prompt_version: string; created_at: string }
 }
@@ -116,8 +122,9 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
           </Card>
         ))}
       </div>
+      {assessment.pattern_check && assessment.pattern_check.length > 0 && <PatternCheckCard checks={assessment.pattern_check} />}
       {feedback.transcript && <details className="card p-5"><summary className="cursor-pointer font-bold text-ink">AI transcript used for feedback</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted">{feedback.transcript}</p></details>}
-      {assessment.level_twelve_exemplar && <LevelTwelveExemplarPanel exemplar={assessment.level_twelve_exemplar} />}
+      {assessment.level_twelve_exemplar && <LevelTwelveExemplarPanel exemplar={assessment.level_twelve_exemplar} spoken={feedback.kind === 'speaking_feedback'} />}
       <Card className="border-brand/20 bg-brand-soft/35">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -141,14 +148,28 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
   )
 }
 
-function LevelTwelveExemplarPanel({ exemplar }: { exemplar: LevelTwelveExemplar }) {
+function LevelTwelveExemplarPanel({ exemplar, spoken }: { exemplar: LevelTwelveExemplar; spoken: boolean }) {
   return (
     <Card className="border-accent/40 bg-accent-soft/20 p-5">
       <p className="text-xs font-bold uppercase tracking-widest text-brand">Score-12 learning model</p>
       <h3 className="mt-1 text-xl font-bold text-ink">How the AI would answer this task</h3>
       <p className="mt-2 text-sm leading-6 text-muted">{exemplar.why_it_is_strong}</p>
+      {exemplar.verified_level_low !== undefined && (
+        <p className="mt-2 text-sm font-semibold text-ink">
+          <ShieldCheck className="mr-1 inline text-brand" size={16} />
+          Checked by the same AI grader: {exemplar.verified_level_low}–{exemplar.verified_level_high}
+          {spoken && <span className="font-normal text-muted"> as a transcript. Your spoken score also depends on pace and clarity, so read it at a natural pace.</span>}
+        </p>
+      )}
       <div className="mt-4 rounded-lg bg-surface p-4 text-sm leading-7 text-ink">
-        <p className="whitespace-pre-wrap">{exemplar.response}</p>
+        <p className="whitespace-pre-wrap">
+          {stepSegments(exemplar.response, exemplar.pattern_map ?? []).map((segment, index) => (
+            <span key={index}>
+              {segment.step && <span className="mr-1 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-bold text-ink">{segment.step}</span>}
+              {segment.text}
+            </span>
+          ))}
+        </p>
       </div>
       <div className="mt-4 space-y-2">
         <p className="text-sm font-bold text-ink">Why this response is strong</p>
@@ -161,6 +182,48 @@ function LevelTwelveExemplarPanel({ exemplar }: { exemplar: LevelTwelveExemplar 
       </div>
     </Card>
   )
+}
+
+function PatternCheckCard({ checks }: { checks: PatternCheck[] }) {
+  const followed = checks.filter((check) => check.followed).length
+  return (
+    <Card className="p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-bold text-ink">Answer pattern check</h3>
+        <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">{followed}/{checks.length} steps</span>
+      </div>
+      <ul className="mt-3 space-y-2">
+        {checks.map((check) => (
+          <li key={check.step} className="flex items-start gap-2 text-sm leading-6">
+            {check.followed
+              ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-good" aria-label="Followed" />
+              : <XCircle size={17} className="mt-0.5 shrink-0 text-bad" aria-label="Missing" />}
+            <span><strong className="text-ink">{check.step}</strong> <span className="text-muted">— {check.note}</span></span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  )
+}
+
+/** Split an example answer where each pattern step begins, so steps can be labeled. */
+function stepSegments(response: string, map: { step: string; excerpt: string }[]): { step?: string; text: string }[] {
+  const starts: { step: string; index: number }[] = []
+  let from = 0
+  for (const entry of map) {
+    const index = response.indexOf(entry.excerpt, from)
+    if (index < 0) continue
+    starts.push({ step: entry.step, index })
+    from = index + entry.excerpt.length
+  }
+  if (starts.length === 0) return [{ text: response }]
+  const segments: { step?: string; text: string }[] = []
+  if (starts[0].index > 0) segments.push({ text: response.slice(0, starts[0].index) })
+  starts.forEach((start, position) => {
+    const end = starts[position + 1]?.index ?? response.length
+    segments.push({ step: start.step, text: response.slice(start.index, end) })
+  })
+  return segments
 }
 
 function StatusCard({ title, message, loading = false }: { title: string; message: string; loading?: boolean }) {
