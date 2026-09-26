@@ -143,9 +143,9 @@ export function AICoachConversation({
             id={fieldId}
             value={draft}
             maxLength={2000}
-            rows={compact ? 1 : 2}
+            rows={1}
             placeholder="Ask about improving or answering a task..."
-            className={`${compact ? 'min-h-10 max-h-28' : 'min-h-12 max-h-40'} scrollbar-none min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-muted`}
+            className={`min-h-10 ${compact ? 'max-h-28' : 'max-h-40'} scrollbar-none min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-muted`}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
