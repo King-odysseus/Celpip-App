@@ -44,7 +44,9 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
   useEffect(() => {
     let active = true
     let timer = 0
+    let pending = false
     const load = async () => {
+      window.clearTimeout(timer)
       try {
         const result = await api.get<FeedbackState>(`/sessions/${sessionId}/ai-feedback/`, tokenHeaders(sessionId))
         if (!active) return
@@ -56,15 +58,25 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
         // learner having to leave for the dashboard and come back.
         const assessmentPending = result.status === 'queued' || result.status === 'running'
         const exemplarPending = result.example_status === 'queued' || result.example_status === 'running'
-        if (assessmentPending || exemplarPending) {
-          timer = window.setTimeout(() => void load(), 3000)
-        }
+        pending = assessmentPending || exemplarPending
+        if (pending) timer = window.setTimeout(() => void load(), 3000)
       } catch {
         if (active) setUnavailable(true)
       }
     }
     void load()
-    return () => { active = false; window.clearTimeout(timer) }
+    // A backgrounded tab (e.g. switching apps while grading runs) can have its
+    // poll timer throttled well past its delay; polling immediately when the
+    // tab regains focus keeps a nearly ready result from feeling stuck.
+    const onVisible = () => {
+      if (pending && document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [sessionId])
 
   if (unavailable) return <StatusCard title="AI-assisted feedback" message="Feedback is temporarily unavailable. Your submitted response remains safely stored." />

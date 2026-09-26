@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderApp } from './renderApp'
 import { errorResponse, installRouteFetch, jsonResponse } from './mockFetch'
@@ -189,5 +189,51 @@ describe('dashboard', () => {
     ).toBeVisible()
     expect(screen.getByText('Content/Coherence')).toBeInTheDocument()
     expect(screen.getByText('Expand vocabulary')).toBeInTheDocument()
+  })
+
+  it("polls for a model answer that was not ready yet and shows it once queued", async () => {
+    const user = userEvent.setup()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let call = 0
+      installRouteFetch({
+        ...authenticatedBootstrap,
+        'GET /me/dashboard/': () => jsonResponse(makeDashboard()),
+        'GET /me/ai-feedback/history/': () => {
+          call += 1
+          return jsonResponse({
+            results: [
+              {
+                ...feedbackHistoryEntry,
+                example_status: call === 1 ? 'queued' : 'succeeded',
+                assessment: {
+                  ...feedbackHistoryEntry.assessment,
+                  ...(call === 1
+                    ? {}
+                    : {
+                        level_twelve_exemplar: {
+                          response: 'A polished model email.',
+                          why_it_is_strong: 'It is direct and polite.',
+                          highlights: [],
+                        },
+                      }),
+                },
+              },
+            ],
+          })
+        },
+      })
+      renderApp('/')
+
+      await screen.findByText('Email a landlord about noise')
+      await user.click(screen.getByText('Email a landlord about noise'))
+      expect(await screen.findByText(/preparing the ai's example answer/i)).toBeInTheDocument()
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(4000) })
+      await vi.waitFor(() => expect(screen.getByText('A polished model email.')).toBeInTheDocument())
+      expect(call).toBeGreaterThanOrEqual(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

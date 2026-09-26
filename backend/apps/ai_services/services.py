@@ -7,7 +7,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
@@ -461,10 +461,22 @@ def feedback_history(user) -> list[dict]:
     for artifact in artifacts:
         snapshot = artifact.session_item.snapshot
         assessment = dict(artifact.assessment)
-        exemplar_job = artifact.session_item.ai_jobs.filter(
-            kind=AIJobKind.RESPONSE_EXEMPLAR, status=AIJobStatus.SUCCEEDED
-        ).order_by("-created_at").first()
-        if exemplar_job:
+        exemplar_job = (
+            artifact.session_item.ai_jobs.filter(kind=AIJobKind.RESPONSE_EXEMPLAR)
+            .order_by("-created_at")
+            .first()
+        )
+        if exemplar_job is None:
+            # The results page enqueues the model answer lazily when the learner
+            # opens it; a learner who goes straight to the dashboard instead
+            # never triggers that, so this history view recovers it the same
+            # way rather than silently leaving the answer out forever.
+            try:
+                exemplar_job = enqueue_response_exemplar(artifact.session_item)
+            except ObjectDoesNotExist:
+                exemplar_job = None
+        example_status = exemplar_job.status if exemplar_job else None
+        if exemplar_job is not None and exemplar_job.status == AIJobStatus.SUCCEEDED:
             assessment["level_twelve_exemplar"] = exemplar_job.output
         results.append(
             {
@@ -477,6 +489,7 @@ def feedback_history(user) -> list[dict]:
                 "estimated_level_high": assessment.get("estimated_level_high"),
                 "transcript": artifact.transcript,
                 "assessment": assessment,
+                "example_status": example_status,
             }
         )
     return results

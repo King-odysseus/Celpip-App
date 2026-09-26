@@ -1,5 +1,5 @@
-import { Bot } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Bot, Loader2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardTitle } from '../../components/ui'
 import { api } from '../../lib/api'
 import { DIMENSION_LABELS } from '../ai/dimensionLabels'
@@ -31,6 +31,7 @@ type HistoryEntry = {
   estimated_level_high: number
   transcript: string
   assessment: Assessment
+  example_status: 'not_requested' | 'queued' | 'running' | 'succeeded' | 'failed' | null
 }
 
 function formatDate(iso: string): string {
@@ -106,7 +107,7 @@ function Entry({ entry }: { entry: HistoryEntry }) {
             <p className="mt-2 whitespace-pre-wrap leading-5 text-muted">{entry.transcript}</p>
           </details>
         )}
-        {assessment.level_twelve_exemplar && (
+        {assessment.level_twelve_exemplar ? (
           <details className="rounded-lg bg-accent-soft/25 p-3 text-xs">
             <summary className="cursor-pointer font-semibold text-ink">Score-12 learning model</summary>
             <p className="mt-2 leading-5 text-muted">{assessment.level_twelve_exemplar.why_it_is_strong}</p>
@@ -115,7 +116,15 @@ function Entry({ entry }: { entry: HistoryEntry }) {
               {assessment.level_twelve_exemplar.highlights.map((highlight, index) => <li key={`${highlight.excerpt}-${index}`}><strong className="text-ink">“{highlight.excerpt}”:</strong> {highlight.why_it_matters}</li>)}
             </ul>
           </details>
-        )}
+        ) : entry.example_status === 'queued' || entry.example_status === 'running' ? (
+          <p className="flex items-center gap-2 rounded-lg bg-surface p-3 text-xs text-muted" aria-live="polite">
+            <Loader2 className="animate-spin text-brand" size={14} /> Preparing the AI's example answer…
+          </p>
+        ) : entry.example_status === 'failed' ? (
+          <p className="rounded-lg bg-surface p-3 text-xs text-muted">
+            The example answer could not be generated after several attempts.
+          </p>
+        ) : null}
       </div>
     </details>
   )
@@ -141,23 +150,46 @@ function ChevronDownIcon() {
 export function FeedbackHistory() {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [error, setError] = useState('')
+  const timerRef = useRef(0)
 
   useEffect(() => {
     let active = true
-    api
-      .get<{ results: HistoryEntry[] }>('/me/ai-feedback/history/')
-      .then((data) => {
-        if (active) setEntries(data.results)
-      })
-      .catch((reason: unknown) => {
+
+    const load = async () => {
+      try {
+        const data = await api.get<{ results: HistoryEntry[] }>('/me/ai-feedback/history/')
+        if (!active) return
+        setEntries(data.results)
+        setError('')
+        // Some entries' AI example answer is still being generated (queued
+        // lazily the first time this list loads); keep polling until every
+        // pending one resolves so the answer appears without a manual refresh.
+        const pending = data.results.some(
+          (entry) => entry.example_status === 'queued' || entry.example_status === 'running',
+        )
+        if (pending) timerRef.current = window.setTimeout(() => void load(), 4000)
+      } catch (reason: unknown) {
         if (active) {
           setError(
             reason instanceof Error ? reason.message : 'Could not load feedback history.',
           )
         }
-      })
+      }
+    }
+
+    void load()
+    // A backgrounded tab can have its poll timer throttled well past its
+    // delay; polling immediately when the tab regains focus keeps a nearly
+    // ready answer from feeling stuck.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
     return () => {
       active = false
+      window.clearTimeout(timerRef.current)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [])
 

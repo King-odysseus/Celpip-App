@@ -161,6 +161,41 @@ describe('AI feedback panel', () => {
       vi.useRealTimers()
     }
   })
+
+  it('polls again immediately when a backgrounded tab regains focus', async () => {
+    let polls = 0
+    const assessment = {
+      overall_summary: 'Clear advice.',
+      dimensions: [],
+      strengths: [],
+      priorities: [],
+      estimated_level_low: 6,
+      estimated_level_high: 7,
+      confidence: 'medium' as const,
+      disclaimer: 'Practice estimate.',
+    }
+    installRouteFetch({
+      [`GET /sessions/${sessionId}/ai-feedback/`]: () => {
+        polls += 1
+        return jsonResponse({
+          status: 'succeeded',
+          assessment,
+          // Stays pending until visibility, not the timer, drives the next poll.
+          example_status: polls >= 2 ? 'succeeded' : 'queued',
+        })
+      },
+    })
+    render(<MemoryRouter><AIFeedbackPanel sessionId={sessionId} /></MemoryRouter>)
+
+    await waitFor(() => expect(polls).toBe(1))
+    expect(screen.getByText(/preparing your example/i)).toBeInTheDocument()
+
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
+
+    await waitFor(() => expect(polls).toBe(2))
+    expect(screen.queryByText(/preparing your example/i)).not.toBeInTheDocument()
+  })
 })
 
 describe('Speaking recorder', () => {

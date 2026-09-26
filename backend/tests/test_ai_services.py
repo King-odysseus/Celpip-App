@@ -27,7 +27,12 @@ from apps.ai_services.services import (
     run_job,
 )
 from apps.ai_services.throttling import AICoachRateThrottle
-from apps.assessments.models import AssessmentSession, SessionItem, SpeakingSubmission
+from apps.assessments.models import (
+    AssessmentSession,
+    SessionItem,
+    SpeakingSubmission,
+    WritingSubmission,
+)
 from apps.assessments.storage import private_recording_storage
 from apps.content.models import (
     ContentItem,
@@ -512,6 +517,38 @@ def test_feedback_history_only_returns_artifacts_inside_retention_window():
     assert results[0]["estimated_level_low"] == 7
     assert results[0]["estimated_level_high"] == 9
     assert results[0]["transcript"] == "Development transcript"
+
+
+def test_feedback_history_recovers_a_missing_model_answer_job(django_capture_on_commit_callbacks):
+    """A learner who never revisits the results page still gets a model answer.
+
+    The exemplar job is normally queued on_commit right after the assessment
+    succeeds. History recovers it lazily too, the same way the results page
+    already does, so it isn't left out forever.
+    """
+    user = User.objects.create_user(identifier="history-exemplar", password="secret1")
+    version = _minimal_version(code="history_exemplar", slug="history-exemplar-item")
+    feedback = _authenticated_feedback(user, version=version, age_days=1)
+    WritingSubmission.objects.create(
+        session_item=feedback.session_item, text="Dear landlord, ...", submitted_at=timezone.now()
+    )
+    assert not AIJob.objects.filter(kind=AIJobKind.RESPONSE_EXEMPLAR).exists()
+
+    pending = feedback_history(user)
+    assert pending[0]["example_status"] == "queued"
+    assert "level_twelve_exemplar" not in pending[0]["assessment"]
+    exemplar_job = AIJob.objects.get(kind=AIJobKind.RESPONSE_EXEMPLAR)
+
+    with django_capture_on_commit_callbacks(execute=True):
+        run_job(exemplar_job, provider=FakeProvider())
+
+    ready = feedback_history(user)
+    assert ready[0]["example_status"] == "succeeded"
+    assert ready[0]["assessment"]["level_twelve_exemplar"]["response"]
+
+    # A second call reuses the same job instead of queueing a duplicate.
+    feedback_history(user)
+    assert AIJob.objects.filter(kind=AIJobKind.RESPONSE_EXEMPLAR).count() == 1
 
 
 def test_feedback_history_is_owner_scoped():
