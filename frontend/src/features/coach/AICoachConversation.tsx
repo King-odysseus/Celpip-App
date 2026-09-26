@@ -1,4 +1,4 @@
-import { Bot, Loader2, Send, Trash2 } from 'lucide-react'
+import { Bot, Loader2, Send } from 'lucide-react'
 import { useEffect, useId, useRef } from 'react'
 import { Button } from '../../components/ui'
 import { STARTERS } from './coachData'
@@ -142,10 +142,10 @@ export function AICoachConversation({
             ref={textareaRef}
             id={fieldId}
             value={draft}
-            maxLength={2000}
+            maxLength={8000}
             rows={1}
             placeholder="Ask about improving or answering a task..."
-            className={`min-h-10 ${compact ? 'max-h-28' : 'max-h-40'} scrollbar-none min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-muted`}
+            className={`min-h-10 ${compact ? 'max-h-40' : 'max-h-64'} scrollbar-none min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-6 text-ink outline-none placeholder:text-muted`}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
@@ -164,27 +164,6 @@ export function AICoachConversation({
           </Button>
         </div>
       </form>
-    </div>
-  )
-}
-
-export function AICoachClearDialog() {
-  const { clearOpen, clearing, setClearOpen, clearConversation } = useAICoach()
-  if (!clearOpen) return null
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4">
-      <div role="dialog" aria-modal="true" aria-labelledby="clear-coach-title" className="w-full max-w-md rounded-card bg-surface p-5 shadow-elevated">
-        <Trash2 className="text-bad" size={22} />
-        <h2 id="clear-coach-title" className="mt-3 text-xl font-bold text-ink">Clear this conversation?</h2>
-        <p className="mt-2 text-sm leading-6 text-muted">This permanently removes all AI Coach messages from your account.</p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={() => setClearOpen(false)}>Cancel</Button>
-          <Button type="button" variant="danger" disabled={clearing} onClick={() => void clearConversation()}>
-            {clearing ? <Loader2 className="animate-spin" size={17} /> : <Trash2 size={17} />} Clear chat
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }

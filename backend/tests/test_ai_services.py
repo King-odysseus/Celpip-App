@@ -290,9 +290,68 @@ def test_ai_coach_persists_only_the_owners_conversation(api_client):
     assert [item["role"] for item in history.json()["messages"]] == ["user", "assistant"]
 
     api_client.force_authenticate(stranger)
-    assert api_client.get("/api/v1/me/ai-coach/").json() == {"messages": []}
+    assert api_client.get("/api/v1/me/ai-coach/").json() == {
+        "conversation": None,
+        "messages": [],
+    }
     assert api_client.delete("/api/v1/me/ai-coach/").status_code == 204
     assert AICoachMessage.objects.filter(user=owner).count() == 2
+
+
+def test_ai_coach_keeps_separate_conversations_in_history(api_client):
+    user = User.objects.create_user(identifier="coach-history", password="secret1")
+    stranger = User.objects.create_user(identifier="coach-history-other", password="secret1")
+    api_client.force_authenticate(user)
+
+    first = api_client.post(
+        "/api/v1/me/ai-coach/",
+        {"message": "How do I plan an email?", "skill": "writing"},
+        format="json",
+    ).json()
+    first_id = first["conversation"]["id"]
+    assert first["conversation"]["title"] == "How do I plan an email?"
+    follow_up = api_client.post(
+        "/api/v1/me/ai-coach/",
+        {"message": "And the closing?", "skill": "writing", "conversation_id": first_id},
+        format="json",
+    ).json()
+    assert follow_up["conversation"]["id"] == first_id
+    second = api_client.post(
+        "/api/v1/me/ai-coach/",
+        {"message": "How do I read faster?", "skill": "reading"},
+        format="json",
+    ).json()
+    second_id = second["conversation"]["id"]
+    assert second_id != first_id
+
+    listing = api_client.get("/api/v1/me/ai-coach/conversations/").json()["results"]
+    assert [(item["id"], item["message_count"]) for item in listing] == [
+        (second_id, 2),
+        (first_id, 4),
+    ]
+    assert api_client.get("/api/v1/me/ai-coach/").json()["conversation"]["id"] == second_id
+
+    reopened = api_client.get(f"/api/v1/me/ai-coach/conversations/{first_id}/").json()
+    assert [item["content"] for item in reopened["messages"] if item["role"] == "user"] == [
+        "How do I plan an email?",
+        "And the closing?",
+    ]
+
+    api_client.force_authenticate(stranger)
+    assert api_client.get(f"/api/v1/me/ai-coach/conversations/{first_id}/").status_code == 404
+    assert api_client.delete(f"/api/v1/me/ai-coach/conversations/{first_id}/").status_code == 404
+    assert api_client.post(
+        "/api/v1/me/ai-coach/",
+        {"message": "Can I join?", "skill": "general", "conversation_id": first_id},
+        format="json",
+    ).status_code == 404
+    assert api_client.get("/api/v1/me/ai-coach/conversations/").json() == {"results": []}
+
+    api_client.force_authenticate(user)
+    assert api_client.delete(f"/api/v1/me/ai-coach/conversations/{first_id}/").status_code == 204
+    listing = api_client.get("/api/v1/me/ai-coach/conversations/").json()["results"]
+    assert [item["id"] for item in listing] == [second_id]
+    assert AICoachMessage.objects.filter(user=user).count() == 2
 
 
 def test_ai_coach_rejects_empty_questions(api_client):

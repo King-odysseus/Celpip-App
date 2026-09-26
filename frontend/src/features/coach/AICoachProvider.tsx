@@ -13,6 +13,8 @@ import { api } from '../../lib/api'
 import { useAuth } from '../auth/AuthProvider'
 import {
   isCoachSkill,
+  type CoachConversation,
+  type CoachConversationList,
   type CoachMessage,
   type CoachReply,
   type CoachSkill,
@@ -29,21 +31,23 @@ type AICoachContextValue = {
   isOpen: boolean
   skill: CoachSkill
   draft: string
+  conversationId: string | null
   messages: CoachMessage[]
   loading: boolean
   sending: boolean
-  clearing: boolean
-  clearOpen: boolean
   error: string
   openCoach: (options?: OpenCoachOptions) => void
   closeCoach: () => void
   toggleCoach: () => void
   setSkill: (skill: CoachSkill) => void
   setDraft: (draft: string) => void
-  setClearOpen: (open: boolean) => void
   loadConversation: () => Promise<void>
   sendMessage: (question?: string) => Promise<void>
-  clearConversation: () => Promise<void>
+  startNewChat: () => void
+  listConversations: () => Promise<CoachConversation[]>
+  openConversation: (id: string) => Promise<void>
+  deleteConversation: (id: string) => Promise<void>
+  clearHistory: () => Promise<void>
 }
 
 const AICoachContext = createContext<AICoachContextValue | null>(null)
@@ -54,23 +58,21 @@ export function AICoachProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false)
   const [skill, setSkill] = useState<CoachSkill>('general')
   const [draft, setDraft] = useState('')
+  const [conversationId, setConversationId] = useState<string | null>(null)
   const [messages, setMessages] = useState<CoachMessage[]>([])
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [sending, setSending] = useState(false)
-  const [clearing, setClearing] = useState(false)
-  const [clearOpen, setClearOpen] = useState(false)
   const [error, setError] = useState('')
   const loadInFlight = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
     setIsOpen(false)
+    setConversationId(null)
     setMessages([])
     setLoaded(false)
     setLoading(false)
     setSending(false)
-    setClearing(false)
-    setClearOpen(false)
     setError('')
   }, [available, user?.id])
 
@@ -83,6 +85,7 @@ export function AICoachProvider({ children }: { children: ReactNode }) {
       setError('')
       try {
         const thread = await api.get<CoachThread>('/me/ai-coach/')
+        setConversationId(thread.conversation?.id ?? null)
         setMessages(thread.messages)
         setLoaded(true)
       } catch (reason) {
@@ -113,7 +116,6 @@ export function AICoachProvider({ children }: { children: ReactNode }) {
 
   const closeCoach = useCallback(() => {
     setIsOpen(false)
-    setClearOpen(false)
   }, [])
 
   const toggleCoach = useCallback(() => {
@@ -137,7 +139,12 @@ export function AICoachProvider({ children }: { children: ReactNode }) {
     setError('')
     setSending(true)
     try {
-      const reply = await api.post<CoachReply>('/me/ai-coach/', { message: content, skill })
+      const reply = await api.post<CoachReply>('/me/ai-coach/', {
+        message: content,
+        skill,
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+      })
+      setConversationId(reply.conversation.id)
       setMessages((current) => [
         ...current.filter((message) => message.id !== optimistic.id),
         reply.user_message,
@@ -153,21 +160,44 @@ export function AICoachProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function clearConversation() {
-    if (!available || clearing) return
-    setClearing(true)
+  // Starting a new chat only resets local state; the previous chat stays in
+  // history and the next question creates a new saved conversation.
+  const startNewChat = useCallback(() => {
+    setConversationId(null)
+    setMessages([])
+    setDraft('')
     setError('')
-    try {
-      await api.del('/me/ai-coach/')
-      setMessages([])
-      setLoaded(true)
-      setClearOpen(false)
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not clear the conversation.')
-    } finally {
-      setClearing(false)
+    setLoaded(true)
+  }, [])
+
+  const listConversations = useCallback(async () => {
+    const list = await api.get<CoachConversationList>('/me/ai-coach/conversations/')
+    return list.results
+  }, [])
+
+  const openConversation = useCallback(async (id: string) => {
+    const thread = await api.get<CoachThread>(`/me/ai-coach/conversations/${id}/`)
+    setConversationId(thread.conversation?.id ?? id)
+    setMessages(thread.messages)
+    if (thread.conversation && isCoachSkill(thread.conversation.skill)) {
+      setSkill(thread.conversation.skill)
     }
-  }
+    setError('')
+    setLoaded(true)
+  }, [])
+
+  const deleteConversation = useCallback(
+    async (id: string) => {
+      await api.del(`/me/ai-coach/conversations/${id}/`)
+      if (id === conversationId) startNewChat()
+    },
+    [conversationId, startNewChat],
+  )
+
+  const clearHistory = useCallback(async () => {
+    await api.del('/me/ai-coach/')
+    startNewChat()
+  }, [startNewChat])
 
   const value = useMemo<AICoachContextValue>(
     () => ({
@@ -175,37 +205,43 @@ export function AICoachProvider({ children }: { children: ReactNode }) {
       isOpen,
       skill,
       draft,
+      conversationId,
       messages,
       loading,
       sending,
-      clearing,
-      clearOpen,
       error,
       openCoach,
       closeCoach,
       toggleCoach,
       setSkill,
       setDraft,
-      setClearOpen,
       loadConversation,
       sendMessage,
-      clearConversation,
+      startNewChat,
+      listConversations,
+      openConversation,
+      deleteConversation,
+      clearHistory,
     }),
     [
       available,
       isOpen,
       skill,
       draft,
+      conversationId,
       messages,
       loading,
       sending,
-      clearing,
-      clearOpen,
       error,
       openCoach,
       closeCoach,
       toggleCoach,
       loadConversation,
+      startNewChat,
+      listConversations,
+      openConversation,
+      deleteConversation,
+      clearHistory,
     ],
   )
 

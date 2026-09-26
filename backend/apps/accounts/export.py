@@ -205,7 +205,16 @@ def _coach_messages(user: User) -> list[dict]:
     return list(
         AICoachMessage.objects.filter(user=user)
         .order_by("created_at", "id")
-        .values("id", "role", "content", "skill", "provider", "model", "created_at")
+        .values(
+            "id",
+            "conversation_id",
+            "role",
+            "content",
+            "skill",
+            "provider",
+            "model",
+            "created_at",
+        )
     )
 
 

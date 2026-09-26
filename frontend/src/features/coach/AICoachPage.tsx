@@ -1,8 +1,8 @@
-import { Bot, RotateCcw, ShieldCheck } from 'lucide-react'
+import { Bot, History, RotateCcw, ShieldCheck } from 'lucide-react'
 import { useEffect } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { Button, Card } from '../../components/ui'
-import { AICoachClearDialog, AICoachConversation } from './AICoachConversation'
+import { Button, ButtonLink, Card } from '../../components/ui'
+import { AICoachConversation } from './AICoachConversation'
 import { useAICoach } from './AICoachProvider'
 import { COACH_SKILLS, isCoachSkill, STARTERS } from './coachData'
 
@@ -17,7 +17,7 @@ export function AICoachPage() {
     messages,
     setSkill,
     setDraft,
-    setClearOpen,
+    startNewChat,
     loadConversation,
   } = useAICoach()
 
@@ -59,16 +59,24 @@ export function AICoachPage() {
               <p className="text-sm font-bold text-ink">{activeSkill.label} focus</p>
               <p className="truncate text-xs text-muted">Your conversation stays in your account.</p>
             </div>
-            {messages.length > 0 && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="shrink-0 px-3"
-                onClick={() => setClearOpen(true)}
-              >
-                <RotateCcw size={16} /> New chat
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-1">
+              <ButtonLink to="/coach/history" variant="ghost" className="px-3">
+                <History size={16} /> History
+              </ButtonLink>
+              {messages.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="px-3"
+                  onClick={() => {
+                    startNewChat()
+                    document.getElementById('coach-page-question')?.focus()
+                  }}
+                >
+                  <RotateCcw size={16} /> New chat
+                </Button>
+              )}
+            </div>
           </div>
 
           <AICoachConversation />
@@ -120,8 +128,6 @@ export function AICoachPage() {
           </Card>
         </aside>
       </div>
-
-      <AICoachClearDialog />
     </div>
   )
 }

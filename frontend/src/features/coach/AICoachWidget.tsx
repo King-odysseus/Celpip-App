@@ -1,8 +1,8 @@
-import { Bot, ChevronDown, Maximize2, MessageCircleQuestion, RotateCcw } from 'lucide-react'
+import { Bot, ChevronDown, History, Maximize2, MessageCircleQuestion, RotateCcw } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { COACH_SKILLS } from './coachData'
-import { AICoachClearDialog, AICoachConversation } from './AICoachConversation'
+import { AICoachConversation } from './AICoachConversation'
 import { useAICoach } from './AICoachProvider'
 
 export function AICoachWidget() {
@@ -16,11 +16,11 @@ export function AICoachWidget() {
     openCoach,
     closeCoach,
     setSkill,
-    setClearOpen,
+    startNewChat,
   } = useAICoach()
 
   useEffect(() => {
-    if (location.pathname === '/coach' && isOpen) closeCoach()
+    if (location.pathname.startsWith('/coach') && isOpen) closeCoach()
   }, [closeCoach, isOpen, location.pathname])
 
   useEffect(() => {
@@ -35,7 +35,7 @@ export function AICoachWidget() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [closeCoach, isOpen])
 
-  if (!available || location.pathname === '/coach') return null
+  if (!available || location.pathname.startsWith('/coach')) return null
 
   if (!isOpen) {
     return (
@@ -74,12 +74,20 @@ export function AICoachWidget() {
               type="button"
               aria-label="New chat"
               title="New chat"
-              onClick={() => setClearOpen(true)}
+              onClick={startNewChat}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
             >
               <RotateCcw size={17} />
             </button>
           )}
+          <Link
+            to="/coach/history"
+            aria-label="AI Coach history"
+            title="History"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white/80 transition hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <History size={17} />
+          </Link>
           <Link
             to={skill === 'general' ? '/coach' : `/coach?skill=${skill}`}
             aria-label="Open full AI Coach"
@@ -125,7 +133,6 @@ export function AICoachWidget() {
           Practice guidance only. Not an official CELPIP score.
         </p>
       </section>
-      <AICoachClearDialog />
     </>
   )
 }

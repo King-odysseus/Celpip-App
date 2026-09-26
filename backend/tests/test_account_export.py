@@ -6,7 +6,7 @@ import pytest
 from django.utils import timezone
 
 from apps.accounts.models import LearnerProfile, RecoveryCode, User
-from apps.ai_services.models import AICoachMessage
+from apps.ai_services.models import AICoachConversation, AICoachMessage
 from apps.assessments.models import (
     AssessmentSession,
     ObjectiveResult,
@@ -190,6 +190,7 @@ def test_export_contains_all_expected_sections(api_client):
     StudyPlan.objects.create(user=user, version=1, is_active=True, reason_summary={})
     AICoachMessage.objects.create(
         user=user,
+        conversation=AICoachConversation.objects.create(user=user, title="Writing help"),
         role=AICoachMessage.Role.ASSISTANT,
         content="Use one clear reason and one specific example.",
         skill="writing",

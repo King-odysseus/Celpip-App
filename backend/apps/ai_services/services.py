@@ -9,6 +9,7 @@ from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Count
 from django.utils import timezone
 
 from apps.assessments.models import SpeakingSubmission, WritingSubmission
@@ -25,7 +26,7 @@ from apps.content.models import (
 from apps.content.services import validate_content_version
 
 from .contracts import ProviderError
-from .models import AICoachMessage, AIFeedback, AIJob, AIJobKind, AIJobStatus
+from .models import AICoachConversation, AICoachMessage, AIFeedback, AIJob, AIJobKind, AIJobStatus
 from .prompts import (
     COACH_PROMPT_VERSION,
     CONTENT_PROMPT_VERSION,
@@ -46,9 +47,10 @@ logger = logging.getLogger(__name__)
 # transcript + analysis + score). After this, the retention command purges it.
 # The audio recording is dropped much earlier — immediately once feedback lands.
 FEEDBACK_RETENTION_DAYS = 180
-COACH_HISTORY_LIMIT = 60
+COACH_HISTORY_LIMIT = 200
 COACH_CONTEXT_MESSAGES = 12
-COACH_MAX_MESSAGE_LENGTH = 2000
+COACH_MAX_MESSAGE_LENGTH = 8000
+COACH_TITLE_LENGTH = 120
 COACH_SKILLS = {"general", "listening", "reading", "writing", "speaking"}
 
 
@@ -480,19 +482,41 @@ def feedback_history(user) -> list[dict]:
     return results
 
 
-def coach_messages(user) -> list[AICoachMessage]:
-    """Return the most recent coach turns in natural conversation order."""
+def latest_coach_conversation(user) -> AICoachConversation | None:
+    """Return the chat the learner touched most recently, if any."""
+    return AICoachConversation.objects.filter(user=user).first()
+
+
+def coach_messages(user, conversation: AICoachConversation | None = None) -> list[AICoachMessage]:
+    """Return a conversation's turns (the latest one by default) in natural order."""
+    conversation = conversation or latest_coach_conversation(user)
+    if conversation is None:
+        return []
     recent = list(
-        AICoachMessage.objects.filter(user=user).order_by("-created_at", "-id")[
-            :COACH_HISTORY_LIMIT
-        ]
+        conversation.messages.order_by("-created_at", "-id")[:COACH_HISTORY_LIMIT]
     )
     recent.reverse()
     return recent
 
 
-def ask_coach(*, user, message: str, skill: str) -> tuple[AICoachMessage, AICoachMessage]:
-    """Answer one learner turn immediately and persist both sides of it."""
+def coach_conversations(user):
+    """List the learner's saved chats, newest activity first."""
+    return AICoachConversation.objects.filter(user=user).annotate(
+        message_count=Count("messages")
+    )
+
+
+def ask_coach(
+    *,
+    user,
+    message: str,
+    skill: str,
+    conversation: AICoachConversation | None = None,
+) -> tuple[AICoachMessage, AICoachMessage]:
+    """Answer one learner turn and persist both sides of it.
+
+    Without a ``conversation`` the question starts a new saved chat.
+    """
     clean_message = (message or "").strip()
     clean_skill = (skill or "general").strip().lower()
     if not clean_message:
@@ -503,13 +527,15 @@ def ask_coach(*, user, message: str, skill: str) -> tuple[AICoachMessage, AICoac
         )
     if clean_skill not in COACH_SKILLS:
         raise ValidationError("Choose a valid practice skill.")
+    if conversation is not None and conversation.user_id != user.pk:
+        raise ValidationError("Choose one of your own conversations.")
 
-    recent = list(
-        AICoachMessage.objects.filter(user=user).order_by("-created_at", "-id")[
-            :COACH_CONTEXT_MESSAGES
-        ]
-    )
-    recent.reverse()
+    recent = []
+    if conversation is not None:
+        recent = list(
+            conversation.messages.order_by("-created_at", "-id")[:COACH_CONTEXT_MESSAGES]
+        )
+        recent.reverse()
     result = get_provider().coach_reply(
         {
             "message": clean_message,
@@ -523,14 +549,25 @@ def ask_coach(*, user, message: str, skill: str) -> tuple[AICoachMessage, AICoac
     reply = validate_coach_reply(result.payload)
 
     with transaction.atomic():
+        if conversation is None:
+            conversation = AICoachConversation.objects.create(
+                user=user,
+                title=" ".join(clean_message.split())[:COACH_TITLE_LENGTH],
+                skill=clean_skill,
+            )
+        else:
+            conversation.skill = clean_skill
+            conversation.save(update_fields=["skill", "updated_at"])
         learner_message = AICoachMessage.objects.create(
             user=user,
+            conversation=conversation,
             role=AICoachMessage.Role.USER,
             content=clean_message,
             skill=clean_skill,
         )
         coach_message = AICoachMessage.objects.create(
             user=user,
+            conversation=conversation,
             role=AICoachMessage.Role.ASSISTANT,
             content=reply,
             skill=clean_skill,
@@ -544,6 +581,6 @@ def ask_coach(*, user, message: str, skill: str) -> tuple[AICoachMessage, AICoac
 
 
 def clear_coach_messages(user) -> int:
-    """Delete the learner's quick-help conversation on request."""
-    deleted, _ = AICoachMessage.objects.filter(user=user).delete()
+    """Delete every saved AI Coach conversation for the learner on request."""
+    deleted, _ = AICoachConversation.objects.filter(user=user).delete()
     return deleted

@@ -20,6 +20,17 @@ const PROFILE = {
   updated_at: '2026-08-29T00:00:00Z',
 }
 
+function conversation(id: string, title: string, skill = 'general', messageCount = 2) {
+  return {
+    id,
+    title,
+    skill,
+    message_count: messageCount,
+    created_at: '2026-09-17T12:00:00Z',
+    updated_at: '2026-09-17T12:00:01Z',
+  }
+}
+
 const authenticatedBootstrap = {
   'GET /auth/csrf/': () => jsonResponse({ detail: 'ok' }),
   'POST /auth/refresh/': () => jsonResponse({ access: 'access-token' }),
@@ -34,6 +45,7 @@ describe('AI Coach', () => {
       ...authenticatedBootstrap,
       'GET /me/ai-coach/': () => jsonResponse({ messages: [] }),
       'POST /me/ai-coach/': () => jsonResponse({
+        conversation: conversation('conv-1', 'How should I structure a CELPIP email?', 'writing'),
         user_message: {
           id: 'user-1',
           role: 'user',
@@ -68,37 +80,90 @@ describe('AI Coach', () => {
     expect(screen.getByLabelText('Message the AI Coach')).toHaveValue('')
   })
 
-  it('clears the saved conversation after explicit confirmation', async () => {
+  it('starts a new chat without deleting the saved one and continues it later', async () => {
     const user = userEvent.setup()
-    let history = {
-      messages: [
-        {
-          id: 'coach-old',
-          role: 'assistant',
-          content: 'Use one clear reason and one specific example.',
-          skill: 'writing',
-          created_at: '2026-09-17T12:00:00Z',
-        },
-      ],
-    }
     const fetchSpy = installRouteFetch({
       ...authenticatedBootstrap,
-      'GET /me/ai-coach/': () => jsonResponse(history),
-      'DELETE /me/ai-coach/': () => {
-        history = { messages: [] }
-        return new Response(null, { status: 204 })
-      },
+      'GET /me/ai-coach/': () => jsonResponse({
+        conversation: conversation('conv-old', 'How do I give reasons?', 'writing', 1),
+        messages: [
+          {
+            id: 'coach-old',
+            role: 'assistant',
+            content: 'Use one clear reason and one specific example.',
+            skill: 'writing',
+            created_at: '2026-09-17T12:00:00Z',
+          },
+        ],
+      }),
+      'POST /me/ai-coach/': () => jsonResponse({
+        conversation: conversation('conv-new', 'Fresh question?'),
+        user_message: { id: 'u2', role: 'user', content: 'Fresh question?', skill: 'writing', created_at: '2026-09-18T12:00:00Z' },
+        coach_message: { id: 'c2', role: 'assistant', content: 'Fresh answer.', skill: 'writing', created_at: '2026-09-18T12:00:01Z' },
+      }, 201),
     })
 
     renderApp('/coach')
 
     expect(await screen.findByText('Use one clear reason and one specific example.')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'New chat' }))
-    expect(screen.getByRole('dialog', { name: 'Clear this conversation?' })).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Clear chat' }))
+    await user.click(screen.getByRole('button', { name: /new chat/i }))
+    expect(screen.getByText('What would you like to improve?')).toBeInTheDocument()
+    expect(fetchSpy.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(false)
 
-    await waitFor(() => expect(screen.getByText('What would you like to improve?')).toBeInTheDocument())
-    expect(fetchSpy.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true)
+    await user.type(screen.getByLabelText('Message the AI Coach'), 'Fresh question?')
+    await user.click(screen.getByRole('button', { name: 'Send question' }))
+    expect(await screen.findByText('Fresh answer.')).toBeInTheDocument()
+    const post = fetchSpy.mock.calls.find(([, init]) => init?.method === 'POST' && init.body)
+    expect(JSON.parse(String(post?.[1]?.body))).not.toHaveProperty('conversation_id')
+  })
+
+  it('lists past chats in history and reopens one to keep asking', async () => {
+    const user = userEvent.setup()
+    const fetchSpy = installRouteFetch({
+      ...authenticatedBootstrap,
+      'GET /me/ai-coach/': () => jsonResponse({ conversation: null, messages: [] }),
+      'GET /me/ai-coach/conversations/': () => jsonResponse({
+        results: [
+          conversation('conv-2', 'How can I read faster?', 'reading'),
+          conversation('conv-1', 'How do I plan an email?', 'writing', 4),
+        ],
+      }),
+      'GET /me/ai-coach/conversations/conv-1/': () => jsonResponse({
+        conversation: conversation('conv-1', 'How do I plan an email?', 'writing', 4),
+        messages: [
+          { id: 'm1', role: 'user', content: 'How do I plan an email?', skill: 'writing', created_at: '2026-09-17T12:00:00Z' },
+          { id: 'm2', role: 'assistant', content: 'State your purpose first.', skill: 'writing', created_at: '2026-09-17T12:00:01Z' },
+        ],
+      }),
+      'DELETE /me/ai-coach/conversations/conv-2/': () => new Response(null, { status: 204 }),
+      'POST /me/ai-coach/': () => jsonResponse({
+        conversation: conversation('conv-1', 'How do I plan an email?', 'writing', 6),
+        user_message: { id: 'm3', role: 'user', content: 'And the closing?', skill: 'writing', created_at: '2026-09-17T12:01:00Z' },
+        coach_message: { id: 'm4', role: 'assistant', content: 'End with a clear request.', skill: 'writing', created_at: '2026-09-17T12:01:01Z' },
+      }, 201),
+    })
+
+    renderApp('/coach')
+    await user.click(await screen.findByRole('link', { name: /history/i }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Chat history' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete "How can I read faster?"' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Delete this conversation?' })).getByRole('button', { name: /delete/i }))
+    await waitFor(() => expect(screen.queryByText('How can I read faster?')).not.toBeInTheDocument())
+
+    await user.click(screen.getByRole('button', { name: /^how do i plan an email/i }))
+    expect(await screen.findByText('State your purpose first.')).toBeInTheDocument()
+    expect(screen.getByText('Writing focus')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Message the AI Coach'), 'And the closing?')
+    await user.click(screen.getByRole('button', { name: 'Send question' }))
+    expect(await screen.findByText('End with a clear request.')).toBeInTheDocument()
+    const post = fetchSpy.mock.calls.find(([, init]) => init?.method === 'POST' && init.body)
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({
+      message: 'And the closing?',
+      skill: 'writing',
+      conversation_id: 'conv-1',
+    })
   })
 
   it('opens a compact floating coach from any signed-in page', async () => {
@@ -107,6 +172,7 @@ describe('AI Coach', () => {
       ...authenticatedBootstrap,
       'GET /me/ai-coach/': () => jsonResponse({ messages: [] }),
       'POST /me/ai-coach/': () => jsonResponse({
+        conversation: conversation('conv-widget', 'How can I improve my reading speed?', 'reading'),
         user_message: {
           id: 'widget-user',
           role: 'user',

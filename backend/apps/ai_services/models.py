@@ -127,6 +127,30 @@ class AIFeedback(models.Model):
         raise ValidationError("AI feedback is an immutable audit record.")
 
 
+class AICoachConversation(models.Model):
+    """One saved AI Coach chat; learners can reopen it from their history."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="ai_coach_conversations",
+    )
+    title = models.CharField(max_length=120)
+    skill = models.CharField(max_length=16, blank=True, default="general")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        indexes = [
+            models.Index(fields=["user", "-updated_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"AI Coach conversation for {self.user_id}: {self.title}"
+
+
 class AICoachMessage(models.Model):
     """A learner-visible, account-scoped turn in the quick-help coach."""
 
@@ -139,6 +163,11 @@ class AICoachMessage(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="ai_coach_messages",
+    )
+    conversation = models.ForeignKey(
+        AICoachConversation,
+        on_delete=models.CASCADE,
+        related_name="messages",
     )
     role = models.CharField(max_length=12, choices=Role.choices)
     content = models.TextField()

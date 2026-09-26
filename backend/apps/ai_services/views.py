@@ -10,13 +10,20 @@ from apps.assessments.services import AssessmentError, authorize_session
 from apps.assessments.views import _mock_embargoed, error_response
 
 from .contracts import ProviderError
-from .serializers import AICoachMessageCreateSerializer, AICoachMessageSerializer
+from .models import AICoachConversation
+from .serializers import (
+    AICoachConversationSerializer,
+    AICoachMessageCreateSerializer,
+    AICoachMessageSerializer,
+)
 from .services import (
     ask_coach,
     clear_coach_messages,
+    coach_conversations,
     coach_messages,
     feedback_history,
     feedback_payload,
+    latest_coach_conversation,
 )
 from .throttling import AICoachRateThrottle
 
@@ -53,8 +60,19 @@ class AIFeedbackHistoryView(APIView):
         return Response({"results": feedback_history(request.user)})
 
 
+def _conversation_payload(user, conversation):
+    return {
+        "conversation": (
+            AICoachConversationSerializer(conversation).data if conversation else None
+        ),
+        "messages": AICoachMessageSerializer(
+            coach_messages(user, conversation) if conversation else [], many=True
+        ).data,
+    }
+
+
 class AICoachView(APIView):
-    """Read, append to, or clear the authenticated learner's AI Coach chat."""
+    """Read the latest chat, ask a question, or clear all AI Coach history."""
 
     permission_classes = [IsAuthenticated]
     throttle_classes = [AICoachRateThrottle]
@@ -67,7 +85,7 @@ class AICoachView(APIView):
 
     def get(self, request):
         return Response(
-            {"messages": AICoachMessageSerializer(coach_messages(request.user), many=True).data}
+            _conversation_payload(request.user, latest_coach_conversation(request.user))
         )
 
     def post(self, request):
@@ -81,9 +99,16 @@ class AICoachView(APIView):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        data = dict(serializer.validated_data)
+        conversation_id = data.pop("conversation_id", None)
+        conversation = None
+        if conversation_id is not None:
+            conversation = get_object_or_404(
+                AICoachConversation, pk=conversation_id, user=request.user
+            )
         try:
             learner_message, coach_message = ask_coach(
-                user=request.user, **serializer.validated_data
+                user=request.user, conversation=conversation, **data
             )
         except ValidationError as exc:
             return Response(
@@ -105,6 +130,9 @@ class AICoachView(APIView):
             )
         return Response(
             {
+                "conversation": AICoachConversationSerializer(
+                    learner_message.conversation
+                ).data,
                 "user_message": AICoachMessageSerializer(learner_message).data,
                 "coach_message": AICoachMessageSerializer(coach_message).data,
             },
@@ -113,4 +141,38 @@ class AICoachView(APIView):
 
     def delete(self, request):
         clear_coach_messages(request.user)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class AICoachConversationListView(APIView):
+    """List the learner's saved AI Coach chats for the history page."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response(
+            {
+                "results": AICoachConversationSerializer(
+                    coach_conversations(request.user), many=True
+                ).data
+            }
+        )
+
+
+class AICoachConversationDetailView(APIView):
+    """Reopen or delete one of the learner's saved AI Coach chats."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, conversation_id):
+        conversation = get_object_or_404(
+            AICoachConversation, pk=conversation_id, user=request.user
+        )
+        return Response(_conversation_payload(request.user, conversation))
+
+    def delete(self, request, conversation_id):
+        conversation = get_object_or_404(
+            AICoachConversation, pk=conversation_id, user=request.user
+        )
+        conversation.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

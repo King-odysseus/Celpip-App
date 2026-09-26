@@ -1,7 +1,7 @@
 from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
 
-from .models import AICoachMessage, AIFeedback, AIJob
+from .models import AICoachConversation, AICoachMessage, AIFeedback, AIJob
 from .services import materialize_content_draft
 
 
@@ -42,6 +42,13 @@ class AIFeedbackAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(AICoachConversation)
+class AICoachConversationAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "title", "skill", "updated_at")
+    list_filter = ("skill",)
+    readonly_fields = tuple(field.name for field in AICoachConversation._meta.fields)
 
 
 @admin.register(AICoachMessage)

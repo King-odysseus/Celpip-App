@@ -18,8 +18,22 @@ export type CoachMessage = {
   created_at: string
 }
 
-export type CoachThread = { messages: CoachMessage[] }
-export type CoachReply = { user_message: CoachMessage; coach_message: CoachMessage }
+export type CoachConversation = {
+  id: string
+  title: string
+  skill: CoachSkill
+  message_count: number
+  created_at: string
+  updated_at: string
+}
+
+export type CoachThread = { conversation: CoachConversation | null; messages: CoachMessage[] }
+export type CoachReply = {
+  conversation: CoachConversation
+  user_message: CoachMessage
+  coach_message: CoachMessage
+}
+export type CoachConversationList = { results: CoachConversation[] }
 
 export const COACH_SKILLS: Array<{ value: CoachSkill; label: string; icon: LucideIcon }> = [
   { value: 'general', label: 'All skills', icon: Sparkles },
