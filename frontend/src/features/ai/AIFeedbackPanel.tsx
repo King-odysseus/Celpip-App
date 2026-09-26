@@ -1,4 +1,4 @@
-import { Bot, CheckCircle2, Loader2, MessageCircleQuestion, ShieldCheck, XCircle } from 'lucide-react'
+import { Bot, CheckCircle2, Loader2, MessageCircleQuestion, RotateCcw, ShieldCheck, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Card } from '../../components/ui'
 import { api } from '../../lib/api'
@@ -46,6 +46,9 @@ function tokenHeaders(sessionId: string): Record<string, string> {
 export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string; practiceHref?: string }) {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null)
   const [unavailable, setUnavailable] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [retryingExample, setRetryingExample] = useState(false)
+  const [retryError, setRetryError] = useState('')
 
   useEffect(() => {
     let active = true
@@ -83,7 +86,22 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
       window.clearTimeout(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [sessionId])
+  }, [sessionId, refreshKey])
+
+  const retryExample = async () => {
+    setRetryingExample(true)
+    setRetryError('')
+    try {
+      const result = await api.post<FeedbackState>(`/sessions/${sessionId}/ai-feedback/`, undefined, tokenHeaders(sessionId))
+      setFeedback(result)
+      setUnavailable(false)
+      setRefreshKey((value) => value + 1)
+    } catch (reason: unknown) {
+      setRetryError(reason instanceof Error ? reason.message : 'Could not restart the example answer.')
+    } finally {
+      setRetryingExample(false)
+    }
+  }
 
   if (unavailable) return <StatusCard title="AI-assisted feedback" message="Feedback is temporarily unavailable. Your submitted response remains safely stored." />
   if (!feedback || ['queued', 'running'].includes(feedback.status)) {
@@ -141,7 +159,16 @@ export function AIFeedbackPanel({ sessionId, practiceHref }: { sessionId: string
         </div>
       </Card>
       {['queued', 'running'].includes(feedback.example_status ?? '') && <Card className="border-dashed p-4 text-sm text-muted" aria-live="polite"><Loader2 className="mr-2 inline animate-spin text-brand" size={16} />Preparing your example high-scoring answer…</Card>}
-      {feedback.example_status === 'failed' && <Card className="border-dashed p-4 text-sm text-muted">Your score is ready. The example answer could not be generated after several attempts.</Card>}
+      {feedback.example_status === 'failed' && (
+        <Card className="border-dashed p-4 text-sm text-muted">
+          <p>Your score is ready. The example answer could not be generated after several attempts.</p>
+          <button type="button" onClick={() => void retryExample()} disabled={retryingExample} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-brand px-4 py-2 text-sm font-semibold text-brand transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-60">
+            {retryingExample ? <Loader2 className="animate-spin" size={16} /> : <RotateCcw size={16} />}
+            {retryingExample ? 'Trying again…' : 'Try again'}
+          </button>
+          {retryError && <p role="alert" className="mt-2 text-bad">{retryError}</p>}
+        </Card>
+      )}
       {practiceHref && <Card className="border-accent/30 bg-accent-soft/25"><p className="text-sm font-bold text-ink">Apply this feedback on a fresh prompt</p><p className="mt-1 text-sm text-muted">Try the same task type again so the app can compare your next response with this one.</p><Link to={practiceHref} className="mt-3 inline-flex min-h-10 items-center rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white">Practise this next</Link></Card>}
       {feedback.audit && <details className="text-xs text-muted"><summary className="cursor-pointer font-semibold">Feedback audit details</summary><p className="mt-2">Provider: {feedback.audit.provider} · Model: {feedback.audit.model} · Prompt: {feedback.audit.prompt_version}</p></details>}
     </section>

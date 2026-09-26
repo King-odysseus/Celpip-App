@@ -187,6 +187,42 @@ def test_retryable_provider_error_requeues_job(
     assert failed.error_message == "Temporary safe failure."
 
 
+def test_failed_example_answer_can_be_queued_again_without_regrading(
+    api_client, django_capture_on_commit_callbacks
+):
+    started = _submit_writing(api_client, django_capture_on_commit_callbacks)
+    feedback_job = run_job(claim_next_job(), provider=FakeProvider())
+    original = enqueue_response_exemplar(feedback_job.session_item)
+    original.status = AIJobStatus.FAILED
+    original.completed_at = timezone.now()
+    original.save(update_fields=["status", "completed_at", "updated_at"])
+
+    endpoint = f"/api/v1/sessions/{started.json()['id']}/ai-feedback/"
+    response = api_client.post(endpoint, format="json", **_guest_headers(started))
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "succeeded"
+    assert response.json()["example_status"] == "queued"
+    replacement = AIJob.objects.filter(kind=AIJobKind.RESPONSE_EXEMPLAR).latest("created_at")
+    assert replacement.pk != original.pk
+    assert replacement.attempts == 0
+    assert AIFeedback.objects.get().job_id == feedback_job.pk
+
+
+def test_example_answer_retry_requires_a_failed_job(
+    api_client, django_capture_on_commit_callbacks
+):
+    started = _submit_writing(api_client, django_capture_on_commit_callbacks)
+    feedback_job = run_job(claim_next_job(), provider=FakeProvider())
+    enqueue_response_exemplar(feedback_job.session_item)
+
+    endpoint = f"/api/v1/sessions/{started.json()['id']}/ai-feedback/"
+    response = api_client.post(endpoint, format="json", **_guest_headers(started))
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "example_not_retryable"
+
+
 def test_generated_content_materializes_only_as_human_review_draft():
     call_command("seed_reading_content", verbosity=0)
     task_type = TaskType.objects.get(pk="reading_correspondence")

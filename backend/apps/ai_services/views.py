@@ -24,6 +24,7 @@ from .services import (
     feedback_history,
     feedback_payload,
     latest_coach_conversation,
+    retry_response_exemplar,
 )
 from .throttling import AICoachRateThrottle
 
@@ -32,15 +33,9 @@ class AIFeedbackView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request, session_id):
-        session = get_object_or_404(AssessmentSession, pk=session_id)
-        try:
-            authorize_session(
-                session,
-                user=request.user,
-                guest_token=request.headers.get("X-Guest-Token", ""),
-            )
-        except AssessmentError as exc:
-            return error_response(exc)
+        session = self._authorized_session(request, session_id)
+        if isinstance(session, Response):
+            return session
         if _mock_embargoed(session):
             return Response(
                 {
@@ -51,6 +46,41 @@ class AIFeedbackView(APIView):
                 status=status.HTTP_409_CONFLICT,
             )
         return Response(feedback_payload(session.items.get()))
+
+    @staticmethod
+    def _authorized_session(request, session_id):
+        session = get_object_or_404(AssessmentSession, pk=session_id)
+        try:
+            authorize_session(
+                session,
+                user=request.user,
+                guest_token=request.headers.get("X-Guest-Token", ""),
+            )
+        except AssessmentError as exc:
+            return error_response(exc)
+        return session
+
+    def post(self, request, session_id):
+        session = self._authorized_session(request, session_id)
+        if isinstance(session, Response):
+            return session
+        if _mock_embargoed(session):
+            return Response(
+                {
+                    "code": "mock_results_embargoed",
+                    "message": "AI feedback is released after all four mock components finish.",
+                    "fields": {},
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        try:
+            retry_response_exemplar(session.items.get())
+        except ValidationError as exc:
+            return Response(
+                {"code": "example_not_retryable", "message": exc.messages[0], "fields": {}},
+                status=status.HTTP_409_CONFLICT,
+            )
+        return Response(feedback_payload(session.items.get()), status=status.HTTP_202_ACCEPTED)
 
 
 class AIFeedbackHistoryView(APIView):

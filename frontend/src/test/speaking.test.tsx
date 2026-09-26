@@ -189,13 +189,42 @@ describe('AI feedback panel', () => {
     render(<MemoryRouter><AIFeedbackPanel sessionId={sessionId} /></MemoryRouter>)
 
     await waitFor(() => expect(polls).toBe(1))
-    expect(screen.getByText(/preparing your example/i)).toBeInTheDocument()
+    expect(await screen.findByText(/preparing your example/i)).toBeInTheDocument()
 
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
     await act(async () => { document.dispatchEvent(new Event('visibilitychange')) })
 
     await waitFor(() => expect(polls).toBe(2))
     expect(screen.queryByText(/preparing your example/i)).not.toBeInTheDocument()
+  })
+
+  it('lets the learner retry a failed model answer without resubmitting the response', async () => {
+    const user = userEvent.setup()
+    let exampleStatus = 'failed'
+    const assessment = {
+      overall_summary: 'Clear advice.',
+      dimensions: [],
+      strengths: [],
+      priorities: [],
+      estimated_level_low: 6,
+      estimated_level_high: 7,
+      confidence: 'medium' as const,
+      disclaimer: 'Practice estimate.',
+    }
+    installRouteFetch({
+      [`GET /sessions/${sessionId}/ai-feedback/`]: () => jsonResponse({
+        status: 'succeeded', assessment, example_status: exampleStatus,
+      }),
+      [`POST /sessions/${sessionId}/ai-feedback/`]: () => {
+        exampleStatus = 'queued'
+        return jsonResponse({ status: 'succeeded', assessment, example_status: 'queued' }, 202)
+      },
+    })
+    render(<MemoryRouter><AIFeedbackPanel sessionId={sessionId} /></MemoryRouter>)
+
+    await user.click(await screen.findByRole('button', { name: 'Try again' }))
+
+    expect(await screen.findByText(/preparing your example/i)).toBeInTheDocument()
   })
 })
 

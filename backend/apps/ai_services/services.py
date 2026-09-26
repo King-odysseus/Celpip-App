@@ -156,14 +156,14 @@ def enqueue_content_draft(*, task_type: TaskType, topic: str, difficulty: int, u
     )
 
 
-def enqueue_response_exemplar(session_item) -> AIJob:
+def enqueue_response_exemplar(session_item, *, replace_failed: bool = False) -> AIJob:
     """Queue one independently retryable example answer after scoring succeeds."""
     existing = AIJob.objects.filter(
         session_item=session_item,
         kind=AIJobKind.RESPONSE_EXEMPLAR,
         prompt_version=EXEMPLAR_PROMPT_VERSION,
-    ).first()
-    if existing:
+    ).order_by("-created_at").first()
+    if existing and not (replace_failed and existing.status == AIJobStatus.FAILED):
         return existing
     skill = session_item.snapshot.get("skill")
     learner_response = ""
@@ -199,6 +199,28 @@ def enqueue_response_exemplar(session_item) -> AIJob:
         max_attempts=settings.AI_MAX_ATTEMPTS,
         run_after=timezone.now(),
     )
+
+
+@transaction.atomic
+def retry_response_exemplar(session_item) -> AIJob:
+    """Queue a fresh example-answer job after its previous attempts failed.
+
+    The assessment is immutable and remains untouched. Locking the session item
+    makes repeated clicks safe: only the first request can replace a failed job.
+    """
+    locked_item = session_item.__class__.objects.select_for_update().get(pk=session_item.pk)
+    latest = (
+        AIJob.objects.filter(
+            session_item=locked_item,
+            kind=AIJobKind.RESPONSE_EXEMPLAR,
+            prompt_version=EXEMPLAR_PROMPT_VERSION,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if latest is None or latest.status != AIJobStatus.FAILED:
+        raise ValidationError("The example answer is not available to retry.")
+    return enqueue_response_exemplar(locked_item, replace_failed=True)
 
 
 @transaction.atomic
