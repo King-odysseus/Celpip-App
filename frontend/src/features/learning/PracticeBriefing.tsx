@@ -1,5 +1,6 @@
 import { Lightbulb, X } from 'lucide-react'
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Button, Card } from '../../components/ui'
 import { PatternCard, PatternDrill, usePatternProgress } from './AnswerPattern'
 import type { AnswerPattern } from './types'
@@ -26,7 +27,10 @@ export function PracticeBriefing({ task, onCancel, onStart, starting }: { task: 
     if (correct) setRecalled(true)
   }
 
-  return (
+  // Portaled to <body>: catalog pages animate in with a transform, which would
+  // otherwise make this fixed overlay position itself against the long page
+  // instead of the viewport, leaving the dialog far below the visible area.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy/60 p-4" role="dialog" aria-modal="true" aria-labelledby="practice-briefing-title">
       <Card className="max-h-[90vh] w-full max-w-xl overflow-y-auto">
         <div className="flex items-start justify-between gap-3">
@@ -54,6 +58,7 @@ export function PracticeBriefing({ task, onCancel, onStart, starting }: { task: 
         <p className="mt-2 text-xs text-muted">{mustDrill ? 'Recall the pattern in order to start.' : 'The activity timer starts after you continue.'}</p>
         <div className="mt-5 flex justify-end gap-2"><Button variant="secondary" onClick={onCancel}>Not yet</Button><Button disabled={starting || mustDrill} onClick={onStart}>{starting ? 'Starting…' : 'Start practice'}</Button></div>
       </Card>
-    </div>
+    </div>,
+    document.body,
   )
 }
