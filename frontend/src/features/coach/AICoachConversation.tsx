@@ -22,15 +22,16 @@ export function AICoachConversation({
     setDraft,
     sendMessage,
   } = useAICoach()
-  const logEndRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const questionId = useId()
   const fieldId = compact ? questionId : 'coach-page-question'
 
+  // Scroll only the log itself; scrollIntoView would also scroll the page and
+  // push the input out of view.
   useEffect(() => {
-    if (typeof logEndRef.current?.scrollIntoView === 'function') {
-      logEndRef.current.scrollIntoView({ block: 'end' })
-    }
+    const log = logRef.current
+    if (log) log.scrollTop = log.scrollHeight
   }, [messages, sending])
 
   useEffect(() => {
@@ -54,6 +55,7 @@ export function AICoachConversation({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div
+        ref={logRef}
         role="log"
         aria-live="polite"
         aria-label="AI Coach conversation"
@@ -120,7 +122,6 @@ export function AICoachConversation({
             <Loader2 className="animate-spin text-brand" size={17} /> AI Coach is thinking...
           </p>
         )}
-        <div ref={logEndRef} />
       </div>
 
       <form

@@ -53,7 +53,7 @@ export function AICoachPage() {
       </header>
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <Card className="flex min-h-[34rem] flex-col overflow-hidden !p-0">
+        <Card className="flex h-[clamp(26rem,calc(100dvh-13rem),48rem)] flex-col overflow-hidden !p-0">
           <div className="flex items-center justify-between gap-3 border-b border-line-light px-4 py-3 sm:px-5">
             <div className="min-w-0">
               <p className="text-sm font-bold text-ink">{activeSkill.label} focus</p>
