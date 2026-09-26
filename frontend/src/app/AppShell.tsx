@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowLeft, BookOpen, ChevronDown, ChevronRight, ClipboardList, GraduationCap, LayoutDashboard, ListChecks, LogIn, MoreHorizontal, Timer, UserPlus, UserRound, X } from 'lucide-react'
+import { BookOpen, ChevronDown, ChevronRight, ClipboardList, GraduationCap, LayoutDashboard, ListChecks, LogIn, MoreHorizontal, Timer, UserPlus, UserRound, X } from 'lucide-react'
 import {
   mobilePrimaryNav,
   mobilePrimaryPaths,
@@ -9,25 +9,15 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { AccountControl } from '../components/AccountControl'
 import { AppUpdateNotice } from '../components/AppUpdateNotice'
 import { HardRefreshButton } from '../components/HardRefreshButton'
+import { BackButton } from '../components/BackButton'
 import { AICoachProvider } from '../features/coach/AICoachProvider'
 import { AICoachWidget } from '../features/coach/AICoachWidget'
 import { useAuth } from '../features/auth/AuthProvider'
 
-// Destinations that manage their own navigation chrome (splash/auth pages, and
-// session/workspace screens that already render an Exit control) omit the
-// shared Back button. Everything else is an interior page that gets one.
-const BACK_HIDDEN_PATHS = new Set(['/', '/signin', '/register', '/recovery'])
-const BACK_HIDDEN_PREFIXES = [
-  '/reading/session/',
-  '/writing/session/',
-  '/speaking/session/',
-]
-
-function showBackButton(pathname: string): boolean {
-  if (BACK_HIDDEN_PATHS.has(pathname)) return false
-  if (BACK_HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return false
-  if (/^\/mock\/[^/]+/.test(pathname)) return false
-  return true
+// Every page gets the shared Back button. The dashboard is home, so it only
+// shows one when there is an earlier in-app page to return to.
+function showBackButton(pathname: string, locationKey: string): boolean {
+  return pathname !== '/' || locationKey !== 'default'
 }
 
 function MoreMenu({
@@ -348,17 +338,7 @@ function AppShellLayout() {
     (group) => location.pathname === group.to || group.items.some((item) => location.pathname === item.to),
   )
 
-  const showBack = showBackButton(location.pathname)
-  const handleBack = () => {
-    // In-app entries carry a router-generated key; direct/refreshed entries use
-    // the sentinel 'default' key, so there is no previous in-app page to return
-    // to and the button falls back to the dashboard instead.
-    if (location.key !== 'default') {
-      navigate(-1)
-    } else {
-      navigate('/', { replace: true })
-    }
-  }
+  const showBack = showBackButton(location.pathname, location.key)
 
   // One-shot confirmation notices (e.g. after account deletion) are carried in
   // the route state so a public destination can announce them for assistive
@@ -476,15 +456,7 @@ function AppShellLayout() {
         )}
         {showBack && (
           <div className="mx-auto mb-4 w-full">
-            <button
-              type="button"
-              onClick={handleBack}
-              aria-label="Go back"
-              className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-secondary hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-            >
-              <ArrowLeft size={16} aria-hidden="true" />
-              <span>Back</span>
-            </button>
+            <BackButton />
           </div>
         )}
         <div key={location.pathname} className="mx-auto w-full max-w-7xl animate-fade-up">

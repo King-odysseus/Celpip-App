@@ -116,34 +116,40 @@ describe('routing', () => {
 })
 
 describe('back button', () => {
-  it('is hidden on the dashboard and auth pages', () => {
-    for (const path of ['/', '/signin', '/register', '/recovery']) {
+  it('is hidden on the dashboard when there is no earlier page', () => {
+    renderApp('/')
+    expect(
+      screen.queryByRole('button', { name: 'Go back' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows on the dashboard after in-app navigation', async () => {
+    const { router } = renderApp('/learn')
+    await act(async () => {
+      await router.navigate('/')
+    })
+    expect(
+      await screen.findByRole('button', { name: 'Go back' }),
+    ).toBeInTheDocument()
+  })
+
+  it('is visible on every other page, including auth, session and mock pages', () => {
+    for (const path of [
+      '/learn',
+      '/signin',
+      '/register',
+      '/recovery',
+      '/reading/session/abc',
+      '/writing/session/abc',
+      '/speaking/session/abc',
+      '/mock/abc',
+    ]) {
       const { unmount } = renderApp(path)
       expect(
-        screen.queryByRole('button', { name: 'Go back' }),
-      ).not.toBeInTheDocument()
+        screen.getByRole('button', { name: 'Go back' }),
+      ).toBeInTheDocument()
       unmount()
     }
-  })
-
-  it('is visible on interior pages', () => {
-    renderApp('/learn')
-    const back = screen.getByRole('button', { name: 'Go back' })
-    expect(back).toBeInTheDocument()
-    expect(screen.getByText('Back')).toBeInTheDocument()
-  })
-
-  it('is hidden on session and mock workspace pages', () => {
-    const { unmount } = renderApp('/reading/session/abc')
-    expect(
-      screen.queryByRole('button', { name: 'Go back' }),
-    ).not.toBeInTheDocument()
-    unmount()
-
-    renderApp('/mock/abc')
-    expect(
-      screen.queryByRole('button', { name: 'Go back' }),
-    ).not.toBeInTheDocument()
   })
 
   it('falls back to the dashboard on a direct entry', async () => {
