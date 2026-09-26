@@ -112,19 +112,29 @@ else
     echo "Listening audio regeneration disabled at startup."
 fi
 
-# AI feedback worker. Speaking and Writing submissions enqueue an AIJob in the
-# database; this supervised loop claims and runs them, so learner feedback
-# actually lands instead of sitting "queued" forever. It runs in the same
-# container as the web process because this deployment is a single service. The
-# loop restarts the worker if it ever crashes (e.g. a transient database error)
-# and is backgrounded so Gunicorn below can take over as PID 1 via `exec`.
-echo "Starting AI feedback worker..."
-(
-    while true; do
-        python manage.py run_ai_worker || true
-        sleep 5
-    done
-) &
+# AI feedback workers. Speaking and Writing submissions enqueue an AIJob in
+# the database; these supervised loops claim and run them, so learner
+# feedback actually lands instead of sitting "queued" forever. They run in
+# the same container as the web process because this deployment is a single
+# service. Each loop restarts its worker if it ever crashes (e.g. a transient
+# database error) and is backgrounded so Gunicorn below can take over as PID 1
+# via `exec`.
+#
+# More than one loop lets jobs run in parallel (claim_next_job uses
+# SELECT ... FOR UPDATE SKIP LOCKED, so loops never queue up behind each
+# other's lock) instead of one submission's feedback waiting behind another's.
+AI_WORKER_CONCURRENCY="${AI_WORKER_CONCURRENCY:-3}"
+echo "Starting ${AI_WORKER_CONCURRENCY} AI feedback worker(s)..."
+i=0
+while [ "$i" -lt "$AI_WORKER_CONCURRENCY" ]; do
+    (
+        while true; do
+            python manage.py run_ai_worker || true
+            sleep 5
+        done
+    ) &
+    i=$((i + 1))
+done
 
 PORT="${PORT:-8000}"
 WEB_CONCURRENCY="${WEB_CONCURRENCY:-2}"

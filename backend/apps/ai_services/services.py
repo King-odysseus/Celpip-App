@@ -188,9 +188,17 @@ def enqueue_response_exemplar(session_item) -> AIJob:
 
 @transaction.atomic
 def claim_next_job() -> AIJob | None:
+    """Lock and claim the oldest due job.
+
+    ``skip_locked`` lets several worker processes run concurrently: a worker
+    that finds the oldest row already locked by another worker moves on to
+    the next one instead of blocking behind it. PostgreSQL (production)
+    honours this; SQLite (dev/tests) ignores it silently and behaves as
+    before, since it has no row locking at all.
+    """
     now = timezone.now()
     job = (
-        AIJob.objects.select_for_update()
+        AIJob.objects.select_for_update(skip_locked=True)
         .filter(status=AIJobStatus.QUEUED, run_after__lte=now)
         .order_by("created_at")
         .first()

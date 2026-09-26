@@ -338,6 +338,12 @@ OPENAI_IMAGE_MODEL = os.environ.get("OPENAI_IMAGE_MODEL", "gpt-image-2").strip()
 AI_MAX_ATTEMPTS = int(os.environ.get("AI_MAX_ATTEMPTS", "3"))
 AI_JOB_POLL_SECONDS = float(os.environ.get("AI_JOB_POLL_SECONDS", "2"))
 
+# Bounds how long the model spends "thinking" before answering. Feedback and
+# the coach are learner-facing and time-sensitive, so this defaults low rather
+# than the model's own default, which can otherwise vary a lot per request.
+# Set to "" to omit the parameter and use the model's default effort.
+AI_REASONING_EFFORT = os.environ.get("AI_REASONING_EFFORT", "low").strip()
+
 # ── Listening audio synthesis (text-to-speech) ──────────────────────────────
 # Stored Listening audio is generated once and reused. Regeneration tries these
 # providers in order until one returns a valid WAV. This order is deliberately

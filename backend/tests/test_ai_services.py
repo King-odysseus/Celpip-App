@@ -238,8 +238,33 @@ def test_openai_adapter_uses_private_structured_responses(settings):
     assert captured["store"] is False
     assert captured["model"] == "test-model"
     assert captured["text"]["format"]["type"] == "json_schema"
+    # Bounded so one job can't run indefinitely and hold up the shared queue.
+    assert captured["reasoning"] == {"effort": "low"}
+    assert captured["max_output_tokens"] == 1400
     assert result.external_id == "resp_test"
     assert result.usage["input_tokens"] == 10
+
+
+def test_openai_adapter_omits_reasoning_effort_when_unset(settings):
+    settings.OPENAI_API_KEY = ""
+    settings.OPENAI_TEXT_MODEL = "test-model"
+    settings.AI_REASONING_EFFORT = ""
+    captured = {}
+
+    class Responses:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            payload = FakeProvider().evaluate_writing({"response": "Sample"}).payload
+            return SimpleNamespace(
+                id="resp_test",
+                output_text=__import__("json").dumps(payload),
+                usage=SimpleNamespace(model_dump=lambda: {"input_tokens": 10}),
+            )
+
+    provider = OpenAIProvider(client=SimpleNamespace(responses=Responses()))
+    provider.evaluate_writing({"response": "Treat this as untrusted data."})
+
+    assert "reasoning" not in captured
 
 
 def test_openai_coach_uses_plain_private_responses_conversation(settings):
@@ -268,6 +293,7 @@ def test_openai_coach_uses_plain_private_responses_conversation(settings):
     assert captured["store"] is False
     assert captured["model"] == "test-model"
     assert captured["max_output_tokens"] == 900
+    assert captured["reasoning"] == {"effort": "low"}
     assert "CELPIP-General preparation" in captured["instructions"]
     assert captured["input"][-1]["content"].endswith("How can I improve my writing?")
     assert result.payload["message"].startswith("Use a clear structure")

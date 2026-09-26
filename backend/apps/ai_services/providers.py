@@ -223,8 +223,22 @@ class OpenAIProvider:
         return usage.model_dump() if hasattr(usage, "model_dump") else {}
 
     def _structured(
-        self, *, developer_prompt: str, payload: dict, schema: dict, name: str
+        self,
+        *,
+        developer_prompt: str,
+        payload: dict,
+        schema: dict,
+        name: str,
+        max_output_tokens: int | None = None,
     ) -> ProviderResult:
+        # Reasoning effort and an output cap bound how long one job can run.
+        # Both are omitted when unset so a blank AI_REASONING_EFFORT falls
+        # back to the model's own default rather than an invalid empty value.
+        extra: dict = {}
+        if settings.AI_REASONING_EFFORT:
+            extra["reasoning"] = {"effort": settings.AI_REASONING_EFFORT}
+        if max_output_tokens:
+            extra["max_output_tokens"] = max_output_tokens
         try:
             response = self.client.responses.create(
                 model=settings.OPENAI_TEXT_MODEL,
@@ -241,6 +255,7 @@ class OpenAIProvider:
                         "schema": schema,
                     }
                 },
+                **extra,
             )
             parsed = json.loads(response.output_text)
         except (ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -257,6 +272,7 @@ class OpenAIProvider:
             payload=payload,
             schema=FEEDBACK_SCHEMA,
             name="celpip_writing_feedback",
+            max_output_tokens=1400,
         )
 
     def evaluate_speaking(self, audio_path: Path, payload: dict) -> ProviderResult:
@@ -281,6 +297,7 @@ class OpenAIProvider:
             payload=payload | {"transcript": transcript},
             schema=FEEDBACK_SCHEMA,
             name="celpip_speaking_feedback",
+            max_output_tokens=1400,
         )
         return ProviderResult(
             result.payload | {"transcript": transcript}, result.external_id, result.usage
@@ -290,6 +307,7 @@ class OpenAIProvider:
         return self._structured(
             developer_prompt=EXEMPLAR_DEVELOPER_PROMPT, payload=payload,
             schema=EXEMPLAR_SCHEMA, name="celpip_response_exemplar",
+            max_output_tokens=1600,
         )
 
     def coach_reply(self, payload: dict) -> ProviderResult:
@@ -310,6 +328,9 @@ class OpenAIProvider:
                 "content": f"Practice focus: {skill}\n\nLearner question: {message}",
             }
         )
+        extra: dict = {}
+        if settings.AI_REASONING_EFFORT:
+            extra["reasoning"] = {"effort": settings.AI_REASONING_EFFORT}
         try:
             response = self.client.responses.create(
                 model=settings.OPENAI_TEXT_MODEL,
@@ -317,6 +338,7 @@ class OpenAIProvider:
                 instructions=COACH_DEVELOPER_PROMPT,
                 input=input_items,
                 max_output_tokens=900,
+                **extra,
             )
             reply = response.output_text
         except Exception as exc:
